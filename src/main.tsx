@@ -90,6 +90,16 @@ function formatMoney(cents?: number | null, currency = 'gbp') {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.toUpperCase() }).format(cents / 100);
 }
 
+function getPublicAppUrl() {
+  const configuredUrl = import.meta.env.VITE_PUBLIC_APP_URL?.trim();
+  const fallbackUrl = typeof window === 'undefined' ? '' : window.location.origin;
+  return (configuredUrl || fallbackUrl).replace(/\/+$/, '');
+}
+
+function getJoinUrl(joinCode: string) {
+  return `${getPublicAppUrl()}/join/${joinCode}`;
+}
+
 type Game = {
   id: string;
   name: string;
@@ -409,7 +419,7 @@ function Dashboard({ session }: { session: Session }) {
     () => packs.filter((pack) => pack.tier === 'free' || (pack.tier === 'pro' && canUseProPacks) || (pack.tier === 'creator' && canUseCreatorFeatures)),
     [canUseCreatorFeatures, canUseProPacks, packs],
   );
-  const selectedJoinUrl = selectedGame ? `${window.location.origin}/join/${selectedGame.join_code}` : '';
+  const selectedJoinUrl = selectedGame ? getJoinUrl(selectedGame.join_code) : '';
   const authDisplayName = typeof session.user.user_metadata?.display_name === 'string' ? session.user.user_metadata.display_name : '';
   const hostDisplayName = profile?.display_name || authDisplayName || 'Host';
   const accountEmail = profile?.email || session.user.email || '';
@@ -1994,7 +2004,7 @@ function GameTableRow({
   onSummary: () => void;
   onStart: () => void;
 }) {
-  const joinUrl = `${window.location.origin}/join/${game.join_code}`;
+  const joinUrl = getJoinUrl(game.join_code);
   const created = new Intl.DateTimeFormat(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(game.created_at));
   const totalPlayers = playerCount ?? 0;
   const joinedPlayers = joinedCount ?? 0;
@@ -2835,7 +2845,7 @@ function GameRow({
   onDelete: () => void;
   onSelect: () => void;
 }) {
-  const joinUrl = `${window.location.origin}/join/${game.join_code}`;
+  const joinUrl = getJoinUrl(game.join_code);
 
   return (
     <article className={`game-row ${selected ? 'selected' : ''}`}>
