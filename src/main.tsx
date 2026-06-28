@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clipboard, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Send, Trash2, User, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clipboard, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Send, Trash2, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import './styles.css';
@@ -190,6 +190,7 @@ const defaultForm = {
 };
 
 const RESULT_TOAST_DURATION_MS = 3600;
+const SOUND_PREFERENCE_KEY = 'quizo_game_sound_enabled';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -3399,9 +3400,16 @@ function GameRoom({
   const [visibleTimeoutId, setVisibleTimeoutId] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const [displayTurnTimer, setDisplayTurnTimer] = useState<{ key: string; activeAtMs: number; endsAtMs: number } | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(SOUND_PREFERENCE_KEY) !== 'false';
+  });
+  const audioContextRef = useRef<AudioContext | null>(null);
   const expiringTurnRef = useRef<string | null>(null);
   const latestAnswerRef = useRef<string | null>(room.latest_answer?.id || null);
   const latestTimeoutRef = useRef<string | null>(null);
+  const latestTickRef = useRef('');
+  const finalSoundRef = useRef('');
 
   const isMyTurn = Boolean(playerIdentity?.memberId && playerIdentity.memberId === room.game.current_member_id);
   const myMember = playerIdentity ? room.members.find((member) => member.id === playerIdentity.memberId) || null : null;
@@ -3430,6 +3438,88 @@ function GameRoom({
   const timeoutToastVisible = Boolean(latestTimeoutEvent && visibleTimeoutId === latestTimeoutEvent.id);
   const delayingFinalReveal = room.game.status === 'finished' && (resultToastVisible || timeoutToastVisible);
   const showFinalResults = room.game.status === 'finished' && !delayingFinalReveal;
+
+  function getAudioContext() {
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return null;
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContextClass();
+    }
+
+    return audioContextRef.current;
+  }
+
+  function playTone(frequency: number, startTime: number, duration: number, type: OscillatorType, gain = 0.08) {
+    const context = getAudioContext();
+    if (!context || !soundEnabled) return;
+
+    const oscillator = context.createOscillator();
+    const envelope = context.createGain();
+
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, startTime);
+    envelope.gain.setValueAtTime(0.0001, startTime);
+    envelope.gain.exponentialRampToValueAtTime(gain, startTime + 0.015);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    oscillator.connect(envelope);
+    envelope.connect(context.destination);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration + 0.02);
+  }
+
+  function playGameSound(kind: 'correct' | 'wrong' | 'recovered' | 'timeout' | 'tick' | 'winner') {
+    if (!soundEnabled) return;
+
+    const context = getAudioContext();
+    if (!context) return;
+
+    if (context.state === 'suspended') {
+      void context.resume();
+    }
+
+    const start = context.currentTime;
+
+    if (kind === 'correct') {
+      playTone(660, start, 0.1, 'sine', 0.07);
+      playTone(880, start + 0.09, 0.14, 'sine', 0.07);
+      return;
+    }
+
+    if (kind === 'recovered') {
+      playTone(520, start, 0.09, 'sine', 0.07);
+      playTone(740, start + 0.08, 0.1, 'sine', 0.07);
+      playTone(1040, start + 0.17, 0.16, 'sine', 0.08);
+      return;
+    }
+
+    if (kind === 'wrong') {
+      playTone(210, start, 0.16, 'sawtooth', 0.055);
+      playTone(150, start + 0.12, 0.18, 'sawtooth', 0.045);
+      return;
+    }
+
+    if (kind === 'timeout') {
+      playTone(180, start, 0.12, 'square', 0.05);
+      playTone(140, start + 0.16, 0.18, 'square', 0.045);
+      return;
+    }
+
+    if (kind === 'tick') {
+      playTone(920, start, 0.055, 'triangle', 0.045);
+      return;
+    }
+
+    playTone(520, start, 0.1, 'sine', 0.065);
+    playTone(660, start + 0.09, 0.1, 'sine', 0.065);
+    playTone(880, start + 0.18, 0.16, 'sine', 0.075);
+  }
+
+  function toggleSound() {
+    const nextValue = !soundEnabled;
+    setSoundEnabled(nextValue);
+    localStorage.setItem(SOUND_PREFERENCE_KEY, String(nextValue));
+  }
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 100);
@@ -3468,6 +3558,9 @@ function GameRoom({
     }
 
     setVisibleAnswerId(room.latest_answer.id);
+    if (isNewAnswer) {
+      playGameSound(room.latest_answer.is_correct ? ((room.latest_answer.attempt || 1) > 1 ? 'recovered' : 'correct') : 'wrong');
+    }
     const revealTimer = window.setTimeout(() => setVisibleAnswerId(null), RESULT_TOAST_DURATION_MS);
     return () => window.clearTimeout(revealTimer);
   }, [room.latest_answer?.id]);
@@ -3489,9 +3582,32 @@ function GameRoom({
     }
 
     setVisibleTimeoutId(latestTimeoutEvent.id);
+    if (isNewTimeout) {
+      playGameSound('timeout');
+    }
     const revealTimer = window.setTimeout(() => setVisibleTimeoutId(null), RESULT_TOAST_DURATION_MS);
     return () => window.clearTimeout(revealTimer);
   }, [latestTimeoutEvent?.id]);
+
+  useEffect(() => {
+    if (room.game.status !== 'active' || preparingNextQuestion || delayingFinalReveal || secondsLeft > 3 || secondsLeft <= 0) return;
+
+    const tickKey = `${turnTimerKey}:${secondsLeft}`;
+    if (latestTickRef.current === tickKey) return;
+
+    latestTickRef.current = tickKey;
+    playGameSound('tick');
+  }, [delayingFinalReveal, preparingNextQuestion, room.game.status, secondsLeft, turnTimerKey]);
+
+  useEffect(() => {
+    if (!showFinalResults) return;
+
+    const finalKey = `${room.game.id}:${room.game.status}`;
+    if (finalSoundRef.current === finalKey) return;
+
+    finalSoundRef.current = finalKey;
+    playGameSound('winner');
+  }, [room.game.id, room.game.status, showFinalResults]);
 
   useEffect(() => {
     if (room.game.status !== 'active' || !room.game.current_question_id || secondsLeft > 0) return;
@@ -3610,6 +3726,9 @@ function GameRoom({
                   <span>{secondsLeft}s</span>
                 </div>
               )}
+              <button className={`sound-toggle compact ${soundEnabled ? 'enabled' : ''}`} onClick={toggleSound} type="button" aria-label={soundEnabled ? 'Turn sound off' : 'Turn sound on'} title={soundEnabled ? 'Sound on' : 'Sound off'}>
+                {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+              </button>
             </div>
           </div>
           <section className="question-panel">

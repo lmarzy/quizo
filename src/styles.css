@@ -3413,7 +3413,9 @@ textarea:focus {
 }
 
 .game-room-header-spacer {
-  min-width: 1px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
 }
 
 .game-room-status {
@@ -3427,6 +3429,36 @@ textarea:focus {
 .game-room-status .eyebrow {
   margin: 0;
   white-space: nowrap;
+}
+
+.sound-toggle {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: #050505;
+  background: white;
+  box-shadow: var(--shadow-tight);
+}
+
+.sound-toggle:hover {
+  border-color: #050505;
+  transform: translateY(-1px);
+}
+
+.sound-toggle.enabled {
+  color: white;
+  border-color: #050505;
+  background: #050505;
+}
+
+.sound-toggle.compact {
+  width: 34px;
+  height: 34px;
+  margin: 6px auto 0;
+  box-shadow: none;
 }
 
 .timer-pill {
