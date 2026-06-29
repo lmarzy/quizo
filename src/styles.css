@@ -3934,6 +3934,33 @@ textarea:focus {
   gap: 12px;
 }
 
+.speed-answer-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.speed-answer-strip span {
+  border: 1px solid #e5e5e5;
+  border-radius: 999px;
+  background: #f7f7f7;
+  color: #171717;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 8px 11px;
+}
+
+.speed-answer-strip span.correct {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.speed-answer-strip span.wrong {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
 .answer-button {
   min-height: 82px;
   display: flex;
