@@ -3159,6 +3159,7 @@ type GameRoomPayload = {
   }>;
   latest_answer: {
     id: string;
+    member_id?: string;
     member_name: string;
     selected_option: string;
     is_correct: boolean;
@@ -3225,6 +3226,16 @@ function JoinGame({ joinCode }: { joinCode: string }) {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'game_events', filter: `game_id=eq.${gameId}` },
+        () => void loadJoinGame(false),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'speed_rounds', filter: `game_id=eq.${gameId}` },
+        () => void loadJoinGame(false),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'speed_round_answers', filter: `game_id=eq.${gameId}` },
         () => void loadJoinGame(false),
       )
       .subscribe();
@@ -3444,6 +3455,8 @@ function HostGameRoom({ joinCode, hostMember }: { joinCode: string; hostMember: 
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `id=eq.${room.game.id}` }, () => void loadRoom())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'game_members', filter: `game_id=eq.${room.game.id}` }, () => void loadRoom())
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_events', filter: `game_id=eq.${room.game.id}` }, () => void loadRoom())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'speed_rounds', filter: `game_id=eq.${room.game.id}` }, () => void loadRoom())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'speed_round_answers', filter: `game_id=eq.${room.game.id}` }, () => void loadRoom())
       .subscribe();
 
     const pollId = window.setInterval(() => void loadRoom(), 5000);
@@ -3513,14 +3526,23 @@ function GameRoom({
   const isSpeedRound = room.game.game_mode === 'speed_round';
   const mySpeedAnswers = playerIdentity?.memberId ? room.speed_round?.answers.filter((answer) => answer.member_id === playerIdentity.memberId) || [] : [];
   const myLatestSpeedAnswer = mySpeedAnswers[mySpeedAnswers.length - 1] || null;
-  const speedLockedMember = isSpeedRound && room.game.current_member_id ? room.members.find((member) => member.id === room.game.current_member_id) || null : null;
+  const inferredSpeedLockMemberId =
+    isSpeedRound &&
+    room.game.current_turn_attempt === 2 &&
+    room.latest_answer &&
+    !room.latest_answer.is_correct &&
+    room.latest_answer.selected_option !== 'TIMEOUT'
+      ? room.latest_answer.member_id || room.members.find((member) => member.display_name === room.latest_answer?.member_name)?.id || null
+      : null;
+  const speedLockedMemberId = isSpeedRound ? room.game.current_member_id || inferredSpeedLockMemberId : null;
+  const speedLockedMember = speedLockedMemberId ? room.members.find((member) => member.id === speedLockedMemberId) || null : null;
   const speedIsSecondChance = isSpeedRound && Boolean(speedLockedMember);
-  const hasSpeedSecondChance = Boolean(speedIsSecondChance && playerIdentity?.memberId === room.game.current_member_id);
+  const hasSpeedSecondChance = Boolean(speedIsSecondChance && playerIdentity?.memberId === speedLockedMemberId);
   const isMyTurn = isSpeedRound
     ? Boolean(
         playerIdentity?.memberId &&
           myMemberIsActive(room.members, playerIdentity.memberId) &&
-          (!room.game.current_member_id || room.game.current_member_id === playerIdentity.memberId),
+          (!speedLockedMemberId || speedLockedMemberId === playerIdentity.memberId),
       )
     : Boolean(playerIdentity?.memberId && playerIdentity.memberId === room.game.current_member_id);
   const myMember = playerIdentity ? room.members.find((member) => member.id === playerIdentity.memberId) || null : null;
@@ -3926,7 +3948,7 @@ function GameRoom({
             )}
           </section>
 
-          <LiveLeaderboard members={room.members} activeMemberId={room.game.current_member_id} myMemberId={playerIdentity?.memberId || null} />
+          <LiveLeaderboard members={room.members} activeMemberId={isSpeedRound ? speedLockedMemberId : room.game.current_member_id} myMemberId={playerIdentity?.memberId || null} />
         </div>
       )}
 
