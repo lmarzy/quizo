@@ -105,8 +105,10 @@ type Game = {
   name: string;
   join_code: string;
   status: string;
+  game_mode: string;
   question_pack_id: string | null;
   starting_points: number;
+  target_points: number;
   wrong_answer_penalty: number;
   recovery_points: number;
   question_time_limit_seconds: number;
@@ -157,8 +159,10 @@ type MemberDraft = {
 
 type GameSettingsDraft = {
   name: string;
+  game_mode: string;
   question_pack_id: string;
   starting_points: number;
+  target_points: number;
   wrong_answer_penalty: number;
   recovery_points: number;
   question_time_limit_seconds: number;
@@ -181,8 +185,10 @@ type ConfirmDialogState = {
 
 const defaultForm = {
   name: '',
+  gameMode: 'classic',
   questionPackId: '',
   startingPoints: 100,
+  targetPoints: 100,
   wrongPenalty: 10,
   recoveryPoints: 10,
   timeLimit: 10,
@@ -493,8 +499,10 @@ function Dashboard({ session }: { session: Session }) {
 
     setGameSettingsDraft({
       name: selectedGame.name,
+      game_mode: selectedGame.game_mode || 'classic',
       question_pack_id: selectedGame.question_pack_id || packs[0]?.id || '',
       starting_points: selectedGame.starting_points,
+      target_points: selectedGame.target_points || 100,
       wrong_answer_penalty: selectedGame.wrong_answer_penalty,
       recovery_points: selectedGame.recovery_points,
       question_time_limit_seconds: selectedGame.question_time_limit_seconds,
@@ -542,7 +550,7 @@ function Dashboard({ session }: { session: Session }) {
         supabase
           .from('games')
           .select(
-            'id,name,join_code,status,question_pack_id,starting_points,wrong_answer_penalty,recovery_points,question_time_limit_seconds,current_member_id,current_question_id,current_turn_attempt,max_consecutive_questions,timer_ends_at,created_at',
+            'id,name,join_code,status,game_mode,question_pack_id,starting_points,target_points,wrong_answer_penalty,recovery_points,question_time_limit_seconds,current_member_id,current_question_id,current_turn_attempt,max_consecutive_questions,timer_ends_at,created_at',
           )
           .order('created_at', { ascending: false }),
       ]);
@@ -716,7 +724,7 @@ function Dashboard({ session }: { session: Session }) {
       return;
     }
 
-    if (form.startingPoints <= 0 || form.timeLimit < 5 || form.maxConsecutiveQuestions < 1) {
+    if ((form.gameMode === 'classic' && form.startingPoints <= 0) || form.targetPoints <= 0 || form.timeLimit < 5 || form.maxConsecutiveQuestions < 1) {
       setWizardNotice('Check the rules before creating the game.');
       setWizardStep(2);
       return;
@@ -743,7 +751,9 @@ function Dashboard({ session }: { session: Session }) {
       question_pack_id: form.questionPackId || null,
       name: form.name.trim(),
       join_code: '',
+      game_mode: form.gameMode,
       starting_points: form.startingPoints,
+      target_points: form.targetPoints,
       wrong_answer_penalty: form.wrongPenalty,
       recovery_points: form.recoveryPoints,
       question_time_limit_seconds: form.timeLimit,
@@ -1047,8 +1057,10 @@ function Dashboard({ session }: { session: Session }) {
 
     const patch = {
       name: gameSettingsDraft.name.trim(),
+      game_mode: gameSettingsDraft.game_mode,
       question_pack_id: gameSettingsDraft.question_pack_id,
       starting_points: Math.max(0, Number(gameSettingsDraft.starting_points)),
+      target_points: Math.max(1, Number(gameSettingsDraft.target_points)),
       wrong_answer_penalty: Math.max(0, Number(gameSettingsDraft.wrong_answer_penalty)),
       recovery_points: Math.max(0, Number(gameSettingsDraft.recovery_points)),
       question_time_limit_seconds: Math.max(5, Number(gameSettingsDraft.question_time_limit_seconds)),
@@ -2016,7 +2028,9 @@ function GameTableRow({
     <tr className={selected ? 'selected' : ''}>
       <td>
         <strong>{game.name}</strong>
-        <span className="table-subline">Created {created}</span>
+        <span className="table-subline">
+          {game.game_mode === 'speed_round' ? 'Speed Round' : 'Classic'} · Created {created}
+        </span>
       </td>
       <td>
         <span className={`status-pill ${game.status}`}>{game.status}</span>
@@ -2281,7 +2295,26 @@ function GameManageDrawer({
                   ))}
                 </select>
               </label>
+              <label className="wide">
+                Game mode
+                <select
+                  value={draft.game_mode}
+                  onChange={(event) => {
+                    const nextMode = event.target.value;
+                    updateDraft({
+                      game_mode: nextMode,
+                      starting_points: nextMode === 'speed_round' ? 0 : draft.starting_points || 100,
+                      target_points: nextMode === 'speed_round' ? draft.target_points || 100 : draft.target_points,
+                    });
+                  }}
+                  disabled={!canManage}
+                >
+                  <option value="classic">Classic last player standing</option>
+                  <option value="speed_round">Speed round</option>
+                </select>
+              </label>
               <NumberInput label="Starting points" value={draft.starting_points} disabled={!canManage} onChange={(value) => updateDraft({ starting_points: value })} />
+              {draft.game_mode === 'speed_round' && <NumberInput label="Target points" value={draft.target_points} disabled={!canManage} onChange={(value) => updateDraft({ target_points: value })} />}
               <NumberInput label="Wrong penalty" value={draft.wrong_answer_penalty} disabled={!canManage} onChange={(value) => updateDraft({ wrong_answer_penalty: value })} />
               <NumberInput label="Correct points" value={draft.recovery_points} disabled={!canManage} onChange={(value) => updateDraft({ recovery_points: value })} />
               <NumberInput
@@ -2451,7 +2484,8 @@ function GameWizardModal({
   const steps = ['Basics', 'Rules', 'Players', 'Review'];
   const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId);
   const canAdvanceRules =
-    form.startingPoints > 0 &&
+    (form.gameMode === 'speed_round' || form.startingPoints > 0) &&
+    form.targetPoints > 0 &&
     form.wrongPenalty >= 0 &&
     form.recoveryPoints >= 0 &&
     form.timeLimit >= 5 &&
@@ -2561,17 +2595,36 @@ function GameWizardModal({
                   ))}
                 </select>
               </label>
+              <div className="wide mode-choice-grid">
+                <button
+                  className={`mode-choice-card ${form.gameMode === 'classic' ? 'selected' : ''}`}
+                  onClick={() => setForm({ ...form, gameMode: 'classic', startingPoints: form.startingPoints || 100 })}
+                  type="button"
+                >
+                  <strong>Classic</strong>
+                  <span>Start with points. Wrong answers chip away until one player remains.</span>
+                </button>
+                <button
+                  className={`mode-choice-card ${form.gameMode === 'speed_round' ? 'selected' : ''}`}
+                  onClick={() => setForm({ ...form, gameMode: 'speed_round', startingPoints: 0, targetPoints: form.targetPoints || 100 })}
+                  type="button"
+                >
+                  <strong>Speed Round</strong>
+                  <span>Start at zero. Race to the target while wrong answers can send you backwards.</span>
+                </button>
+              </div>
             </div>
           )}
 
           {step === 2 && (
             <div className="form-grid">
               <NumberInput label="Starting points" value={form.startingPoints} onChange={(value) => setForm({ ...form, startingPoints: value })} />
+              {form.gameMode === 'speed_round' && <NumberInput label="Target points" value={form.targetPoints} onChange={(value) => setForm({ ...form, targetPoints: value })} />}
               <NumberInput label="Wrong penalty" value={form.wrongPenalty} onChange={(value) => setForm({ ...form, wrongPenalty: value })} />
               <NumberInput label="Correct points" value={form.recoveryPoints} onChange={(value) => setForm({ ...form, recoveryPoints: value })} />
               <NumberInput label="Seconds/question" value={form.timeLimit} onChange={(value) => setForm({ ...form, timeLimit: value })} />
               <NumberInput label="Questions/turn" value={form.maxConsecutiveQuestions} onChange={(value) => setForm({ ...form, maxConsecutiveQuestions: value })} />
-              {!canAdvanceRules && <p className="form-helper wide">Use at least 1 starting point, 5 seconds per question, and 1 question per turn.</p>}
+              {!canAdvanceRules && <p className="form-helper wide">Check the scores, target, 5 seconds per question, and at least 1 question per turn.</p>}
             </div>
           )}
 
@@ -2643,9 +2696,13 @@ function GameWizardModal({
                 <strong>{selectedPack?.name || 'No pack selected'}</strong>
               </div>
               <div>
+                <span>Mode</span>
+                <strong>{form.gameMode === 'speed_round' ? 'Speed Round' : 'Classic'}</strong>
+              </div>
+              <div>
                 <span>Rules</span>
                 <strong>
-                  {form.startingPoints} pts · -{form.wrongPenalty} wrong · +{form.recoveryPoints} recovery · {form.timeLimit}s
+                  {form.gameMode === 'speed_round' ? `${form.startingPoints} start · ${form.targetPoints} target` : `${form.startingPoints} pts`} · -{form.wrongPenalty} wrong · +{form.recoveryPoints} correct · {form.timeLimit}s
                 </strong>
               </div>
               <div>
@@ -2853,7 +2910,7 @@ function GameRow({
       <div>
         <h3>{game.name}</h3>
         <p>
-          {game.status} · {game.starting_points} pts · -{game.wrong_answer_penalty} wrong · {game.question_time_limit_seconds}s
+          {game.status} · {game.game_mode === 'speed_round' ? `Race to ${game.target_points}` : `${game.starting_points} pts`} · -{game.wrong_answer_penalty} wrong · {game.question_time_limit_seconds}s
         </p>
       </div>
       <div className="join-code">
@@ -3028,6 +3085,8 @@ type JoinGamePayload = {
     name: string;
     join_code: string;
     status: string;
+    game_mode?: string;
+    target_points?: number;
     starting_points: number;
     question_time_limit_seconds: number;
   };
@@ -3052,6 +3111,8 @@ type GameRoomPayload = {
     name: string;
     join_code: string;
     status: string;
+    game_mode?: string;
+    target_points?: number;
     question_time_limit_seconds?: number;
     timer_ends_at: string | null;
     current_member_id: string | null;
@@ -3239,7 +3300,7 @@ function JoinGame({ joinCode }: { joinCode: string }) {
               <p className="eyebrow">Game code {payload.game.join_code}</p>
               <h1>{payload.game.name}</h1>
               <p>
-                {payload.game.status} · {payload.game.starting_points} starting points · {payload.game.question_time_limit_seconds}s per question
+                {payload.game.status} · {payload.game.game_mode === 'speed_round' ? `Race to ${payload.game.target_points || 100}` : `${payload.game.starting_points} starting points`} · {payload.game.question_time_limit_seconds}s per question
               </p>
             </div>
 

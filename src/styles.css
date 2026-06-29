@@ -2452,6 +2452,45 @@ textarea:focus {
   min-height: 46px;
 }
 
+.mode-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mode-choice-card {
+  min-height: 112px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #050505;
+  background: white;
+  text-align: left;
+}
+
+.mode-choice-card:hover {
+  border-color: #050505;
+  transform: translateY(-1px);
+}
+
+.mode-choice-card.selected {
+  border-color: #050505;
+  box-shadow: inset 4px 0 0 #050505;
+}
+
+.mode-choice-card strong {
+  font-size: 17px;
+}
+
+.mode-choice-card span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .wizard-player-list {
   display: grid;
   gap: 10px;
@@ -4699,6 +4738,10 @@ textarea:focus {
   }
 
   .subscription-detail-list {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-choice-grid {
     grid-template-columns: 1fr;
   }
 
