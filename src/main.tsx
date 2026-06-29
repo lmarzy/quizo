@@ -3180,6 +3180,7 @@ type GameRoomPayload = {
       selected_option: string;
       is_correct: boolean;
       points_delta: number;
+      attempt?: number;
       answered_at: string;
     }>;
   } | null;
@@ -3512,6 +3513,9 @@ function GameRoom({
   const isSpeedRound = room.game.game_mode === 'speed_round';
   const speedAnsweredIds = room.speed_round?.answered_member_ids || [];
   const hasAnsweredSpeedRound = Boolean(playerIdentity?.memberId && speedAnsweredIds.includes(playerIdentity.memberId));
+  const mySpeedAnswers = playerIdentity?.memberId ? room.speed_round?.answers.filter((answer) => answer.member_id === playerIdentity.memberId) || [] : [];
+  const myLatestSpeedAnswer = mySpeedAnswers[mySpeedAnswers.length - 1] || null;
+  const hasSpeedSecondChance = isSpeedRound && Boolean(myLatestSpeedAnswer && !myLatestSpeedAnswer.is_correct && !hasAnsweredSpeedRound);
   const isMyTurn = isSpeedRound
     ? Boolean(playerIdentity?.memberId && myMemberIsActive(room.members, playerIdentity.memberId) && !hasAnsweredSpeedRound)
     : Boolean(playerIdentity?.memberId && playerIdentity.memberId === room.game.current_member_id);
@@ -3822,10 +3826,12 @@ function GameRoom({
                     : isRecoveryQuestion
                       ? 'Get it right to recover the points'
                       : 'Get ready'
-                  : isSpeedRound
-                    ? hasAnsweredSpeedRound
-                      ? 'You are locked in. Waiting for the others.'
-                      : `You are ${myMember ? myMember.display_name : 'watching'}`
+                    : isSpeedRound
+                      ? hasAnsweredSpeedRound
+                        ? 'You are locked in. Waiting for the others.'
+                        : hasSpeedSecondChance
+                          ? 'Second chance: pick again to recover'
+                          : `You are ${myMember ? myMember.display_name : 'watching'}`
                     : isRecoveryQuestion
                       ? 'Get it right to win the points back'
                       : `You are ${myMember ? myMember.display_name : 'watching'}`}
@@ -3865,7 +3871,7 @@ function GameRoom({
               </div>
             ) : (
               <>
-                {isMyTurn && <p className={`player-context ${isRecoveryQuestion ? 'recovery' : ''}`}>{isRecoveryQuestion ? 'Second chance: recover the points' : 'Choose an answer'}</p>}
+                {isMyTurn && <p className={`player-context ${isRecoveryQuestion || hasSpeedSecondChance ? 'recovery' : ''}`}>{isRecoveryQuestion || hasSpeedSecondChance ? 'Second chance: recover the points' : 'Choose an answer'}</p>}
                 {isSpeedRound && !isMyTurn && hasAnsweredSpeedRound && <p className="player-context">Answer locked in</p>}
                 <h2>{room.question?.prompt || 'No question loaded'}</h2>
                 <div className="answer-grid">
@@ -3891,7 +3897,7 @@ function GameRoom({
                   <div className="speed-answer-strip">
                     {room.speed_round.answers.map((answer, index) => (
                       <span className={answer.is_correct ? 'correct' : 'wrong'} key={answer.id}>
-                        {index + 1}. {answer.member_name}
+                        {index + 1}. {answer.member_name}{answer.attempt && answer.attempt > 1 ? ` · chance ${answer.attempt}` : ''}
                       </span>
                     ))}
                   </div>
