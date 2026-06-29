@@ -3511,13 +3511,17 @@ function GameRoom({
   const finalSoundRef = useRef('');
 
   const isSpeedRound = room.game.game_mode === 'speed_round';
-  const speedAnsweredIds = room.speed_round?.answered_member_ids || [];
-  const hasAnsweredSpeedRound = Boolean(playerIdentity?.memberId && speedAnsweredIds.includes(playerIdentity.memberId));
   const mySpeedAnswers = playerIdentity?.memberId ? room.speed_round?.answers.filter((answer) => answer.member_id === playerIdentity.memberId) || [] : [];
   const myLatestSpeedAnswer = mySpeedAnswers[mySpeedAnswers.length - 1] || null;
-  const hasSpeedSecondChance = isSpeedRound && Boolean(myLatestSpeedAnswer && !myLatestSpeedAnswer.is_correct && !hasAnsweredSpeedRound);
+  const speedLockedMember = isSpeedRound && room.game.current_member_id ? room.members.find((member) => member.id === room.game.current_member_id) || null : null;
+  const speedIsSecondChance = isSpeedRound && Boolean(speedLockedMember);
+  const hasSpeedSecondChance = Boolean(speedIsSecondChance && playerIdentity?.memberId === room.game.current_member_id);
   const isMyTurn = isSpeedRound
-    ? Boolean(playerIdentity?.memberId && myMemberIsActive(room.members, playerIdentity.memberId) && !hasAnsweredSpeedRound)
+    ? Boolean(
+        playerIdentity?.memberId &&
+          myMemberIsActive(room.members, playerIdentity.memberId) &&
+          (!room.game.current_member_id || room.game.current_member_id === playerIdentity.memberId),
+      )
     : Boolean(playerIdentity?.memberId && playerIdentity.memberId === room.game.current_member_id);
   const myMember = playerIdentity ? room.members.find((member) => member.id === playerIdentity.memberId) || null : null;
   const latestTimeoutEvent = room.events.find((event) => event.event_type === 'turn_timed_out') || null;
@@ -3816,22 +3820,24 @@ function GameRoom({
                         ? 'Recovery question'
                         : 'On turn'}
               </span>
-              <strong>{delayingFinalReveal ? room.latest_answer?.member_name || room.active_member?.display_name || 'Last answer' : isSpeedRound ? `${speedAnsweredIds.length} / ${room.members.filter((member) => member.status === 'active').length} locked in` : room.active_member?.display_name || 'Waiting'}</strong>
+              <strong>{delayingFinalReveal ? room.latest_answer?.member_name || room.active_member?.display_name || 'Last answer' : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
               <small>
                 {delayingFinalReveal
                   ? 'Revealing the winner next'
                   : preparingNextQuestion
                   ? isSpeedRound
-                    ? 'Get ready for the next shared question'
+                    ? speedLockedMember
+                      ? `${speedLockedMember.display_name} gets one more go`
+                      : 'Get ready for the next shared question'
                     : isRecoveryQuestion
                       ? 'Get it right to recover the points'
                       : 'Get ready'
                     : isSpeedRound
-                      ? hasAnsweredSpeedRound
-                        ? 'You are locked in. Waiting for the others.'
-                        : hasSpeedSecondChance
+                      ? hasSpeedSecondChance
                           ? 'Second chance: pick again to recover'
-                          : `You are ${myMember ? myMember.display_name : 'watching'}`
+                          : speedLockedMember
+                            ? `Waiting for ${speedLockedMember.display_name}`
+                            : `You are ${myMember ? myMember.display_name : 'watching'}`
                     : isRecoveryQuestion
                       ? 'Get it right to win the points back'
                       : `You are ${myMember ? myMember.display_name : 'watching'}`}
@@ -3872,7 +3878,7 @@ function GameRoom({
             ) : (
               <>
                 {isMyTurn && <p className={`player-context ${isRecoveryQuestion || hasSpeedSecondChance ? 'recovery' : ''}`}>{isRecoveryQuestion || hasSpeedSecondChance ? 'Second chance: recover the points' : 'Choose an answer'}</p>}
-                {isSpeedRound && !isMyTurn && hasAnsweredSpeedRound && <p className="player-context">Answer locked in</p>}
+                {isSpeedRound && !isMyTurn && speedLockedMember && <p className="player-context">{speedLockedMember.display_name}'s second chance</p>}
                 <h2>{room.question?.prompt || 'No question loaded'}</h2>
                 <div className="answer-grid">
                   {room.question &&
@@ -3907,9 +3913,9 @@ function GameRoom({
                   <p className="empty-state">
                     {isSpeedRound
                       ? myMember
-                        ? hasAnsweredSpeedRound
-                          ? 'Waiting for the rest of the players to answer.'
-                          : 'Get ready for the next round.'
+                        ? speedLockedMember
+                          ? `Waiting for ${speedLockedMember.display_name} to take their second chance.`
+                          : 'Get ready to buzz in.'
                         : 'This browser has not claimed a player.'
                       : myMember
                         ? `Waiting for ${room.active_member?.display_name || 'the active player'} to answer.`
