@@ -109,6 +109,8 @@ type Game = {
   question_pack_id: string | null;
   starting_points: number;
   target_points: number;
+  elimination_rounds: number;
+  questions_per_round: number;
   wrong_answer_penalty: number;
   recovery_points: number;
   question_time_limit_seconds: number;
@@ -163,6 +165,8 @@ type GameSettingsDraft = {
   question_pack_id: string;
   starting_points: number;
   target_points: number;
+  elimination_rounds: number;
+  questions_per_round: number;
   wrong_answer_penalty: number;
   recovery_points: number;
   question_time_limit_seconds: number;
@@ -189,6 +193,8 @@ const defaultForm = {
   questionPackId: '',
   startingPoints: 100,
   targetPoints: 100,
+  eliminationRounds: 3,
+  questionsPerRound: 3,
   wrongPenalty: 10,
   recoveryPoints: 10,
   timeLimit: 10,
@@ -503,6 +509,8 @@ function Dashboard({ session }: { session: Session }) {
       question_pack_id: selectedGame.question_pack_id || packs[0]?.id || '',
       starting_points: selectedGame.starting_points,
       target_points: selectedGame.target_points || 100,
+      elimination_rounds: selectedGame.elimination_rounds || 3,
+      questions_per_round: selectedGame.questions_per_round || 3,
       wrong_answer_penalty: selectedGame.wrong_answer_penalty,
       recovery_points: selectedGame.recovery_points,
       question_time_limit_seconds: selectedGame.question_time_limit_seconds,
@@ -550,7 +558,7 @@ function Dashboard({ session }: { session: Session }) {
         supabase
           .from('games')
           .select(
-            'id,name,join_code,status,game_mode,question_pack_id,starting_points,target_points,wrong_answer_penalty,recovery_points,question_time_limit_seconds,current_member_id,current_question_id,current_turn_attempt,max_consecutive_questions,timer_ends_at,created_at',
+            'id,name,join_code,status,game_mode,question_pack_id,starting_points,target_points,elimination_rounds,questions_per_round,wrong_answer_penalty,recovery_points,question_time_limit_seconds,current_member_id,current_question_id,current_turn_attempt,max_consecutive_questions,timer_ends_at,created_at',
           )
           .order('created_at', { ascending: false }),
       ]);
@@ -725,8 +733,9 @@ function Dashboard({ session }: { session: Session }) {
     }
 
     const isTargetMode = form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
+    const isEliminationMode = form.gameMode === 'elimination_ladder';
 
-    if ((!isTargetMode && form.startingPoints <= 0) || form.targetPoints <= 0 || form.timeLimit < 5 || form.maxConsecutiveQuestions < 1) {
+    if ((!isTargetMode && form.startingPoints <= 0) || form.targetPoints <= 0 || form.timeLimit < 5 || form.maxConsecutiveQuestions < 1 || (isEliminationMode && (form.eliminationRounds < 1 || form.questionsPerRound < 1))) {
       setWizardNotice('Check the rules before creating the game.');
       setWizardStep(2);
       return;
@@ -756,6 +765,8 @@ function Dashboard({ session }: { session: Session }) {
       game_mode: form.gameMode,
       starting_points: form.startingPoints,
       target_points: form.targetPoints,
+      elimination_rounds: form.eliminationRounds,
+      questions_per_round: form.questionsPerRound,
       wrong_answer_penalty: form.wrongPenalty,
       recovery_points: form.recoveryPoints,
       question_time_limit_seconds: form.timeLimit,
@@ -1063,6 +1074,8 @@ function Dashboard({ session }: { session: Session }) {
       question_pack_id: gameSettingsDraft.question_pack_id,
       starting_points: Math.max(0, Number(gameSettingsDraft.starting_points)),
       target_points: Math.max(1, Number(gameSettingsDraft.target_points)),
+      elimination_rounds: Math.max(1, Number(gameSettingsDraft.elimination_rounds)),
+      questions_per_round: Math.max(1, Number(gameSettingsDraft.questions_per_round)),
       wrong_answer_penalty: Math.max(0, Number(gameSettingsDraft.wrong_answer_penalty)),
       recovery_points: Math.max(0, Number(gameSettingsDraft.recovery_points)),
       question_time_limit_seconds: Math.max(5, Number(gameSettingsDraft.question_time_limit_seconds)),
@@ -2314,10 +2327,13 @@ function GameManageDrawer({
                   <option value="classic">Classic last player standing</option>
                   <option value="race_to_points">Race to points</option>
                   <option value="speed_round">Speed round</option>
+                  <option value="elimination_ladder">Elimination ladder</option>
                 </select>
               </label>
               <NumberInput label="Starting points" value={draft.starting_points} disabled={!canManage} onChange={(value) => updateDraft({ starting_points: value })} />
               {(draft.game_mode === 'race_to_points' || draft.game_mode === 'speed_round') && <NumberInput label="Target points" value={draft.target_points} disabled={!canManage} onChange={(value) => updateDraft({ target_points: value })} />}
+              {draft.game_mode === 'elimination_ladder' && <NumberInput label="Ladder rounds" value={draft.elimination_rounds} disabled={!canManage} onChange={(value) => updateDraft({ elimination_rounds: value })} />}
+              {draft.game_mode === 'elimination_ladder' && <NumberInput label="Questions/round" value={draft.questions_per_round} disabled={!canManage} onChange={(value) => updateDraft({ questions_per_round: value })} />}
               <NumberInput label="Wrong penalty" value={draft.wrong_answer_penalty} disabled={!canManage} onChange={(value) => updateDraft({ wrong_answer_penalty: value })} />
               <NumberInput label="Correct points" value={draft.recovery_points} disabled={!canManage} onChange={(value) => updateDraft({ recovery_points: value })} />
               <NumberInput
@@ -2329,7 +2345,7 @@ function GameManageDrawer({
               <NumberInput
                 label="Questions/turn"
                 value={draft.max_consecutive_questions}
-                disabled={!canManage || draft.game_mode === 'speed_round'}
+                disabled={!canManage || draft.game_mode === 'speed_round' || draft.game_mode === 'elimination_ladder'}
                 onChange={(value) => updateDraft({ max_consecutive_questions: value })}
               />
             </div>
@@ -2487,9 +2503,11 @@ function GameWizardModal({
   const steps = ['Basics', 'Rules', 'Players', 'Review'];
   const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId);
   const isTargetMode = form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
+  const isEliminationMode = form.gameMode === 'elimination_ladder';
   const canAdvanceRules =
     (isTargetMode || form.startingPoints > 0) &&
     form.targetPoints > 0 &&
+    (!isEliminationMode || (form.eliminationRounds > 0 && form.questionsPerRound > 0)) &&
     form.wrongPenalty >= 0 &&
     form.recoveryPoints >= 0 &&
     form.timeLimit >= 5 &&
@@ -2624,6 +2642,14 @@ function GameWizardModal({
                   <strong>Speed Round</strong>
                   <span>Everyone answers the same question. Fastest responses land first on the board.</span>
                 </button>
+                <button
+                  className={`mode-choice-card ${form.gameMode === 'elimination_ladder' ? 'selected' : ''}`}
+                  onClick={() => setForm({ ...form, gameMode: 'elimination_ladder', startingPoints: form.startingPoints || 100, eliminationRounds: form.eliminationRounds || 3, questionsPerRound: form.questionsPerRound || 3 })}
+                  type="button"
+                >
+                  <strong>Elimination Ladder</strong>
+                  <span>Everyone answers each question. Lowest score drops after each ladder round.</span>
+                </button>
               </div>
             </div>
           )}
@@ -2632,11 +2658,13 @@ function GameWizardModal({
             <div className="form-grid">
               <NumberInput label="Starting points" value={form.startingPoints} onChange={(value) => setForm({ ...form, startingPoints: value })} />
               {isTargetMode && <NumberInput label="Target points" value={form.targetPoints} onChange={(value) => setForm({ ...form, targetPoints: value })} />}
+              {isEliminationMode && <NumberInput label="Ladder rounds" value={form.eliminationRounds} onChange={(value) => setForm({ ...form, eliminationRounds: value })} />}
+              {isEliminationMode && <NumberInput label="Questions/round" value={form.questionsPerRound} onChange={(value) => setForm({ ...form, questionsPerRound: value })} />}
               <NumberInput label="Wrong penalty" value={form.wrongPenalty} onChange={(value) => setForm({ ...form, wrongPenalty: value })} />
               <NumberInput label="Correct points" value={form.recoveryPoints} onChange={(value) => setForm({ ...form, recoveryPoints: value })} />
               <NumberInput label="Seconds/question" value={form.timeLimit} onChange={(value) => setForm({ ...form, timeLimit: value })} />
-              {form.gameMode !== 'speed_round' && <NumberInput label="Questions/turn" value={form.maxConsecutiveQuestions} onChange={(value) => setForm({ ...form, maxConsecutiveQuestions: value })} />}
-              {!canAdvanceRules && <p className="form-helper wide">Check the scores, target, 5 seconds per question, and at least 1 question per turn.</p>}
+              {form.gameMode !== 'speed_round' && form.gameMode !== 'elimination_ladder' && <NumberInput label="Questions/turn" value={form.maxConsecutiveQuestions} onChange={(value) => setForm({ ...form, maxConsecutiveQuestions: value })} />}
+              {!canAdvanceRules && <p className="form-helper wide">Check the scores, target, ladder rounds, question count, 5 seconds per question, and at least 1 question per turn.</p>}
             </div>
           )}
 
@@ -2714,7 +2742,11 @@ function GameWizardModal({
               <div>
                 <span>Rules</span>
                 <strong>
-                  {isTargetMode ? `${form.startingPoints} start · ${form.targetPoints} target` : `${form.startingPoints} pts`} · -{form.wrongPenalty} wrong · +{form.recoveryPoints} correct · {form.timeLimit}s
+                  {isEliminationMode
+                    ? `${form.startingPoints} pts · ${form.eliminationRounds} rounds · ${form.questionsPerRound} questions/round`
+                    : isTargetMode
+                      ? `${form.startingPoints} start · ${form.targetPoints} target`
+                      : `${form.startingPoints} pts`} · -{form.wrongPenalty} wrong · +{form.recoveryPoints} correct · {form.timeLimit}s
                 </strong>
               </div>
               <div>
@@ -2922,7 +2954,7 @@ function GameRow({
       <div>
         <h3>{game.name}</h3>
         <p>
-          {game.status} · {getGameModeLabel(game.game_mode)} · {game.game_mode === 'race_to_points' || game.game_mode === 'speed_round' ? `Race to ${game.target_points}` : `${game.starting_points} pts`} · -{game.wrong_answer_penalty} wrong · {game.question_time_limit_seconds}s
+          {game.status} · {getGameModeLabel(game.game_mode)} · {game.game_mode === 'elimination_ladder' ? `${game.elimination_rounds} rounds` : game.game_mode === 'race_to_points' || game.game_mode === 'speed_round' ? `Race to ${game.target_points}` : `${game.starting_points} pts`} · -{game.wrong_answer_penalty} wrong · {game.question_time_limit_seconds}s
         </p>
       </div>
       <div className="join-code">
@@ -3099,6 +3131,8 @@ type JoinGamePayload = {
     status: string;
     game_mode?: string;
     target_points?: number;
+    elimination_rounds?: number;
+    questions_per_round?: number;
     starting_points: number;
     question_time_limit_seconds: number;
   };
@@ -3125,6 +3159,8 @@ type GameRoomPayload = {
     status: string;
     game_mode?: string;
     target_points?: number;
+    elimination_rounds?: number;
+    questions_per_round?: number;
     question_time_limit_seconds?: number;
     timer_ends_at: string | null;
     current_member_id: string | null;
@@ -3188,6 +3224,7 @@ type GameRoomPayload = {
 };
 
 function getGameModeLabel(mode?: string | null) {
+  if (mode === 'elimination_ladder') return 'Elimination Ladder';
   if (mode === 'speed_round') return 'Speed Round';
   if (mode === 'race_to_points') return 'Race to Points';
   return 'Classic';
@@ -3345,7 +3382,7 @@ function JoinGame({ joinCode }: { joinCode: string }) {
               <p className="eyebrow">Game code {payload.game.join_code}</p>
               <h1>{payload.game.name}</h1>
               <p>
-                {payload.game.status} · {getGameModeLabel(payload.game.game_mode)} · {payload.game.game_mode === 'race_to_points' || payload.game.game_mode === 'speed_round' ? `Race to ${payload.game.target_points || 100}` : `${payload.game.starting_points} starting points`} · {payload.game.question_time_limit_seconds}s per question
+                {payload.game.status} · {getGameModeLabel(payload.game.game_mode)} · {payload.game.game_mode === 'elimination_ladder' ? `${payload.game.elimination_rounds || 3} rounds · ${payload.game.questions_per_round || 3} questions/round` : payload.game.game_mode === 'race_to_points' || payload.game.game_mode === 'speed_round' ? `Race to ${payload.game.target_points || 100}` : `${payload.game.starting_points} starting points`} · {payload.game.question_time_limit_seconds}s per question
               </p>
             </div>
 
@@ -3524,8 +3561,11 @@ function GameRoom({
   const finalSoundRef = useRef('');
 
   const isSpeedRound = room.game.game_mode === 'speed_round';
+  const isEliminationLadder = room.game.game_mode === 'elimination_ladder';
+  const isSharedQuestionMode = isSpeedRound || isEliminationLadder;
   const mySpeedAnswers = playerIdentity?.memberId ? room.speed_round?.answers.filter((answer) => answer.member_id === playerIdentity.memberId) || [] : [];
   const myLatestSpeedAnswer = mySpeedAnswers[mySpeedAnswers.length - 1] || null;
+  const hasAnsweredSharedQuestion = Boolean(isEliminationLadder && mySpeedAnswers.length > 0);
   const inferredSpeedLockMemberId =
     isSpeedRound &&
     room.game.current_turn_attempt === 2 &&
@@ -3538,11 +3578,12 @@ function GameRoom({
   const speedLockedMember = speedLockedMemberId ? room.members.find((member) => member.id === speedLockedMemberId) || null : null;
   const speedIsSecondChance = isSpeedRound && Boolean(speedLockedMember);
   const hasSpeedSecondChance = Boolean(speedIsSecondChance && playerIdentity?.memberId === speedLockedMemberId);
-  const isMyTurn = isSpeedRound
+  const isMyTurn = isSharedQuestionMode
     ? Boolean(
         playerIdentity?.memberId &&
           myMemberIsActive(room.members, playerIdentity.memberId) &&
-          (!speedLockedMemberId || speedLockedMemberId === playerIdentity.memberId),
+          (!isSpeedRound || !speedLockedMemberId || speedLockedMemberId === playerIdentity.memberId) &&
+          (!isEliminationLadder || !hasAnsweredSharedQuestion),
       )
     : Boolean(playerIdentity?.memberId && playerIdentity.memberId === room.game.current_member_id);
   const myMember = playerIdentity ? room.members.find((member) => member.id === playerIdentity.memberId) || null : null;
@@ -3772,7 +3813,7 @@ function GameRoom({
     setAnswerBusy(true);
     setAnswerMessage('');
 
-    const answerRpc = isSpeedRound ? 'submit_speed_round_answer' : 'submit_game_answer';
+    const answerRpc = isEliminationLadder ? 'submit_elimination_ladder_answer' : isSpeedRound ? 'submit_speed_round_answer' : 'submit_game_answer';
     const { error } = await supabase.rpc(answerRpc, {
       p_join_code: joinCode,
       p_member_id: playerIdentity.memberId,
@@ -3836,25 +3877,33 @@ function GameRoom({
                       : isRecoveryQuestion
                         ? 'Second chance next'
                         : 'Up next'
-                    : isSpeedRound
+                    : isEliminationLadder
+                      ? 'Everyone answers'
+                      : isSpeedRound
                       ? 'Everyone answers'
                       : isRecoveryQuestion
                         ? 'Recovery question'
                         : 'On turn'}
               </span>
-              <strong>{delayingFinalReveal ? room.latest_answer?.member_name || room.active_member?.display_name || 'Last answer' : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
+              <strong>{delayingFinalReveal ? room.latest_answer?.member_name || room.active_member?.display_name || 'Last answer' : isEliminationLadder ? `${room.speed_round?.answers.length || 0} answered` : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
               <small>
                 {delayingFinalReveal
                   ? 'Revealing the winner next'
                   : preparingNextQuestion
-                  ? isSpeedRound
+                  ? isEliminationLadder
+                    ? 'Get ready for the next ladder question'
+                    : isSpeedRound
                     ? speedLockedMember
                       ? `${speedLockedMember.display_name} gets one more go`
                       : 'Get ready for the next shared question'
                     : isRecoveryQuestion
                       ? 'Get it right to recover the points'
                       : 'Get ready'
-                    : isSpeedRound
+                    : isEliminationLadder
+                      ? hasAnsweredSharedQuestion
+                        ? 'Answer locked. Waiting for everyone else.'
+                        : `You are ${myMember ? myMember.display_name : 'watching'}`
+                      : isSpeedRound
                       ? hasSpeedSecondChance
                           ? 'Second chance: pick again to recover'
                           : speedLockedMember
@@ -3866,9 +3915,9 @@ function GameRoom({
               </small>
             </div>
             <div className="turn-meta">
-              <span>{delayingFinalReveal ? 'Result' : preparingNextQuestion ? 'Starts in' : isSpeedRound ? 'Round' : isRecoveryQuestion ? 'Chance' : 'Question'}</span>
+              <span>{delayingFinalReveal ? 'Result' : preparingNextQuestion ? 'Starts in' : isEliminationLadder ? 'Question' : isSpeedRound ? 'Round' : isRecoveryQuestion ? 'Chance' : 'Question'}</span>
               <strong>
-                {delayingFinalReveal ? 'Soon' : preparingNextQuestion ? `${nextQuestionInSeconds}s` : isSpeedRound ? `${room.speed_round?.round_number || currentAttempt}` : isRecoveryQuestion ? `${currentAttempt} / ${maxAttempts}` : `${currentAttempt} / ${maxAttempts}`}
+                {delayingFinalReveal ? 'Soon' : preparingNextQuestion ? `${nextQuestionInSeconds}s` : isEliminationLadder ? `${currentAttempt} / ${room.game.questions_per_round || 3}` : isSpeedRound ? `${room.speed_round?.round_number || currentAttempt}` : isRecoveryQuestion ? `${currentAttempt} / ${maxAttempts}` : `${currentAttempt} / ${maxAttempts}`}
               </strong>
               {!preparingNextQuestion && !delayingFinalReveal && (
                 <div className="turn-countdown">
@@ -3901,6 +3950,7 @@ function GameRoom({
               <>
                 {isMyTurn && <p className={`player-context ${isRecoveryQuestion || hasSpeedSecondChance ? 'recovery' : ''}`}>{isRecoveryQuestion || hasSpeedSecondChance ? 'Second chance: recover the points' : 'Choose an answer'}</p>}
                 {isSpeedRound && !isMyTurn && speedLockedMember && <p className="player-context">{speedLockedMember.display_name}'s second chance</p>}
+                {isEliminationLadder && hasAnsweredSharedQuestion && <p className="player-context">Answer locked</p>}
                 <h2>{room.question?.prompt || 'No question loaded'}</h2>
                 <div className="answer-grid">
                   {room.question &&
@@ -3921,7 +3971,7 @@ function GameRoom({
                       </button>
                     ))}
                 </div>
-                {isSpeedRound && room.speed_round && room.speed_round.answers.length > 0 && (
+                {isSharedQuestionMode && room.speed_round && room.speed_round.answers.length > 0 && (
                   <div className="speed-answer-strip">
                     {room.speed_round.answers.map((answer, index) => (
                       <span className={answer.is_correct ? 'correct' : 'wrong'} key={answer.id}>
@@ -3933,7 +3983,13 @@ function GameRoom({
                 {answerMessage && <p className="form-message">{answerMessage}</p>}
                 {!isMyTurn && (
                   <p className="empty-state">
-                    {isSpeedRound
+                    {isEliminationLadder
+                      ? myMember
+                        ? hasAnsweredSharedQuestion
+                          ? 'Waiting for the rest of the ladder answers.'
+                          : 'Get ready for the next ladder question.'
+                        : 'This browser has not claimed a player.'
+                      : isSpeedRound
                       ? myMember
                         ? speedLockedMember
                           ? `Waiting for ${speedLockedMember.display_name} to take their second chance.`
