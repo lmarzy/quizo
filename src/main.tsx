@@ -202,6 +202,7 @@ const defaultForm = {
 };
 
 const RESULT_TOAST_DURATION_MS = 3600;
+const LADDER_ROUND_RESULT_DURATION_MS = 5200;
 const SOUND_PREFERENCE_KEY = 'quizo_game_sound_enabled';
 
 function App() {
@@ -3189,8 +3190,14 @@ type GameRoomPayload = {
   }>;
   events: Array<{
     id: string;
+    member_id?: string | null;
     event_type: string;
     message: string;
+    metadata?: {
+      ladder_round?: number;
+      points?: number;
+      [key: string]: unknown;
+    } | null;
     created_at: string;
   }>;
   latest_answer: {
@@ -3588,6 +3595,13 @@ function GameRoom({
     : Boolean(playerIdentity?.memberId && playerIdentity.memberId === room.game.current_member_id);
   const myMember = playerIdentity ? room.members.find((member) => member.id === playerIdentity.memberId) || null : null;
   const latestTimeoutEvent = room.events.find((event) => event.event_type === 'turn_timed_out') || null;
+  const latestLadderEliminationEvent = isEliminationLadder ? room.events.find((event) => event.event_type === 'player_eliminated') || null : null;
+  const roundResultAgeMs = latestLadderEliminationEvent ? now - new Date(latestLadderEliminationEvent.created_at).getTime() : Number.POSITIVE_INFINITY;
+  const roundResultVisible = Boolean(latestLadderEliminationEvent && roundResultAgeMs >= 0 && roundResultAgeMs <= LADDER_ROUND_RESULT_DURATION_MS);
+  const roundResultSeconds = roundResultVisible ? Math.max(1, Math.ceil((LADDER_ROUND_RESULT_DURATION_MS - roundResultAgeMs) / 1000)) : 0;
+  const roundLoser = latestLadderEliminationEvent?.member_id ? room.members.find((member) => member.id === latestLadderEliminationEvent.member_id) || null : null;
+  const roundWinner = isEliminationLadder ? [...room.members].sort((a, b) => b.points - a.points || a.turn_order - b.turn_order)[0] || null : null;
+  const ladderRoundNumber = Math.max(1, Math.ceil((room.speed_round?.round_number || 1) / (room.game.questions_per_round || 3)));
   const timerEndMs = room.game.timer_ends_at ? new Date(room.game.timer_ends_at).getTime() : null;
   const timeLimit = room.game.question_time_limit_seconds || 10;
   const timeLimitMs = timeLimit * 1000;
@@ -3595,7 +3609,7 @@ function GameRoom({
   const displayTimerReady = displayTurnTimer?.key === turnTimerKey;
   const remainingMs = displayTimerReady ? Math.max(0, displayTurnTimer.endsAtMs - now) : timerEndMs ? Math.max(0, timerEndMs - now) : 0;
   const revealHoldMs = displayTimerReady ? Math.max(0, displayTurnTimer.activeAtMs - now) : Math.max(0, remainingMs - timeLimitMs);
-  const preparingNextQuestion = room.game.status === 'active' && Boolean(timerEndMs) && (revealHoldMs > 0 || remainingMs > timeLimitMs);
+  const preparingNextQuestion = room.game.status === 'active' && !roundResultVisible && Boolean(timerEndMs) && (revealHoldMs > 0 || remainingMs > timeLimitMs);
   const nextQuestionInSeconds = preparingNextQuestion ? Math.ceil((revealHoldMs > 0 ? revealHoldMs : remainingMs - timeLimitMs) / 1000) : 0;
   const visibleRemainingMs = revealHoldMs > 0 ? timeLimitMs : Math.min(remainingMs, timeLimitMs);
   const secondsLeft = Math.ceil(visibleRemainingMs / 1000);
@@ -3611,7 +3625,7 @@ function GameRoom({
   const latestAnswerIsTimeout = room.latest_answer?.selected_option === 'TIMEOUT';
   const resultToastVisible = Boolean(room.latest_answer && !latestAnswerIsTimeout && visibleAnswerId === room.latest_answer.id);
   const timeoutToastVisible = Boolean(latestTimeoutEvent && visibleTimeoutId === latestTimeoutEvent.id);
-  const delayingFinalReveal = room.game.status === 'finished' && (resultToastVisible || timeoutToastVisible);
+  const delayingFinalReveal = room.game.status === 'finished' && (resultToastVisible || timeoutToastVisible || roundResultVisible);
   const showFinalResults = room.game.status === 'finished' && !delayingFinalReveal;
 
   function getAudioContext() {
@@ -3709,12 +3723,12 @@ function GameRoom({
 
     const receivedAtMs = Date.now();
     const serverRemainingMs = Math.max(0, timerEndMs - receivedAtMs);
-    const hasFreshResult = resultToastVisible || timeoutToastVisible;
-    const activeAtMs = hasFreshResult ? receivedAtMs + RESULT_TOAST_DURATION_MS : receivedAtMs;
+    const resultHoldMs = roundResultVisible ? LADDER_ROUND_RESULT_DURATION_MS : resultToastVisible || timeoutToastVisible ? RESULT_TOAST_DURATION_MS : 0;
+    const activeAtMs = resultHoldMs ? receivedAtMs + resultHoldMs : receivedAtMs;
     const endsAtMs = serverRemainingMs > timeLimitMs ? receivedAtMs + serverRemainingMs : activeAtMs + timeLimitMs;
 
     setDisplayTurnTimer({ key: turnTimerKey, activeAtMs, endsAtMs });
-  }, [turnTimerKey, resultToastVisible, timeoutToastVisible, timeLimitMs, timerEndMs, room.game.status, room.game.current_question_id]);
+  }, [turnTimerKey, resultToastVisible, roundResultVisible, timeoutToastVisible, timeLimitMs, timerEndMs, room.game.status, room.game.current_question_id]);
 
   useEffect(() => {
     if (!room.latest_answer?.id || room.latest_answer.selected_option === 'TIMEOUT') {
@@ -3765,14 +3779,14 @@ function GameRoom({
   }, [latestTimeoutEvent?.id]);
 
   useEffect(() => {
-    if (room.game.status !== 'active' || preparingNextQuestion || delayingFinalReveal || secondsLeft > 3 || secondsLeft <= 0) return;
+    if (room.game.status !== 'active' || preparingNextQuestion || roundResultVisible || delayingFinalReveal || secondsLeft > 3 || secondsLeft <= 0) return;
 
     const tickKey = `${turnTimerKey}:${secondsLeft}`;
     if (latestTickRef.current === tickKey) return;
 
     latestTickRef.current = tickKey;
     playGameSound('tick');
-  }, [delayingFinalReveal, preparingNextQuestion, room.game.status, secondsLeft, turnTimerKey]);
+  }, [delayingFinalReveal, preparingNextQuestion, roundResultVisible, room.game.status, secondsLeft, turnTimerKey]);
 
   useEffect(() => {
     if (!showFinalResults) return;
@@ -3785,12 +3799,12 @@ function GameRoom({
   }, [room.game.id, room.game.status, showFinalResults]);
 
   useEffect(() => {
-    if (room.game.status !== 'active' || !room.game.current_question_id || secondsLeft > 0) return;
+    if (room.game.status !== 'active' || roundResultVisible || !room.game.current_question_id || secondsLeft > 0) return;
     if (expiringTurnRef.current === room.game.current_question_id) return;
 
     expiringTurnRef.current = room.game.current_question_id;
     void expireTurn();
-  }, [room.game.status, room.game.current_question_id, secondsLeft]);
+  }, [room.game.status, room.game.current_question_id, roundResultVisible, secondsLeft]);
 
   async function expireTurn() {
     const { error } = await supabase.rpc('expire_current_turn', {
@@ -3871,6 +3885,8 @@ function GameRoom({
               <span>
                 {delayingFinalReveal
                   ? 'Final answer'
+                  : roundResultVisible
+                    ? `Round ${latestLadderEliminationEvent?.metadata?.ladder_round || ladderRoundNumber} complete`
                   : preparingNextQuestion
                     ? isSpeedRound
                       ? 'Next round'
@@ -3885,10 +3901,14 @@ function GameRoom({
                         ? 'Recovery question'
                         : 'On turn'}
               </span>
-              <strong>{delayingFinalReveal ? room.latest_answer?.member_name || room.active_member?.display_name || 'Last answer' : isEliminationLadder ? `${room.speed_round?.answers.length || 0} answered` : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
+              <strong>{delayingFinalReveal ? room.latest_answer?.member_name || room.active_member?.display_name || 'Last answer' : roundResultVisible ? `${roundLoser?.display_name || 'Lowest score'} is out` : isEliminationLadder ? `${room.speed_round?.answers.length || 0} answered` : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
               <small>
                 {delayingFinalReveal
                   ? 'Revealing the winner next'
+                  : roundResultVisible
+                    ? roundWinner
+                      ? `${roundWinner.display_name} leads this round. Next question starts shortly.`
+                      : 'Next round starts shortly.'
                   : preparingNextQuestion
                   ? isEliminationLadder
                     ? 'Get ready for the next ladder question'
@@ -3915,11 +3935,11 @@ function GameRoom({
               </small>
             </div>
             <div className="turn-meta">
-              <span>{delayingFinalReveal ? 'Result' : preparingNextQuestion ? 'Starts in' : isEliminationLadder ? 'Question' : isSpeedRound ? 'Round' : isRecoveryQuestion ? 'Chance' : 'Question'}</span>
+              <span>{delayingFinalReveal ? 'Result' : roundResultVisible ? 'Next round' : preparingNextQuestion ? 'Starts in' : isEliminationLadder ? `Round ${ladderRoundNumber}` : isSpeedRound ? 'Round' : isRecoveryQuestion ? 'Chance' : 'Question'}</span>
               <strong>
-                {delayingFinalReveal ? 'Soon' : preparingNextQuestion ? `${nextQuestionInSeconds}s` : isEliminationLadder ? `${currentAttempt} / ${room.game.questions_per_round || 3}` : isSpeedRound ? `${room.speed_round?.round_number || currentAttempt}` : isRecoveryQuestion ? `${currentAttempt} / ${maxAttempts}` : `${currentAttempt} / ${maxAttempts}`}
+                {delayingFinalReveal ? 'Soon' : roundResultVisible ? `${roundResultSeconds}s` : preparingNextQuestion ? `${nextQuestionInSeconds}s` : isEliminationLadder ? `${currentAttempt} / ${room.game.questions_per_round || 3}` : isSpeedRound ? `${room.speed_round?.round_number || currentAttempt}` : isRecoveryQuestion ? `${currentAttempt} / ${maxAttempts}` : `${currentAttempt} / ${maxAttempts}`}
               </strong>
-              {!preparingNextQuestion && !delayingFinalReveal && (
+              {!preparingNextQuestion && !roundResultVisible && !delayingFinalReveal && (
                 <div className="turn-countdown">
                   <span>{secondsLeft}s</span>
                 </div>
@@ -3930,7 +3950,15 @@ function GameRoom({
             </div>
           </div>
           <section className="question-panel">
-            {delayingFinalReveal ? (
+            {roundResultVisible ? (
+              <LadderRoundResult
+                roundNumber={latestLadderEliminationEvent?.metadata?.ladder_round || ladderRoundNumber}
+                winner={roundWinner}
+                loser={roundLoser}
+                seconds={roundResultSeconds}
+                isFinal={room.game.status === 'finished'}
+              />
+            ) : delayingFinalReveal ? (
               <div className="next-question-state final">
                 <span>That's the game</span>
                 <strong>Final answer locked in</strong>
@@ -3938,10 +3966,12 @@ function GameRoom({
               </div>
             ) : preparingNextQuestion ? (
               <div className={`next-question-state ${isRecoveryQuestion ? 'recovery' : ''}`}>
-                <span>{isRecoveryQuestion ? 'Second chance' : 'Next question'}</span>
+                <span>{isEliminationLadder ? `Round ${ladderRoundNumber}` : isRecoveryQuestion ? 'Second chance' : 'Next question'}</span>
                 <strong>{nextQuestionInSeconds}s</strong>
                 <p>
-                  {isRecoveryQuestion
+                  {isEliminationLadder
+                    ? `Question ${currentAttempt} of ${room.game.questions_per_round || 3} is coming up.`
+                    : isRecoveryQuestion
                     ? `${room.active_member?.display_name || 'This player'} can win the points back.`
                     : `${room.active_member?.display_name || 'The next player'} is up next.`}
                 </p>
@@ -4008,6 +4038,40 @@ function GameRoom({
         </div>
       )}
 
+    </div>
+  );
+}
+
+function LadderRoundResult({
+  roundNumber,
+  winner,
+  loser,
+  seconds,
+  isFinal,
+}: {
+  roundNumber: number;
+  winner: GameRoomPayload['members'][number] | null;
+  loser: GameRoomPayload['members'][number] | null;
+  seconds: number;
+  isFinal: boolean;
+}) {
+  return (
+    <div className="ladder-round-result">
+      <span>Round {roundNumber} complete</span>
+      <strong>{winner ? `${winner.display_name} wins the round` : 'Round complete'}</strong>
+      <div className="ladder-result-grid">
+        <article className="round-winner-card">
+          <small>Round winner</small>
+          <b>{winner ? winner.display_name : 'Top score'}</b>
+          <em>{winner ? `${winner.points} pts` : 'Scores updated'}</em>
+        </article>
+        <article className="round-loser-card">
+          <small>Eliminated</small>
+          <b>{loser ? loser.display_name : 'Lowest score'}</b>
+          <em>{loser ? `${loser.points} pts` : 'Out of the ladder'}</em>
+        </article>
+      </div>
+      <p>{isFinal ? 'Final results are coming up.' : `Next round starts in ${seconds}s.`}</p>
     </div>
   );
 }
