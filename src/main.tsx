@@ -3200,18 +3200,8 @@ type GameRoomPayload = {
     } | null;
     created_at: string;
   }>;
-  latest_answer: {
-    id: string;
-    member_id?: string;
-    member_name: string;
-    selected_option: string;
-    is_correct: boolean;
-    points_delta: number;
-    attempt?: number;
-    correct_option: string;
-    correct_answer: string;
-    answered_at: string;
-  } | null;
+  latest_answer: AnswerResult | null;
+  submitted_answer?: AnswerResult | null;
   speed_round: {
     id: string;
     round_number: number;
@@ -3222,12 +3212,25 @@ type GameRoomPayload = {
       member_id: string;
       member_name: string;
       selected_option: string;
-      is_correct: boolean;
+      is_correct: boolean | null;
       points_delta: number;
       attempt?: number;
       answered_at: string;
     }>;
   } | null;
+};
+
+type AnswerResult = {
+    id: string;
+    member_id?: string;
+    member_name: string;
+    selected_option: string;
+    is_correct: boolean;
+    points_delta: number;
+    attempt?: number;
+    correct_option: string;
+    correct_answer: string;
+    answered_at: string;
 };
 
 function getGameModeLabel(mode?: string | null) {
@@ -3552,6 +3555,7 @@ function GameRoom({
 }) {
   const [answerBusy, setAnswerBusy] = useState(false);
   const [answerMessage, setAnswerMessage] = useState('');
+  const [privateAnswer, setPrivateAnswer] = useState<AnswerResult | null>(null);
   const [visibleAnswerId, setVisibleAnswerId] = useState<string | null>(null);
   const [visibleTimeoutId, setVisibleTimeoutId] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -3622,8 +3626,9 @@ function GameRoom({
   const currentAttempt = room.game.current_turn_attempt || 1;
   const maxAttempts = room.game.max_consecutive_questions || 2;
   const isRecoveryQuestion = !isSpeedRound && currentAttempt > 1;
-  const latestAnswerIsTimeout = room.latest_answer?.selected_option === 'TIMEOUT';
-  const resultToastVisible = Boolean(room.latest_answer && !latestAnswerIsTimeout && visibleAnswerId === room.latest_answer.id);
+  const toastAnswer = isEliminationLadder ? privateAnswer : room.latest_answer;
+  const latestAnswerIsTimeout = toastAnswer?.selected_option === 'TIMEOUT';
+  const resultToastVisible = Boolean(toastAnswer && !latestAnswerIsTimeout && visibleAnswerId === toastAnswer.id);
   const timeoutToastVisible = Boolean(latestTimeoutEvent && visibleTimeoutId === latestTimeoutEvent.id);
   const delayingFinalReveal = room.game.status === 'finished' && (resultToastVisible || timeoutToastVisible || roundResultVisible);
   const showFinalResults = room.game.status === 'finished' && !delayingFinalReveal;
@@ -3731,14 +3736,14 @@ function GameRoom({
   }, [turnTimerKey, resultToastVisible, roundResultVisible, timeoutToastVisible, timeLimitMs, timerEndMs, room.game.status, room.game.current_question_id]);
 
   useEffect(() => {
-    if (!room.latest_answer?.id || room.latest_answer.selected_option === 'TIMEOUT') {
+    if (!toastAnswer?.id || toastAnswer.selected_option === 'TIMEOUT') {
       setVisibleAnswerId(null);
       return undefined;
     }
 
-    const isNewAnswer = latestAnswerRef.current !== room.latest_answer.id;
-    latestAnswerRef.current = room.latest_answer.id;
-    const answerAgeMs = Date.now() - new Date(room.latest_answer.answered_at).getTime();
+    const isNewAnswer = latestAnswerRef.current !== toastAnswer.id;
+    latestAnswerRef.current = toastAnswer.id;
+    const answerAgeMs = Date.now() - new Date(toastAnswer.answered_at).getTime();
     const isFreshByTime = answerAgeMs >= 0 && answerAgeMs <= RESULT_TOAST_DURATION_MS;
 
     if (!isNewAnswer && !isFreshByTime) {
@@ -3746,13 +3751,13 @@ function GameRoom({
       return undefined;
     }
 
-    setVisibleAnswerId(room.latest_answer.id);
+    setVisibleAnswerId(toastAnswer.id);
     if (isNewAnswer) {
-      playGameSound(room.latest_answer.is_correct ? ((room.latest_answer.attempt || 1) > 1 ? 'recovered' : 'correct') : 'wrong');
+      playGameSound(toastAnswer.is_correct ? ((toastAnswer.attempt || 1) > 1 ? 'recovered' : 'correct') : 'wrong');
     }
     const revealTimer = window.setTimeout(() => setVisibleAnswerId(null), RESULT_TOAST_DURATION_MS);
     return () => window.clearTimeout(revealTimer);
-  }, [room.latest_answer?.id]);
+  }, [toastAnswer?.id]);
 
   useEffect(() => {
     if (!latestTimeoutEvent?.id) {
@@ -3828,7 +3833,7 @@ function GameRoom({
     setAnswerMessage('');
 
     const answerRpc = isEliminationLadder ? 'submit_elimination_ladder_answer' : isSpeedRound ? 'submit_speed_round_answer' : 'submit_game_answer';
-    const { error } = await supabase.rpc(answerRpc, {
+    const { data, error } = await supabase.rpc(answerRpc, {
       p_join_code: joinCode,
       p_member_id: playerIdentity.memberId,
       p_session_token: playerIdentity.token || '',
@@ -3843,12 +3848,19 @@ function GameRoom({
       return;
     }
 
+    if (isEliminationLadder) {
+      const privateResult = (data as GameRoomPayload | null)?.submitted_answer || null;
+      if (privateResult) {
+        setPrivateAnswer(privateResult);
+      }
+    }
+
     await onRefresh();
   }
 
   return (
     <div className="game-room">
-      {room.latest_answer && resultToastVisible && <AnswerResultToast key={room.latest_answer.id} answer={room.latest_answer} />}
+      {toastAnswer && resultToastVisible && <AnswerResultToast key={toastAnswer.id} answer={toastAnswer} />}
       {latestTimeoutEvent && timeoutToastVisible && <TimeoutResultToast key={latestTimeoutEvent.id} event={latestTimeoutEvent} />}
       <div className="game-room-header">
         <div className="game-room-header-spacer" aria-hidden="true" />
@@ -3901,7 +3913,7 @@ function GameRoom({
                         ? 'Recovery question'
                         : 'On turn'}
               </span>
-              <strong>{delayingFinalReveal ? room.latest_answer?.member_name || room.active_member?.display_name || 'Last answer' : roundResultVisible ? `${roundLoser?.display_name || 'Lowest score'} is out` : isEliminationLadder ? `${room.speed_round?.answers.length || 0} answered` : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
+              <strong>{delayingFinalReveal ? toastAnswer?.member_name || room.active_member?.display_name || 'Last answer' : roundResultVisible ? `${roundLoser?.display_name || 'Lowest score'} is out` : isEliminationLadder ? `${room.speed_round?.answers.length || 0} answered` : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
               <small>
                 {delayingFinalReveal
                   ? 'Revealing the winner next'
@@ -4004,8 +4016,9 @@ function GameRoom({
                 {isSharedQuestionMode && room.speed_round && room.speed_round.answers.length > 0 && (
                   <div className="speed-answer-strip">
                     {room.speed_round.answers.map((answer, index) => (
-                      <span className={answer.is_correct ? 'correct' : 'wrong'} key={answer.id}>
-                        {index + 1}. {answer.member_name}{answer.attempt && answer.attempt > 1 ? ` · chance ${answer.attempt}` : ''}
+                      <span className={isEliminationLadder ? 'locked' : answer.is_correct ? 'correct' : 'wrong'} key={answer.id}>
+                        {index + 1}. {answer.member_name}
+                        {isEliminationLadder ? ' · locked in' : answer.attempt && answer.attempt > 1 ? ` · chance ${answer.attempt}` : ''}
                       </span>
                     ))}
                   </div>

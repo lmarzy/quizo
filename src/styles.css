@@ -4042,6 +4042,12 @@ textarea:focus {
   background: #fef2f2;
 }
 
+.speed-answer-strip span.locked {
+  border-color: #d6d6d6;
+  background: #f8f8f8;
+  color: #555;
+}
+
 .answer-button {
   min-height: 82px;
   display: flex;
