@@ -4821,6 +4821,9 @@ textarea:focus {
   color: var(--green-dark);
   background: white;
   font-weight: 900;
+  line-height: 1;
+  margin: 0;
+  text-align: center;
 }
 
 .final-leaderboard-row.winner .final-place span {
@@ -4828,7 +4831,7 @@ textarea:focus {
 }
 
 .final-leaderboard-row strong,
-.final-leaderboard-row span {
+.final-leaderboard-row div:not(.final-place) > span {
   display: block;
 }
 
@@ -4840,7 +4843,7 @@ textarea:focus {
   white-space: nowrap;
 }
 
-.final-leaderboard-row div > span {
+.final-leaderboard-row div:not(.final-place) > span {
   margin-top: 3px;
   color: rgba(255, 255, 255, 0.7);
   font-size: 12px;
@@ -5986,7 +5989,7 @@ textarea:focus {
 
 .game-stage .leaderboard-row span,
 .final-leaderboard-header span,
-.final-leaderboard-row div > span,
+.final-leaderboard-row div:not(.final-place) > span,
 .winner-panel span {
   color: #6d6d6d;
 }
