@@ -39,6 +39,12 @@ const planNames: Record<PlanId, string> = {
   creator: 'Creator',
 };
 
+const planPlayerLimits: Record<PlanId, number> = {
+  free: 6,
+  pro: 20,
+  creator: 50,
+};
+
 const upgradePlans: Array<{
   id: Exclude<PlanId, 'free'>;
   description: string;
@@ -48,13 +54,13 @@ const upgradePlans: Array<{
   {
     id: 'pro',
     description: 'For hosts who want more variety and bigger games.',
-    features: ['More question packs', 'More players per game', 'More hosted games'],
+    features: ['More question packs', 'Up to 20 players per game', 'More hosted games'],
     prices: { monthly: 699, quarterly: 1799, yearly: 5999 },
   },
   {
     id: 'creator',
     description: 'For hosts who want to create their own quiz content.',
-    features: ['Everything in Pro', 'Custom question packs', 'Branding tools later'],
+    features: ['Everything in Pro', 'Up to 50 players per game', 'Custom question packs'],
     prices: { monthly: 1499, quarterly: 3999, yearly: 12999 },
   },
 ];
@@ -434,6 +440,7 @@ function Dashboard({ session }: { session: Session }) {
   const currentPlanId = normalisePlanId(subscription?.plan_id);
   const planLabel = getPlanLabel(currentPlanId);
   const hasActivePaidPlan = Boolean(subscription && ['active', 'trialing'].includes(subscription.status));
+  const maxPlayersPerGame = planPlayerLimits[hasActivePaidPlan ? currentPlanId : 'free'];
   const canUseProPacks = hasActivePaidPlan && ['pro', 'creator'].includes(currentPlanId);
   const canUseProModes = canUseProPacks;
   const canUseCreatorFeatures = hasActivePaidPlan && currentPlanId === 'creator';
@@ -769,6 +776,12 @@ function Dashboard({ session }: { session: Session }) {
       return;
     }
 
+    if (uniqueNames.length + (includeHostAsPlayer ? 1 : 0) > maxPlayersPerGame) {
+      setWizardNotice(`${planLabel} supports up to ${maxPlayersPerGame} players per game.`);
+      setWizardStep(3);
+      return;
+    }
+
     setBusy(true);
     setWizardNotice('');
 
@@ -857,6 +870,17 @@ function Dashboard({ session }: { session: Session }) {
       return;
     }
 
+    const remainingSlots = maxPlayersPerGame - members.length;
+    if (remainingSlots <= 0) {
+      setMemberNotice(`${planLabel} supports up to ${maxPlayersPerGame} players per game.`);
+      return;
+    }
+
+    if (uniqueNames.length > remainingSlots) {
+      setMemberNotice(`You can add ${remainingSlots} more player${remainingSlots === 1 ? '' : 's'} on ${planLabel}.`);
+      return;
+    }
+
     setMemberBusy(true);
     setMemberNotice('');
 
@@ -885,6 +909,11 @@ function Dashboard({ session }: { session: Session }) {
   async function addHostAsPlayer() {
     if (!selectedGame) {
       setMemberNotice('Select a game first.');
+      return;
+    }
+
+    if (members.length >= maxPlayersPerGame) {
+      setMemberNotice(`${planLabel} supports up to ${maxPlayersPerGame} players per game.`);
       return;
     }
 
@@ -1506,6 +1535,7 @@ function Dashboard({ session }: { session: Session }) {
           game={selectedGame}
           hostMember={hostMember}
           joinedMemberCount={joinedMemberCount}
+          maxPlayersPerGame={maxPlayersPerGame}
           memberActionBusy={memberActionBusy}
           memberBusy={memberBusy}
           memberDrafts={memberDrafts}
@@ -1539,6 +1569,7 @@ function Dashboard({ session }: { session: Session }) {
           form={form}
           hostDisplayName={hostDisplayName}
           includeHostAsPlayer={includeHostAsPlayer}
+          maxPlayersPerGame={maxPlayersPerGame}
           memberNames={memberNames}
           notice={wizardNotice}
           open={wizardOpen}
@@ -2245,6 +2276,7 @@ function GameManageDrawer({
   canManage,
   canStart,
   joinedMemberCount,
+  maxPlayersPerGame,
   selectedJoinUrl,
   memberBusy,
   memberActionBusy,
@@ -2278,6 +2310,7 @@ function GameManageDrawer({
   canManage: boolean;
   canStart: boolean;
   joinedMemberCount: number;
+  maxPlayersPerGame: number;
   selectedJoinUrl: string;
   memberBusy: boolean;
   memberActionBusy: string;
@@ -2319,6 +2352,7 @@ function GameManageDrawer({
   const waitingMembers = members.filter((member) => member.status === 'invited');
   const inactiveMembers = members.filter((member) => !['active', 'invited', 'joined'].includes(member.status));
   const readyLabel = canStart ? 'Ready to start' : members.length === 0 ? 'Add players' : `${Math.max(0, 2 - joinedMemberCount)} more to join`;
+  const playerLimitReached = members.length >= maxPlayersPerGame;
 
   return (
     <div
@@ -2338,6 +2372,7 @@ function GameManageDrawer({
             <div className="workspace-meta">
               <span className={`status-pill ${game.status}`}>{game.status}</span>
               <span>{members.length} player{members.length === 1 ? '' : 's'}</span>
+              <span>{maxPlayersPerGame} max</span>
               <span>{joinedMemberCount} joined</span>
             </div>
           </div>
@@ -2361,7 +2396,7 @@ function GameManageDrawer({
             </div>
             <div className="setup-strip">
               <ReadinessItem done={Boolean(game.join_code)} label="Join code ready" />
-              <ReadinessItem done={members.length > 0} label={`${members.length} added`} />
+              <ReadinessItem done={members.length > 0} label={`${members.length}/${maxPlayersPerGame} added`} />
               <ReadinessItem done={joinedMemberCount >= 2} label={`${joinedMemberCount} joined`} />
             </div>
             <div className="lobby-readiness">
@@ -2468,9 +2503,10 @@ function GameManageDrawer({
               <div>
                 <p className="eyebrow">Players</p>
                 <h2>Lobby players</h2>
+                <p className="section-helper">{members.length} of {maxPlayersPerGame} player slots used.</p>
               </div>
               {!hostMember && canManage && (
-                <button className="ghost-button table-button" disabled={memberBusy} onClick={onAddHost} type="button">
+                <button className="ghost-button table-button" disabled={memberBusy || playerLimitReached} onClick={onAddHost} type="button">
                   <UserPlus size={16} />
                   Add me
                 </button>
@@ -2487,15 +2523,16 @@ function GameManageDrawer({
                   onChange={(event) => onMemberNamesChange(event.target.value)}
                   placeholder={'Sarah\nJames\nPriya'}
                   rows={3}
-                  disabled={!canManage}
+                  disabled={!canManage || playerLimitReached}
                 />
               </label>
-              <button className="primary-button" disabled={memberBusy || !canManage} type="submit">
+              <button className="primary-button" disabled={memberBusy || !canManage || playerLimitReached} type="submit">
                 {memberBusy ? <RefreshCw className="spin" size={18} /> : <UserPlus size={18} />}
                 Add
               </button>
             </form>
 
+            {playerLimitReached && <p className="field-hint">This game has reached the player limit for your current plan.</p>}
             {memberNotice && <p className="form-message">{memberNotice}</p>}
 
             <div className="member-list grouped">
@@ -2583,6 +2620,7 @@ function GameWizardModal({
   canUseProModes,
   hostDisplayName,
   includeHostAsPlayer,
+  maxPlayersPerGame,
   memberNames,
   busy,
   notice,
@@ -2602,6 +2640,7 @@ function GameWizardModal({
   canUseProModes: boolean;
   hostDisplayName: string;
   includeHostAsPlayer: boolean;
+  maxPlayersPerGame: number;
   memberNames: string;
   busy: boolean;
   notice: string;
@@ -2665,7 +2704,10 @@ function GameWizardModal({
   const uniqueNames = [...new Set(names)].filter((name) => !includeHostAsPlayer || name.toLowerCase() !== hostNameKey);
   const reviewPlayers = includeHostAsPlayer ? [hostDisplayName, ...uniqueNames] : uniqueNames;
   const playerCount = uniqueNames.length + (includeHostAsPlayer ? 1 : 0);
-  const canAdvancePlayers = playerCount > 0;
+  const playerLimitReached = playerCount >= maxPlayersPerGame;
+  const playerLimitExceeded = playerCount > maxPlayersPerGame;
+  const hostToggleDisabled = !includeHostAsPlayer && playerLimitReached;
+  const canAdvancePlayers = playerCount > 0 && !playerLimitExceeded;
   const canFinish = canAdvanceBasics && canAdvanceRules && canAdvancePlayers;
 
   function syncPlayerNames(nextNames: string[]) {
@@ -2679,7 +2721,11 @@ function GameWizardModal({
     if (!nextName) return;
 
     const nextNameKey = nextName.toLowerCase();
-    if (uniqueNames.some((name) => name.toLowerCase() === nextNameKey) || (includeHostAsPlayer && nextNameKey === hostNameKey)) {
+    if (
+      playerLimitReached ||
+      uniqueNames.some((name) => name.toLowerCase() === nextNameKey) ||
+      (includeHostAsPlayer && nextNameKey === hostNameKey)
+    ) {
       setPlayerNameDraft('');
       return;
     }
@@ -2859,6 +2905,7 @@ function GameWizardModal({
               <button
                 className={`host-player-card ${includeHostAsPlayer ? 'selected' : ''}`}
                 onClick={toggleHostPlayer}
+                disabled={hostToggleDisabled}
                 type="button"
                 aria-pressed={includeHostAsPlayer}
               >
@@ -2873,9 +2920,14 @@ function GameWizardModal({
               <form className="single-player-form" onSubmit={addPlayerName}>
                 <label>
                   Add player
-                  <input value={playerNameDraft} onChange={(event) => setPlayerNameDraft(event.target.value)} placeholder="Sarah" />
+                  <input
+                    value={playerNameDraft}
+                    onChange={(event) => setPlayerNameDraft(event.target.value)}
+                    placeholder="Sarah"
+                    disabled={playerLimitReached}
+                  />
                 </label>
-                <button className="primary-button" disabled={!playerNameDraft.trim()} type="submit">
+                <button className="primary-button" disabled={!playerNameDraft.trim() || playerLimitReached} type="submit">
                   <UserPlus size={18} />
                   Add
                 </button>
@@ -2884,7 +2936,7 @@ function GameWizardModal({
               <div className="wizard-player-list" aria-live="polite">
                 <div className="wizard-player-list-header">
                   <span>Players</span>
-                  <strong>{playerCount}</strong>
+                  <strong>{playerCount}/{maxPlayersPerGame}</strong>
                 </div>
                 {reviewPlayers.length === 0 ? (
                   <p className="empty-state">No players added yet.</p>
@@ -2907,7 +2959,9 @@ function GameWizardModal({
                   </div>
                 )}
               </div>
-              {!canAdvancePlayers && <p className="form-helper">Add at least one player, or add the host as a player.</p>}
+              {playerCount === 0 && <p className="form-helper">Add at least one player, or add the host as a player.</p>}
+              {playerLimitReached && !playerLimitExceeded && <p className="field-hint">You have used all player slots for this plan.</p>}
+              {playerLimitExceeded && <p className="form-helper">Remove {playerCount - maxPlayersPerGame} player{playerCount - maxPlayersPerGame === 1 ? '' : 's'} to continue on this plan.</p>}
             </div>
           )}
 
@@ -2940,7 +2994,7 @@ function GameWizardModal({
               <div className="review-card">
                 <span>Players</span>
                 <strong>{playerCount} added</strong>
-                <small>{includeHostAsPlayer ? `${hostDisplayName} joins automatically` : 'Host is managing only'}</small>
+                <small>{playerCount} of {maxPlayersPerGame} slots used · {includeHostAsPlayer ? `${hostDisplayName} joins automatically` : 'Host is managing only'}</small>
               </div>
               <div className="wide review-card review-player-list">
                 <span>Lobby list</span>
