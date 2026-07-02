@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clipboard, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Trash2, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, Clipboard, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Trash2, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import './styles.css';
@@ -410,6 +410,7 @@ function Dashboard({ session }: { session: Session }) {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [planActionBusy, setPlanActionBusy] = useState<PlanId | ''>('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [packsDrawerOpen, setPacksDrawerOpen] = useState(false);
   const [manageDrawerOpen, setManageDrawerOpen] = useState(false);
   const [controlRoomGame, setControlRoomGame] = useState<Game | null>(null);
   const [summaryGame, setSummaryGame] = useState<Game | null>(null);
@@ -450,7 +451,7 @@ function Dashboard({ session }: { session: Session }) {
   const canStartSelectedGame = Boolean(selectedGame && ['draft', 'lobby'].includes(selectedGame.status) && joinedMemberCount >= 2);
   const activeGames = useMemo(() => games.filter((game) => !['finished', 'cancelled'].includes(game.status)), [games]);
   const completedGames = useMemo(() => games.filter((game) => ['finished', 'cancelled'].includes(game.status)), [games]);
-  const overlayOpen = wizardOpen || upgradeOpen || manageDrawerOpen || Boolean(controlRoomGame) || Boolean(summaryGame) || Boolean(confirmDialog);
+  const overlayOpen = wizardOpen || upgradeOpen || packsDrawerOpen || manageDrawerOpen || Boolean(controlRoomGame) || Boolean(summaryGame) || Boolean(confirmDialog);
 
   useEffect(() => {
     void loadDashboard();
@@ -1325,6 +1326,11 @@ function Dashboard({ session }: { session: Session }) {
             <h1>Games</h1>
           </div>
           <div className="table-toolbar-actions">
+            <button className="ghost-button table-button" onClick={() => setPacksDrawerOpen(true)} type="button">
+              <BookOpen size={18} />
+              Packs
+            </button>
+            <span className="plan-badge">{planLabel}</span>
             <button className="primary-button" onClick={openGameWizard} type="button">
               <Plus size={18} />
               Add game
@@ -1334,21 +1340,22 @@ function Dashboard({ session }: { session: Session }) {
 
         {(notice || memberNotice) && <p className="form-message">{notice || memberNotice}</p>}
 
+        <AvailablePacksPanel
+          canUseCreatorFeatures={canUseCreatorFeatures}
+          canUseProPacks={canUseProPacks}
+          currentPlanId={currentPlanId}
+          open={packsDrawerOpen}
+          packQuestionCounts={packQuestionCounts}
+          packs={packs}
+          planLabel={planLabel}
+          onClose={() => setPacksDrawerOpen(false)}
+          onUpgrade={openUpgradeModal}
+        />
+
         {dashboardLoading ? (
           <DashboardLoadingState />
         ) : (
-          <div className="dashboard-main-grid">
-            <AvailablePacksPanel
-              canUseCreatorFeatures={canUseCreatorFeatures}
-              canUseProPacks={canUseProPacks}
-              currentPlanId={currentPlanId}
-              packQuestionCounts={packQuestionCounts}
-              packs={packs}
-              planLabel={planLabel}
-              onUpgrade={openUpgradeModal}
-            />
-
-            <div className="games-table-stack">
+          <div className="games-table-stack">
             <div className="games-table-wrap">
               <div className="games-section-heading">
                 <div>
@@ -1472,7 +1479,6 @@ function Dashboard({ session }: { session: Session }) {
               </div>
             )}
             </div>
-          </div>
         )}
 
         <GameManageDrawer
@@ -1804,23 +1810,7 @@ function ProfileView({
 
 function DashboardLoadingState() {
   return (
-    <div className="dashboard-main-grid dashboard-loading-state" role="status" aria-live="polite">
-      <aside className="packs-panel loading-panel">
-        <div className="loading-panel-header">
-          <div>
-            <p className="eyebrow">Question packs</p>
-            <h2>Loading packs</h2>
-          </div>
-          <LoadingDots />
-        </div>
-        <div className="skeleton-stack">
-          <span className="skeleton-line short" />
-          <span className="skeleton-line" />
-          <span className="skeleton-card" />
-          <span className="skeleton-card compact" />
-        </div>
-      </aside>
-
+    <div className="dashboard-loading-state" role="status" aria-live="polite">
       <section className="games-table-stack loading-panel">
         <div className="games-section-heading">
           <div>
@@ -1848,17 +1838,21 @@ function AvailablePacksPanel({
   canUseCreatorFeatures,
   canUseProPacks,
   currentPlanId,
+  open,
   packs,
   packQuestionCounts,
   planLabel,
+  onClose,
   onUpgrade,
 }: {
   canUseCreatorFeatures: boolean;
   canUseProPacks: boolean;
   currentPlanId: PlanId;
+  open: boolean;
   packs: QuestionPack[];
   packQuestionCounts: Record<string, number>;
   planLabel: string;
+  onClose: () => void;
   onUpgrade: () => void;
 }) {
   const [activeTier, setActiveTier] = useState<'all' | 'free' | 'pro' | 'creator'>('all');
@@ -1878,14 +1872,22 @@ function AvailablePacksPanel({
   });
   const includedCount = packs.filter(isPackIncluded).length;
 
+  if (!open) return null;
+
   return (
-    <section className="pack-manager">
-      <div className="pack-overview-header">
-        <div>
-          <p className="eyebrow">Question packs</p>
-          <h2>Packs</h2>
-          <p className="section-helper">{includedCount} of {packs.length} included on {planLabel}.</p>
+    <div className="pack-drawer-backdrop" onClick={onClose} role="presentation">
+      <aside className="pack-drawer" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Question packs">
+        <div className="pack-drawer-header">
+          <div>
+            <p className="eyebrow">Question packs</p>
+            <h2>Packs</h2>
+            <p className="section-helper">{includedCount} of {packs.length} included on {planLabel}.</p>
+          </div>
+          <button className="icon-button neutral" onClick={onClose} type="button" aria-label="Close packs" title="Close packs">
+            <X size={18} />
+          </button>
         </div>
+
         <div className="pack-plan-actions">
           <span className="plan-badge large">{planLabel}</span>
           {currentPlanId === 'free' && (
@@ -1894,85 +1896,84 @@ function AvailablePacksPanel({
             </button>
           )}
         </div>
-      </div>
 
-      <div className="pack-browser">
-        <label className="pack-search">
-          <Search size={16} />
-          <input value={packSearch} onChange={(event) => setPackSearch(event.target.value)} placeholder="Search packs" type="search" />
-        </label>
+        <div className="pack-browser">
+          <label className="pack-search">
+            <Search size={16} />
+            <input value={packSearch} onChange={(event) => setPackSearch(event.target.value)} placeholder="Search packs" type="search" />
+          </label>
 
-        <div className="pack-filter-tabs" aria-label="Filter question packs">
-          {tierFilters.map((filter) => (
-            <button className={activeTier === filter.id ? 'active' : ''} key={filter.id} onClick={() => setActiveTier(filter.id)} type="button">
-              {filter.label}
-            </button>
-          ))}
+          <div className="pack-filter-tabs" aria-label="Filter question packs">
+            {tierFilters.map((filter) => (
+              <button className={activeTier === filter.id ? 'active' : ''} key={filter.id} onClick={() => setActiveTier(filter.id)} type="button">
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="pack-compact-list">
+            {filteredPacks.length === 0 && <p className="pack-empty-state">No packs match that search.</p>}
+            {filteredPacks.map((pack) => {
+              const included = isPackIncluded(pack);
+
+              return (
+                <button className={`pack-compact-row ${included ? 'included' : 'locked'} ${selectedPack?.id === pack.id ? 'selected' : ''}`} key={pack.id} onClick={() => setSelectedPack(pack)} type="button">
+                  <div>
+                    <strong>{pack.name}</strong>
+                    <span>{pack.description || 'Starter quiz pack'}</span>
+                  </div>
+                  <div className="pack-card-footer">
+                    <em>{packQuestionCounts[pack.id] || 0} questions</em>
+                    {included ? (
+                      <b>Included</b>
+                    ) : (
+                      <b>
+                        <Lock size={14} />
+                        {getPackTierLabel(pack.tier)}
+                      </b>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="pack-compact-list">
-          {filteredPacks.length === 0 && <p className="pack-empty-state">No packs match that search.</p>}
-          {filteredPacks.map((pack) => {
-          const included = isPackIncluded(pack);
-
-          return (
-            <button className={`pack-compact-row ${included ? 'included' : 'locked'}`} key={pack.id} onClick={() => setSelectedPack(pack)} type="button">
-              <div>
-                <strong>{pack.name}</strong>
-                <span>{pack.description || 'Starter quiz pack'}</span>
-              </div>
-              <div className="pack-card-footer">
-                <em>{packQuestionCounts[pack.id] || 0} questions</em>
-                {included ? (
-                  <b>Included</b>
-                ) : (
-                  <b>
-                    <Lock size={14} />
-                    {getPackTierLabel(pack.tier)}
-                  </b>
-                )}
-              </div>
-            </button>
-          );
-          })}
-        </div>
-      </div>
-
-      {selectedPack && (
-        <PackDetailsModal
-          included={isPackIncluded(selectedPack)}
-          pack={selectedPack}
-          questionCount={packQuestionCounts[selectedPack.id] || 0}
-          onClose={() => setSelectedPack(null)}
-          onUpgrade={onUpgrade}
-        />
-      )}
-    </section>
+        {selectedPack && (
+          <PackDetailsPanel
+            included={isPackIncluded(selectedPack)}
+            pack={selectedPack}
+            questionCount={packQuestionCounts[selectedPack.id] || 0}
+            onClear={() => setSelectedPack(null)}
+            onUpgrade={onUpgrade}
+          />
+        )}
+      </aside>
+    </div>
   );
 }
 
-function PackDetailsModal({
+function PackDetailsPanel({
   included,
   pack,
   questionCount,
-  onClose,
+  onClear,
   onUpgrade,
 }: {
   included: boolean;
   pack: QuestionPack;
   questionCount: number;
-  onClose: () => void;
+  onClear: () => void;
   onUpgrade: () => void;
 }) {
   return (
-    <div className="modal-backdrop pack-details-backdrop" role="presentation">
-      <section className="pack-details-modal" role="dialog" aria-modal="true" aria-label={`${pack.name} details`}>
+      <section className="pack-details-panel" aria-label={`${pack.name} details`}>
         <div className="pack-details-header">
           <div>
             <p className="eyebrow">{getPackTierLabel(pack.tier)} pack</p>
             <h2>{pack.name}</h2>
           </div>
-          <button className="icon-button neutral" onClick={onClose} type="button" aria-label="Close pack details" title="Close">
+          <button className="icon-button neutral" onClick={onClear} type="button" aria-label="Clear pack details" title="Clear">
             <X size={18} />
           </button>
         </div>
@@ -1989,7 +1990,6 @@ function PackDetailsModal({
           </button>
         )}
       </section>
-    </div>
   );
 }
 

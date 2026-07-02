@@ -1368,28 +1368,43 @@ textarea:focus {
   margin-top: 4px;
 }
 
-.pack-manager {
-  display: grid;
-  gap: 12px;
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 116px);
+.pack-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: flex-start;
+  padding: 16px;
+  background: rgba(5, 5, 5, 0.32);
+  animation: drawer-backdrop-in 0.2s ease both;
 }
 
-.pack-overview-header {
+.pack-drawer {
+  width: min(100%, 430px);
+  max-height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 12px;
-  padding: 14px;
+  overflow: hidden;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
-  box-shadow: var(--shadow-tight);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+  animation: pack-drawer-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.pack-overview-header h2 {
+.pack-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pack-drawer-header h2 {
   margin: 0;
-  font-size: 21px;
+  font-size: 26px;
+  line-height: 1;
 }
 
 .pack-plan-actions {
@@ -1400,14 +1415,14 @@ textarea:focus {
 }
 
 .pack-browser {
-  display: grid;
-  gap: 10px;
   min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: white;
-  box-shadow: var(--shadow-tight);
+  background: #fbfbfb;
 }
 
 .pack-search {
@@ -1457,8 +1472,9 @@ textarea:focus {
 }
 
 .pack-compact-list {
-  max-height: min(54vh, 520px);
+  min-height: 0;
   display: grid;
+  align-content: start;
   gap: 8px;
   overflow-y: auto;
   padding-right: 2px;
@@ -1507,6 +1523,10 @@ textarea:focus {
 .pack-compact-row.included {
   border-color: #d8d8d8;
   box-shadow: inset 4px 0 0 #050505, var(--shadow-tight);
+}
+
+.pack-compact-row.selected {
+  border-color: #050505;
 }
 
 .pack-compact-row strong {
@@ -1567,19 +1587,14 @@ textarea:focus {
   background: white;
 }
 
-.pack-details-backdrop {
-  z-index: 80;
-}
-
-.pack-details-modal {
-  width: min(100%, 460px);
+.pack-details-panel {
   display: grid;
   gap: 16px;
-  padding: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
   border-radius: 8px;
   color: #050505;
-  background: white;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+  background: #f7f7f7;
 }
 
 .pack-details-header {
@@ -1595,7 +1610,7 @@ textarea:focus {
   line-height: 1;
 }
 
-.pack-details-modal > p {
+.pack-details-panel > p {
   margin: 0;
   color: var(--muted);
   line-height: 1.5;
@@ -1619,6 +1634,18 @@ textarea:focus {
   background: #fafafa;
   font-size: 12px;
   font-weight: 900;
+}
+
+@keyframes pack-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .table-code,
@@ -5022,13 +5049,14 @@ textarea:focus {
     border-radius: 8px;
   }
 
-  .pack-manager {
-    position: static;
+  .pack-drawer-backdrop {
+    padding: 0;
   }
 
-  .pack-overview-header {
-    align-items: flex-start;
-    flex-direction: column;
+  .pack-drawer {
+    width: 100%;
+    min-height: 100%;
+    border-radius: 0;
   }
 
   .auth-layout {
