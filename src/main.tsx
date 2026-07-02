@@ -4147,12 +4147,12 @@ function GameRoom({
                   <span>{secondsLeft}s</span>
                 </div>
               )}
-              <button className={`sound-toggle compact ${soundEnabled ? 'enabled' : ''}`} onClick={toggleSound} type="button" aria-label={soundEnabled ? 'Turn sound off' : 'Turn sound on'} title={soundEnabled ? 'Sound on' : 'Sound off'}>
-                {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-              </button>
             </div>
           </div>
           <section className="question-panel">
+            <button className={`sound-toggle question-sound-toggle ${soundEnabled ? 'enabled' : ''}`} onClick={toggleSound} type="button" aria-label={soundEnabled ? 'Turn sound off' : 'Turn sound on'} title={soundEnabled ? 'Sound on' : 'Sound off'}>
+              {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            </button>
             {roundResultVisible ? (
               <LadderRoundResult
                 roundNumber={latestLadderResultEvent?.metadata?.ladder_round || ladderRoundNumber}
