@@ -2630,6 +2630,105 @@ textarea:focus {
   min-height: 46px;
 }
 
+.wizard-pack-picker,
+.mode-choice-wrap {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfbfb;
+}
+
+.wizard-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wizard-section-heading span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.wizard-section-heading strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 18px;
+}
+
+.wizard-section-heading em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
+  text-align: right;
+}
+
+.wizard-pack-list {
+  max-height: 255px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.wizard-pack-row {
+  width: 100%;
+  min-height: 92px;
+  display: grid;
+  gap: 9px;
+  align-content: start;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #050505;
+  background: white;
+  text-align: left;
+}
+
+.wizard-pack-row > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.wizard-pack-row strong {
+  font-size: 15px;
+}
+
+.wizard-pack-row span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.wizard-pack-row.included {
+  cursor: pointer;
+}
+
+.wizard-pack-row.included:hover {
+  border-color: #050505;
+}
+
+.wizard-pack-row.selected {
+  border-color: #050505;
+  background: #fffdf9;
+  box-shadow: inset 4px 0 0 #050505;
+}
+
+.wizard-pack-row.locked {
+  background: #f5f5f5;
+}
+
+.wizard-pack-row.locked .table-button {
+  justify-self: start;
+}
+
 .mode-choice-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2663,10 +2762,40 @@ textarea:focus {
   font-size: 17px;
 }
 
+.mode-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mode-card-top em {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #7b450d;
+  background: #fff0d8;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
 .mode-choice-card span {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.4;
+}
+
+.mode-helper {
+  margin: 0;
+  padding: 11px 12px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  color: #333;
+  background: white;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .wizard-player-list {
@@ -2765,7 +2894,8 @@ textarea:focus {
   gap: 12px;
 }
 
-.review-grid div {
+.review-grid div,
+.review-card {
   min-height: 86px;
   display: grid;
   align-content: center;
@@ -2773,7 +2903,7 @@ textarea:focus {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--mint-soft);
+  background: #fbfbfb;
 }
 
 .review-grid span {
@@ -2784,6 +2914,13 @@ textarea:focus {
 }
 
 .review-grid strong {
+  line-height: 1.35;
+}
+
+.review-grid small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
   line-height: 1.35;
 }
 

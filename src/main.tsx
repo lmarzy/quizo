@@ -187,9 +187,11 @@ type ConfirmDialogState = {
   onConfirm: () => Promise<void>;
 };
 
+type GameMode = 'classic' | 'race_to_points' | 'speed_round' | 'elimination_ladder';
+
 const defaultForm = {
   name: '',
-  gameMode: 'classic',
+  gameMode: 'classic' as GameMode,
   questionPackId: '',
   startingPoints: 100,
   targetPoints: 100,
@@ -1516,13 +1518,17 @@ function Dashboard({ session }: { session: Session }) {
 
         <GameWizardModal
           busy={busy}
+          canUseCreatorFeatures={canUseCreatorFeatures}
+          canUseProPacks={canUseProPacks}
           form={form}
           hostDisplayName={hostDisplayName}
           includeHostAsPlayer={includeHostAsPlayer}
           memberNames={memberNames}
           notice={wizardNotice}
           open={wizardOpen}
-          packs={usablePacks}
+          packQuestionCounts={packQuestionCounts}
+          packs={packs}
+          planLabel={planLabel}
           setForm={setForm}
           setIncludeHostAsPlayer={setIncludeHostAsPlayer}
           setMemberNames={setMemberNames}
@@ -1533,6 +1539,7 @@ function Dashboard({ session }: { session: Session }) {
             setWizardStep(1);
             setWizardNotice('');
           }}
+          onUpgrade={openUpgradeModal}
           onSubmit={() => void createGame()}
         />
 
@@ -2549,6 +2556,10 @@ function GameWizardModal({
   step,
   form,
   packs,
+  packQuestionCounts,
+  planLabel,
+  canUseCreatorFeatures,
+  canUseProPacks,
   hostDisplayName,
   includeHostAsPlayer,
   memberNames,
@@ -2559,12 +2570,17 @@ function GameWizardModal({
   setIncludeHostAsPlayer,
   setMemberNames,
   onClose,
+  onUpgrade,
   onSubmit,
 }: {
   open: boolean;
   step: number;
   form: typeof defaultForm;
   packs: QuestionPack[];
+  packQuestionCounts: Record<string, number>;
+  planLabel: string;
+  canUseCreatorFeatures: boolean;
+  canUseProPacks: boolean;
   hostDisplayName: string;
   includeHostAsPlayer: boolean;
   memberNames: string;
@@ -2575,14 +2591,52 @@ function GameWizardModal({
   setIncludeHostAsPlayer: React.Dispatch<React.SetStateAction<boolean>>;
   setMemberNames: React.Dispatch<React.SetStateAction<string>>;
   onClose: () => void;
+  onUpgrade: () => void;
   onSubmit: () => void;
 }) {
   const [playerNameDraft, setPlayerNameDraft] = useState('');
+  const [packSearch, setPackSearch] = useState('');
+  const [activeTier, setActiveTier] = useState<'all' | 'free' | 'pro' | 'creator'>('all');
 
   if (!open) return null;
 
   const steps = ['Basics', 'Rules', 'Players', 'Review'];
-  const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId);
+  const tierFilters: Array<{ id: 'all' | 'free' | 'pro' | 'creator'; label: string }> = [
+    { id: 'all', label: 'All' },
+    { id: 'free', label: 'Free' },
+    { id: 'pro', label: 'Pro' },
+    { id: 'creator', label: 'Creator' },
+  ];
+  const modeDetails: Record<GameMode, { title: string; badge: string; description: string; helper: string }> = {
+    classic: {
+      title: 'Classic',
+      badge: 'Free',
+      description: 'Turn-based last-player-standing quiz.',
+      helper: 'Players start with points. A wrong answer costs points, a second correct answer recovers them, and play moves on.',
+    },
+    race_to_points: {
+      title: 'Race to Points',
+      badge: 'Free',
+      description: 'Take turns racing from zero to a target.',
+      helper: 'Correct answers push players toward the target. Wrong answers pull them back and keep the pressure on.',
+    },
+    speed_round: {
+      title: 'Speed Round',
+      badge: 'Free',
+      description: 'Everyone sees the same question at once.',
+      helper: 'The first player to answer takes control. If they miss, they get one locked-in second chance before everyone rejoins.',
+    },
+    elimination_ladder: {
+      title: 'Elimination Ladder',
+      badge: 'Free',
+      description: 'Round-by-round elimination by score.',
+      helper: 'Everyone answers their own question each round. The lowest score drops out until the final places are decided.',
+    },
+  };
+  const isPackIncluded = (pack: QuestionPack) => pack.tier === 'free' || (pack.tier === 'pro' && canUseProPacks) || (pack.tier === 'creator' && canUseCreatorFeatures);
+  const selectedPack = packs.find((pack) => pack.id === form.questionPackId);
+  const selectedPackIncluded = Boolean(selectedPack && isPackIncluded(selectedPack));
+  const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId && selectedPackIncluded);
   const isTargetMode = form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
   const isEliminationMode = form.gameMode === 'elimination_ladder';
   const canAdvanceRules =
@@ -2593,7 +2647,12 @@ function GameWizardModal({
     form.recoveryPoints >= 0 &&
     form.timeLimit >= 5 &&
     form.maxConsecutiveQuestions >= 1;
-  const selectedPack = packs.find((pack) => pack.id === form.questionPackId);
+  const filteredPacks = packs.filter((pack) => {
+    const matchesTier = activeTier === 'all' || pack.tier === activeTier;
+    const searchText = `${pack.name} ${pack.description || ''}`.toLowerCase();
+    return matchesTier && searchText.includes(packSearch.trim().toLowerCase());
+  });
+  const includedPackCount = packs.filter(isPackIncluded).length;
   const names = memberNames
     .split(/\n|,/)
     .map((name) => name.trim())
@@ -2688,49 +2747,108 @@ function GameWizardModal({
                 Game name
                 <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Friday night knockout" autoFocus />
               </label>
-              <label className="wide">
-                Question pack
-                <select value={form.questionPackId} onChange={(event) => setForm({ ...form, questionPackId: event.target.value })}>
-                  {packs.map((pack) => (
-                    <option key={pack.id} value={pack.id}>
-                      {pack.name} ({pack.tier})
-                    </option>
+              <section className="wide wizard-pack-picker" aria-label="Choose question pack">
+                <div className="wizard-section-heading">
+                  <div>
+                    <span>Question pack</span>
+                    <strong>{selectedPack ? selectedPack.name : 'Choose a pack'}</strong>
+                  </div>
+                  <em>{includedPackCount} of {packs.length} included on {planLabel}</em>
+                </div>
+
+                <label className="pack-search">
+                  <Search size={16} />
+                  <input value={packSearch} onChange={(event) => setPackSearch(event.target.value)} placeholder="Search packs" type="search" />
+                </label>
+
+                <div className="pack-filter-tabs" aria-label="Filter packs for this game">
+                  {tierFilters.map((filter) => (
+                    <button className={activeTier === filter.id ? 'active' : ''} key={filter.id} onClick={() => setActiveTier(filter.id)} type="button">
+                      {filter.label}
+                    </button>
                   ))}
-                </select>
-              </label>
-              <div className="wide mode-choice-grid">
-                <button
-                  className={`mode-choice-card ${form.gameMode === 'classic' ? 'selected' : ''}`}
-                  onClick={() => setForm({ ...form, gameMode: 'classic', startingPoints: form.startingPoints || 100 })}
-                  type="button"
-                >
-                  <strong>Classic</strong>
-                  <span>Start with points. Wrong answers chip away until one player remains.</span>
-                </button>
-                <button
-                  className={`mode-choice-card ${form.gameMode === 'race_to_points' ? 'selected' : ''}`}
-                  onClick={() => setForm({ ...form, gameMode: 'race_to_points', startingPoints: 0, targetPoints: form.targetPoints || 100 })}
-                  type="button"
-                >
-                  <strong>Race to Points</strong>
-                  <span>Take turns from zero. Correct answers move you up, wrong answers pull you back.</span>
-                </button>
-                <button
-                  className={`mode-choice-card ${form.gameMode === 'speed_round' ? 'selected' : ''}`}
-                  onClick={() => setForm({ ...form, gameMode: 'speed_round', startingPoints: 0, targetPoints: form.targetPoints || 100 })}
-                  type="button"
-                >
-                  <strong>Speed Round</strong>
-                  <span>Everyone answers the same question. Fastest responses land first on the board.</span>
-                </button>
-                <button
-                  className={`mode-choice-card ${form.gameMode === 'elimination_ladder' ? 'selected' : ''}`}
-                  onClick={() => setForm({ ...form, gameMode: 'elimination_ladder', startingPoints: form.startingPoints || 100, eliminationRounds: form.eliminationRounds || 3, questionsPerRound: form.questionsPerRound || 3 })}
-                  type="button"
-                >
-                  <strong>Elimination Ladder</strong>
-                  <span>Everyone answers each question. Lowest score drops after each ladder round.</span>
-                </button>
+                </div>
+
+                <div className="wizard-pack-list">
+                  {filteredPacks.length === 0 && <p className="pack-empty-state">No packs match that search.</p>}
+                  {filteredPacks.map((pack) => {
+                    const included = isPackIncluded(pack);
+                    const selected = form.questionPackId === pack.id;
+                    const packBody = (
+                      <>
+                        <div>
+                          <strong>{pack.name}</strong>
+                          <span>{pack.description || 'Starter quiz pack'}</span>
+                        </div>
+                        <div className="pack-card-footer">
+                          <em>{packQuestionCounts[pack.id] || 0} questions</em>
+                          {included ? (
+                            <b>{selected ? 'Selected' : 'Included'}</b>
+                          ) : (
+                            <b>
+                              <Lock size={14} />
+                              {getPackTierLabel(pack.tier)}
+                            </b>
+                          )}
+                        </div>
+                      </>
+                    );
+
+                    return included ? (
+                      <button
+                        className={`wizard-pack-row included ${selected ? 'selected' : ''}`}
+                        key={pack.id}
+                        onClick={() => setForm({ ...form, questionPackId: pack.id })}
+                        type="button"
+                      >
+                        {packBody}
+                      </button>
+                    ) : (
+                      <article className="wizard-pack-row locked" key={pack.id}>
+                        {packBody}
+                        <button className="table-button" onClick={onUpgrade} type="button">
+                          Upgrade
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+                {selectedPack && !selectedPackIncluded && <p className="form-helper">Choose an included pack or upgrade to use {selectedPack.name}.</p>}
+              </section>
+
+              <div className="wide mode-choice-wrap">
+                <div className="wizard-section-heading">
+                  <div>
+                    <span>Game mode</span>
+                    <strong>{modeDetails[form.gameMode].title}</strong>
+                  </div>
+                </div>
+                <div className="mode-choice-grid">
+                  {(Object.keys(modeDetails) as GameMode[]).map((mode) => (
+                    <button
+                      className={`mode-choice-card ${form.gameMode === mode ? 'selected' : ''}`}
+                      key={mode}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          gameMode: mode,
+                          startingPoints: mode === 'race_to_points' || mode === 'speed_round' ? 0 : form.startingPoints || 100,
+                          targetPoints: mode === 'race_to_points' || mode === 'speed_round' ? form.targetPoints || 100 : form.targetPoints,
+                          eliminationRounds: mode === 'elimination_ladder' ? form.eliminationRounds || 3 : form.eliminationRounds,
+                          questionsPerRound: mode === 'elimination_ladder' ? form.questionsPerRound || 3 : form.questionsPerRound,
+                        })
+                      }
+                      type="button"
+                    >
+                      <span className="mode-card-top">
+                        <strong>{modeDetails[mode].title}</strong>
+                        <em>{modeDetails[mode].badge}</em>
+                      </span>
+                      <span>{modeDetails[mode].description}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mode-helper">{modeDetails[form.gameMode].helper}</p>
               </div>
             </div>
           )}
@@ -2808,19 +2926,21 @@ function GameWizardModal({
 
           {step === 4 && (
             <div className="review-grid">
-              <div>
+              <div className="review-card wide">
                 <span>Name</span>
                 <strong>{form.name || 'Untitled game'}</strong>
               </div>
-              <div>
-                <span>Pack</span>
+              <div className="review-card">
+                <span>Question pack</span>
                 <strong>{selectedPack?.name || 'No pack selected'}</strong>
+                <small>{selectedPack ? `${packQuestionCounts[selectedPack.id] || 0} questions · ${getPackTierLabel(selectedPack.tier)}` : 'Choose a pack to continue'}</small>
               </div>
-              <div>
+              <div className="review-card">
                 <span>Mode</span>
                 <strong>{getGameModeLabel(form.gameMode)}</strong>
+                <small>{modeDetails[form.gameMode].helper}</small>
               </div>
-              <div>
+              <div className="review-card">
                 <span>Rules</span>
                 <strong>
                   {isEliminationMode
@@ -2830,11 +2950,12 @@ function GameWizardModal({
                       : `${form.startingPoints} pts`} · -{form.wrongPenalty} wrong · +{form.recoveryPoints} correct · {form.timeLimit}s
                 </strong>
               </div>
-              <div>
+              <div className="review-card">
                 <span>Players</span>
                 <strong>{playerCount} added</strong>
+                <small>{includeHostAsPlayer ? `${hostDisplayName} joins automatically` : 'Host is managing only'}</small>
               </div>
-              <div className="wide review-player-list">
+              <div className="wide review-card review-player-list">
                 <span>Lobby list</span>
                 <strong>{reviewPlayers.join(', ')}</strong>
               </div>
