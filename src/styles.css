@@ -2729,7 +2729,7 @@ textarea:focus {
   font-size: 14px;
 }
 
-.wizard-pack-row span {
+.wizard-pack-row > div span {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.3;
@@ -2737,6 +2737,10 @@ textarea:focus {
   overflow: hidden;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.wizard-pack-check svg {
+  display: block;
 }
 
 .wizard-pack-row:hover {
