@@ -1518,8 +1518,6 @@ function Dashboard({ session }: { session: Session }) {
 
         <GameWizardModal
           busy={busy}
-          canUseCreatorFeatures={canUseCreatorFeatures}
-          canUseProPacks={canUseProPacks}
           form={form}
           hostDisplayName={hostDisplayName}
           includeHostAsPlayer={includeHostAsPlayer}
@@ -1527,8 +1525,7 @@ function Dashboard({ session }: { session: Session }) {
           notice={wizardNotice}
           open={wizardOpen}
           packQuestionCounts={packQuestionCounts}
-          packs={packs}
-          planLabel={planLabel}
+          packs={usablePacks}
           setForm={setForm}
           setIncludeHostAsPlayer={setIncludeHostAsPlayer}
           setMemberNames={setMemberNames}
@@ -1539,7 +1536,6 @@ function Dashboard({ session }: { session: Session }) {
             setWizardStep(1);
             setWizardNotice('');
           }}
-          onUpgrade={openUpgradeModal}
           onSubmit={() => void createGame()}
         />
 
@@ -2557,9 +2553,6 @@ function GameWizardModal({
   form,
   packs,
   packQuestionCounts,
-  planLabel,
-  canUseCreatorFeatures,
-  canUseProPacks,
   hostDisplayName,
   includeHostAsPlayer,
   memberNames,
@@ -2570,7 +2563,6 @@ function GameWizardModal({
   setIncludeHostAsPlayer,
   setMemberNames,
   onClose,
-  onUpgrade,
   onSubmit,
 }: {
   open: boolean;
@@ -2578,9 +2570,6 @@ function GameWizardModal({
   form: typeof defaultForm;
   packs: QuestionPack[];
   packQuestionCounts: Record<string, number>;
-  planLabel: string;
-  canUseCreatorFeatures: boolean;
-  canUseProPacks: boolean;
   hostDisplayName: string;
   includeHostAsPlayer: boolean;
   memberNames: string;
@@ -2591,22 +2580,13 @@ function GameWizardModal({
   setIncludeHostAsPlayer: React.Dispatch<React.SetStateAction<boolean>>;
   setMemberNames: React.Dispatch<React.SetStateAction<string>>;
   onClose: () => void;
-  onUpgrade: () => void;
   onSubmit: () => void;
 }) {
   const [playerNameDraft, setPlayerNameDraft] = useState('');
-  const [packSearch, setPackSearch] = useState('');
-  const [activeTier, setActiveTier] = useState<'all' | 'free' | 'pro' | 'creator'>('all');
 
   if (!open) return null;
 
   const steps = ['Basics', 'Rules', 'Players', 'Review'];
-  const tierFilters: Array<{ id: 'all' | 'free' | 'pro' | 'creator'; label: string }> = [
-    { id: 'all', label: 'All' },
-    { id: 'free', label: 'Free' },
-    { id: 'pro', label: 'Pro' },
-    { id: 'creator', label: 'Creator' },
-  ];
   const modeDetails: Record<GameMode, { title: string; badge: string; description: string; helper: string }> = {
     classic: {
       title: 'Classic',
@@ -2633,10 +2613,8 @@ function GameWizardModal({
       helper: 'Everyone answers their own question each round. The lowest score drops out until the final places are decided.',
     },
   };
-  const isPackIncluded = (pack: QuestionPack) => pack.tier === 'free' || (pack.tier === 'pro' && canUseProPacks) || (pack.tier === 'creator' && canUseCreatorFeatures);
   const selectedPack = packs.find((pack) => pack.id === form.questionPackId);
-  const selectedPackIncluded = Boolean(selectedPack && isPackIncluded(selectedPack));
-  const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId && selectedPackIncluded);
+  const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId);
   const isTargetMode = form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
   const isEliminationMode = form.gameMode === 'elimination_ladder';
   const canAdvanceRules =
@@ -2647,12 +2625,6 @@ function GameWizardModal({
     form.recoveryPoints >= 0 &&
     form.timeLimit >= 5 &&
     form.maxConsecutiveQuestions >= 1;
-  const filteredPacks = packs.filter((pack) => {
-    const matchesTier = activeTier === 'all' || pack.tier === activeTier;
-    const searchText = `${pack.name} ${pack.description || ''}`.toLowerCase();
-    return matchesTier && searchText.includes(packSearch.trim().toLowerCase());
-  });
-  const includedPackCount = packs.filter(isPackIncluded).length;
   const names = memberNames
     .split(/\n|,/)
     .map((name) => name.trim())
@@ -2753,67 +2725,34 @@ function GameWizardModal({
                     <span>Question pack</span>
                     <strong>{selectedPack ? selectedPack.name : 'Choose a pack'}</strong>
                   </div>
-                  <em>{includedPackCount} of {packs.length} included on {planLabel}</em>
-                </div>
-
-                <label className="pack-search">
-                  <Search size={16} />
-                  <input value={packSearch} onChange={(event) => setPackSearch(event.target.value)} placeholder="Search packs" type="search" />
-                </label>
-
-                <div className="pack-filter-tabs" aria-label="Filter packs for this game">
-                  {tierFilters.map((filter) => (
-                    <button className={activeTier === filter.id ? 'active' : ''} key={filter.id} onClick={() => setActiveTier(filter.id)} type="button">
-                      {filter.label}
-                    </button>
-                  ))}
+                  <em>{packs.length} available</em>
                 </div>
 
                 <div className="wizard-pack-list">
-                  {filteredPacks.length === 0 && <p className="pack-empty-state">No packs match that search.</p>}
-                  {filteredPacks.map((pack) => {
-                    const included = isPackIncluded(pack);
+                  {packs.length === 0 && <p className="pack-empty-state">No packs are available on this plan yet.</p>}
+                  {packs.map((pack) => {
                     const selected = form.questionPackId === pack.id;
-                    const packBody = (
-                      <>
+
+                    return (
+                      <button
+                        className={`wizard-pack-row ${selected ? 'selected' : ''}`}
+                        key={pack.id}
+                        onClick={() => setForm({ ...form, questionPackId: pack.id })}
+                        type="button"
+                      >
+                        <span className="wizard-pack-check">{selected ? <CheckCircle2 size={16} /> : <BookOpen size={16} />}</span>
                         <div>
                           <strong>{pack.name}</strong>
                           <span>{pack.description || 'Starter quiz pack'}</span>
                         </div>
                         <div className="pack-card-footer">
                           <em>{packQuestionCounts[pack.id] || 0} questions</em>
-                          {included ? (
-                            <b>{selected ? 'Selected' : 'Included'}</b>
-                          ) : (
-                            <b>
-                              <Lock size={14} />
-                              {getPackTierLabel(pack.tier)}
-                            </b>
-                          )}
+                          <b>{getPackTierLabel(pack.tier)}</b>
                         </div>
-                      </>
-                    );
-
-                    return included ? (
-                      <button
-                        className={`wizard-pack-row included ${selected ? 'selected' : ''}`}
-                        key={pack.id}
-                        onClick={() => setForm({ ...form, questionPackId: pack.id })}
-                        type="button"
-                      >
-                        {packBody}
                       </button>
-                    ) : (
-                      <article className="wizard-pack-row locked" key={pack.id}>
-                        {packBody}
-                        <button className="table-button" onClick={onUpgrade} type="button">
-                          Upgrade
-                        </button>
-                      </article>
                     );
                   })}
                 </div>
-                {selectedPack && !selectedPackIncluded && <p className="form-helper">Choose an included pack or upgrade to use {selectedPack.name}.</p>}
               </section>
 
               <div className="wide mode-choice-wrap">

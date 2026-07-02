@@ -2670,7 +2670,7 @@ textarea:focus {
 }
 
 .wizard-pack-list {
-  max-height: 255px;
+  max-height: 280px;
   display: grid;
   align-content: start;
   gap: 8px;
@@ -2680,21 +2680,38 @@ textarea:focus {
 
 .wizard-pack-row {
   width: 100%;
-  min-height: 92px;
+  min-height: 88px;
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 9px;
-  align-content: start;
+  align-items: start;
   padding: 13px;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: #050505;
   background: white;
   text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
 }
 
-.wizard-pack-row > div:first-child {
+.wizard-pack-row > div {
   display: grid;
   gap: 4px;
+}
+
+.wizard-pack-check {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #050505;
+  background: #f1f1f1;
 }
 
 .wizard-pack-row strong {
@@ -2707,12 +2724,9 @@ textarea:focus {
   line-height: 1.35;
 }
 
-.wizard-pack-row.included {
-  cursor: pointer;
-}
-
-.wizard-pack-row.included:hover {
+.wizard-pack-row:hover {
   border-color: #050505;
+  transform: translateY(-1px);
 }
 
 .wizard-pack-row.selected {
@@ -2721,12 +2735,14 @@ textarea:focus {
   box-shadow: inset 4px 0 0 #050505;
 }
 
-.wizard-pack-row.locked {
-  background: #f5f5f5;
+.wizard-pack-row.selected .wizard-pack-check {
+  color: #7b450d;
+  background: #fff0d8;
 }
 
-.wizard-pack-row.locked .table-button {
-  justify-self: start;
+.wizard-pack-row .pack-card-footer {
+  grid-column: 2;
+  align-self: end;
 }
 
 .mode-choice-grid {
