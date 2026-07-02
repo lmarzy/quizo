@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clipboard, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Send, Trash2, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clipboard, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Trash2, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import './styles.css';
@@ -1861,17 +1861,30 @@ function AvailablePacksPanel({
   planLabel: string;
   onUpgrade: () => void;
 }) {
+  const [activeTier, setActiveTier] = useState<'all' | 'free' | 'pro' | 'creator'>('all');
+  const [packSearch, setPackSearch] = useState('');
+  const [selectedPack, setSelectedPack] = useState<QuestionPack | null>(null);
   const isPackIncluded = (pack: QuestionPack) => pack.tier === 'free' || (pack.tier === 'pro' && canUseProPacks) || (pack.tier === 'creator' && canUseCreatorFeatures);
+  const tierFilters: Array<{ id: 'all' | 'free' | 'pro' | 'creator'; label: string }> = [
+    { id: 'all', label: 'All' },
+    { id: 'free', label: 'Free' },
+    { id: 'pro', label: 'Pro' },
+    { id: 'creator', label: 'Creator' },
+  ];
+  const filteredPacks = packs.filter((pack) => {
+    const matchesTier = activeTier === 'all' || pack.tier === activeTier;
+    const searchText = `${pack.name} ${pack.description || ''}`.toLowerCase();
+    return matchesTier && searchText.includes(packSearch.trim().toLowerCase());
+  });
+  const includedCount = packs.filter(isPackIncluded).length;
 
   return (
     <section className="pack-manager">
       <div className="pack-overview-header">
         <div>
           <p className="eyebrow">Question packs</p>
-          <h2>Available packs</h2>
-          <p className="section-helper">
-            You are currently on the {planLabel}. Free packs are ready now, Pro unlocks more quiz categories, and Creator is for custom packs later.
-          </p>
+          <h2>Packs</h2>
+          <p className="section-helper">{includedCount} of {packs.length} included on {planLabel}.</p>
         </div>
         <div className="pack-plan-actions">
           <span className="plan-badge large">{planLabel}</span>
@@ -1883,12 +1896,27 @@ function AvailablePacksPanel({
         </div>
       </div>
 
-      <div className="pack-summary-grid">
-        {packs.map((pack) => {
+      <div className="pack-browser">
+        <label className="pack-search">
+          <Search size={16} />
+          <input value={packSearch} onChange={(event) => setPackSearch(event.target.value)} placeholder="Search packs" type="search" />
+        </label>
+
+        <div className="pack-filter-tabs" aria-label="Filter question packs">
+          {tierFilters.map((filter) => (
+            <button className={activeTier === filter.id ? 'active' : ''} key={filter.id} onClick={() => setActiveTier(filter.id)} type="button">
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="pack-compact-list">
+          {filteredPacks.length === 0 && <p className="pack-empty-state">No packs match that search.</p>}
+          {filteredPacks.map((pack) => {
           const included = isPackIncluded(pack);
 
           return (
-            <article className={`pack-summary-card ${included ? 'included' : 'locked'}`} key={pack.id}>
+            <button className={`pack-compact-row ${included ? 'included' : 'locked'}`} key={pack.id} onClick={() => setSelectedPack(pack)} type="button">
               <div>
                 <strong>{pack.name}</strong>
                 <span>{pack.description || 'Starter quiz pack'}</span>
@@ -1904,11 +1932,64 @@ function AvailablePacksPanel({
                   </b>
                 )}
               </div>
-            </article>
+            </button>
           );
-        })}
+          })}
+        </div>
       </div>
+
+      {selectedPack && (
+        <PackDetailsModal
+          included={isPackIncluded(selectedPack)}
+          pack={selectedPack}
+          questionCount={packQuestionCounts[selectedPack.id] || 0}
+          onClose={() => setSelectedPack(null)}
+          onUpgrade={onUpgrade}
+        />
+      )}
     </section>
+  );
+}
+
+function PackDetailsModal({
+  included,
+  pack,
+  questionCount,
+  onClose,
+  onUpgrade,
+}: {
+  included: boolean;
+  pack: QuestionPack;
+  questionCount: number;
+  onClose: () => void;
+  onUpgrade: () => void;
+}) {
+  return (
+    <div className="modal-backdrop pack-details-backdrop" role="presentation">
+      <section className="pack-details-modal" role="dialog" aria-modal="true" aria-label={`${pack.name} details`}>
+        <div className="pack-details-header">
+          <div>
+            <p className="eyebrow">{getPackTierLabel(pack.tier)} pack</p>
+            <h2>{pack.name}</h2>
+          </div>
+          <button className="icon-button neutral" onClick={onClose} type="button" aria-label="Close pack details" title="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <p>{pack.description || 'Starter quiz pack'}</p>
+        <div className="pack-details-meta">
+          <span>{questionCount} questions</span>
+          <span>{included ? 'Included' : 'Locked'}</span>
+          <span>{getPackTierLabel(pack.tier)}</span>
+        </div>
+        {!included && (
+          <button className="primary-button" onClick={onUpgrade} type="button">
+            <Lock size={17} />
+            Upgrade to unlock
+          </button>
+        )}
+      </section>
+    </div>
   );
 }
 
