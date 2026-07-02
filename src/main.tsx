@@ -3809,8 +3809,8 @@ function GameRoom({
   const timerProgress = timerEndMs ? Math.min(100, Math.max(0, ((timeLimitMs - visibleRemainingMs) / timeLimitMs) * 100)) : 0;
   const timerRatio = timeLimit > 0 ? Math.max(0, Math.min(1, visibleRemainingMs / timeLimitMs)) : 0;
   const timerHue = Math.round(6 + timerRatio * 28);
-  const timerLightness = Math.round(60 + timerRatio * 20);
-  const timerColor = `hsl(${timerHue} 92% ${timerLightness}%)`;
+  const timerLightness = Math.round(84 + timerRatio * 8);
+  const timerColor = `hsl(${timerHue} 82% ${timerLightness}%)`;
   const winner = room.game.status === 'finished' ? room.members.find((member) => member.status === 'active') || room.members[0] : null;
   const currentAttempt = room.game.current_turn_attempt || 1;
   const maxAttempts = room.game.max_consecutive_questions || 2;
