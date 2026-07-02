@@ -1326,11 +1326,10 @@ function Dashboard({ session }: { session: Session }) {
             <h1>Games</h1>
           </div>
           <div className="table-toolbar-actions">
-            <button className="ghost-button table-button" onClick={() => setPacksDrawerOpen(true)} type="button">
+            <button className="ghost-button table-button toolbar-packs-button" onClick={() => setPacksDrawerOpen(true)} type="button">
               <BookOpen size={18} />
               Packs
             </button>
-            <span className="plan-badge">{planLabel}</span>
             <button className="primary-button" onClick={openGameWizard} type="button">
               <Plus size={18} />
               Add game
