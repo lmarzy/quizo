@@ -3599,11 +3599,12 @@ function GameRoom({
     : Boolean(playerIdentity?.memberId && playerIdentity.memberId === room.game.current_member_id);
   const myMember = playerIdentity ? room.members.find((member) => member.id === playerIdentity.memberId) || null : null;
   const latestTimeoutEvent = room.events.find((event) => event.event_type === 'turn_timed_out') || null;
-  const latestLadderEliminationEvent = isEliminationLadder ? room.events.find((event) => event.event_type === 'player_eliminated') || null : null;
-  const roundResultAgeMs = latestLadderEliminationEvent ? now - new Date(latestLadderEliminationEvent.created_at).getTime() : Number.POSITIVE_INFINITY;
-  const roundResultVisible = Boolean(latestLadderEliminationEvent && roundResultAgeMs >= 0 && roundResultAgeMs <= LADDER_ROUND_RESULT_DURATION_MS);
+  const latestLadderResultEvent = isEliminationLadder ? room.events.find((event) => ['player_eliminated', 'ladder_round_tied', 'ladder_final_tied'].includes(event.event_type)) || null : null;
+  const isLadderTieResult = latestLadderResultEvent?.event_type === 'ladder_round_tied' || latestLadderResultEvent?.event_type === 'ladder_final_tied';
+  const roundResultAgeMs = latestLadderResultEvent ? now - new Date(latestLadderResultEvent.created_at).getTime() : Number.POSITIVE_INFINITY;
+  const roundResultVisible = Boolean(latestLadderResultEvent && roundResultAgeMs >= 0 && roundResultAgeMs <= LADDER_ROUND_RESULT_DURATION_MS);
   const roundResultSeconds = roundResultVisible ? Math.max(1, Math.ceil((LADDER_ROUND_RESULT_DURATION_MS - roundResultAgeMs) / 1000)) : 0;
-  const roundLoser = latestLadderEliminationEvent?.member_id ? room.members.find((member) => member.id === latestLadderEliminationEvent.member_id) || null : null;
+  const roundLoser = !isLadderTieResult && latestLadderResultEvent?.member_id ? room.members.find((member) => member.id === latestLadderResultEvent.member_id) || null : null;
   const roundWinner = isEliminationLadder ? [...room.members].sort((a, b) => b.points - a.points || a.turn_order - b.turn_order)[0] || null : null;
   const ladderRoundNumber = Math.max(1, Math.ceil((room.speed_round?.round_number || 1) / (room.game.questions_per_round || 3)));
   const timerEndMs = room.game.timer_ends_at ? new Date(room.game.timer_ends_at).getTime() : null;
@@ -3898,7 +3899,7 @@ function GameRoom({
                 {delayingFinalReveal
                   ? 'Final answer'
                   : roundResultVisible
-                    ? `Round ${latestLadderEliminationEvent?.metadata?.ladder_round || ladderRoundNumber} complete`
+                    ? `Round ${latestLadderResultEvent?.metadata?.ladder_round || ladderRoundNumber} complete`
                   : preparingNextQuestion
                     ? isSpeedRound
                       ? 'Next round'
@@ -3913,13 +3914,15 @@ function GameRoom({
                         ? 'Recovery question'
                         : 'On turn'}
               </span>
-              <strong>{delayingFinalReveal ? toastAnswer?.member_name || room.active_member?.display_name || 'Last answer' : roundResultVisible ? `${roundLoser?.display_name || 'Lowest score'} is out` : isEliminationLadder ? `${room.speed_round?.answers.length || 0} answered` : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
+              <strong>{delayingFinalReveal ? toastAnswer?.member_name || room.active_member?.display_name || 'Last answer' : roundResultVisible ? isLadderTieResult ? 'Scores tied' : `${roundLoser?.display_name || 'Lowest score'} is out` : isEliminationLadder ? `${room.speed_round?.answers.length || 0} answered` : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
               <small>
                 {delayingFinalReveal
                   ? 'Revealing the winner next'
                   : roundResultVisible
                     ? roundWinner
-                      ? `${roundWinner.display_name} leads this round. Next question starts shortly.`
+                      ? isLadderTieResult
+                        ? 'No one is eliminated. Tie-break question coming up.'
+                        : `${roundWinner.display_name} leads this round. Next question starts shortly.`
                       : 'Next round starts shortly.'
                   : preparingNextQuestion
                   ? isEliminationLadder
@@ -3964,11 +3967,12 @@ function GameRoom({
           <section className="question-panel">
             {roundResultVisible ? (
               <LadderRoundResult
-                roundNumber={latestLadderEliminationEvent?.metadata?.ladder_round || ladderRoundNumber}
+                roundNumber={latestLadderResultEvent?.metadata?.ladder_round || ladderRoundNumber}
                 winner={roundWinner}
                 loser={roundLoser}
                 seconds={roundResultSeconds}
                 isFinal={room.game.status === 'finished'}
+                isTie={isLadderTieResult}
               />
             ) : delayingFinalReveal ? (
               <div className="next-question-state final">
@@ -4061,30 +4065,32 @@ function LadderRoundResult({
   loser,
   seconds,
   isFinal,
+  isTie,
 }: {
   roundNumber: number;
   winner: GameRoomPayload['members'][number] | null;
   loser: GameRoomPayload['members'][number] | null;
   seconds: number;
   isFinal: boolean;
+  isTie: boolean;
 }) {
   return (
-    <div className="ladder-round-result">
+    <div className={`ladder-round-result ${isTie ? 'tied' : ''}`}>
       <span>Round {roundNumber} complete</span>
-      <strong>{winner ? `${winner.display_name} wins the round` : 'Round complete'}</strong>
+      <strong>{isTie ? 'Scores are tied' : winner ? `${winner.display_name} wins the round` : 'Round complete'}</strong>
       <div className="ladder-result-grid">
         <article className="round-winner-card">
-          <small>Round winner</small>
-          <b>{winner ? winner.display_name : 'Top score'}</b>
+          <small>{isTie ? 'Current leader' : 'Round winner'}</small>
+          <b>{winner ? winner.display_name : isTie ? 'Still tied' : 'Top score'}</b>
           <em>{winner ? `${winner.points} pts` : 'Scores updated'}</em>
         </article>
         <article className="round-loser-card">
-          <small>Eliminated</small>
-          <b>{loser ? loser.display_name : 'Lowest score'}</b>
-          <em>{loser ? `${loser.points} pts` : 'Out of the ladder'}</em>
+          <small>{isTie ? 'Eliminated' : 'Eliminated'}</small>
+          <b>{isTie ? 'No one' : loser ? loser.display_name : 'Lowest score'}</b>
+          <em>{isTie ? 'Tie-break question coming up' : loser ? `${loser.points} pts` : 'Out of the ladder'}</em>
         </article>
       </div>
-      <p>{isFinal ? 'Final results are coming up.' : `Next round starts in ${seconds}s.`}</p>
+      <p>{isTie ? `Tie-break starts in ${seconds}s.` : isFinal ? 'Final results are coming up.' : `Next round starts in ${seconds}s.`}</p>
     </div>
   );
 }

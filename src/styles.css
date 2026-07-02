@@ -3626,6 +3626,10 @@ textarea:focus {
   text-transform: uppercase;
 }
 
+.ladder-round-result.tied > span {
+  color: #555;
+}
+
 .ladder-round-result > strong {
   max-width: 620px;
   color: #050505;
@@ -3682,6 +3686,10 @@ textarea:focus {
 
 .round-loser-card {
   box-shadow: inset 4px 0 0 #e85b5b;
+}
+
+.ladder-round-result.tied .round-loser-card {
+  box-shadow: inset 4px 0 0 #999;
 }
 
 .turn-banner.final-reveal::before {
