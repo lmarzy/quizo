@@ -80,6 +80,10 @@ function getPackTierLabel(tier: string) {
   return 'Free';
 }
 
+function isProGameMode(mode: string) {
+  return mode === 'speed_round' || mode === 'elimination_ladder';
+}
+
 function formatBillingDate(value?: string | null) {
   if (!value) return 'Not scheduled';
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
@@ -431,6 +435,7 @@ function Dashboard({ session }: { session: Session }) {
   const planLabel = getPlanLabel(currentPlanId);
   const hasActivePaidPlan = Boolean(subscription && ['active', 'trialing'].includes(subscription.status));
   const canUseProPacks = hasActivePaidPlan && ['pro', 'creator'].includes(currentPlanId);
+  const canUseProModes = canUseProPacks;
   const canUseCreatorFeatures = hasActivePaidPlan && currentPlanId === 'creator';
   const usablePacks = useMemo(
     () => packs.filter((pack) => pack.tier === 'free' || (pack.tier === 'pro' && canUseProPacks) || (pack.tier === 'creator' && canUseCreatorFeatures)),
@@ -738,6 +743,12 @@ function Dashboard({ session }: { session: Session }) {
 
     const isTargetMode = form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
     const isEliminationMode = form.gameMode === 'elimination_ladder';
+
+    if (isProGameMode(form.gameMode) && !canUseProModes) {
+      setWizardNotice('Upgrade to Pro to create Speed Round or Elimination Ladder games.');
+      setWizardStep(1);
+      return;
+    }
 
     if ((!isTargetMode && form.startingPoints <= 0) || form.targetPoints <= 0 || form.timeLimit < 5 || form.maxConsecutiveQuestions < 1 || (isEliminationMode && (form.eliminationRounds < 1 || form.questionsPerRound < 1))) {
       setWizardNotice('Check the rules before creating the game.');
@@ -1065,6 +1076,11 @@ function Dashboard({ session }: { session: Session }) {
 
     if (!gameSettingsDraft.name.trim() || !gameSettingsDraft.question_pack_id) {
       setMemberNotice('Game name and question pack are required.');
+      return;
+    }
+
+    if (isProGameMode(gameSettingsDraft.game_mode) && !canUseProModes) {
+      setMemberNotice('Upgrade to Pro to use Speed Round or Elimination Ladder.');
       return;
     }
 
@@ -1483,6 +1499,7 @@ function Dashboard({ session }: { session: Session }) {
         )}
 
         <GameManageDrawer
+          canUseProModes={canUseProModes}
           canManage={canManageSelectedGame}
           canStart={canStartSelectedGame}
           draft={gameSettingsDraft}
@@ -1518,6 +1535,7 @@ function Dashboard({ session }: { session: Session }) {
 
         <GameWizardModal
           busy={busy}
+          canUseProModes={canUseProModes}
           form={form}
           hostDisplayName={hostDisplayName}
           includeHostAsPlayer={includeHostAsPlayer}
@@ -1536,6 +1554,7 @@ function Dashboard({ session }: { session: Session }) {
             setWizardStep(1);
             setWizardNotice('');
           }}
+          onUpgrade={openUpgradeModal}
           onSubmit={() => void createGame()}
         />
 
@@ -2216,6 +2235,7 @@ function GameManageDrawer({
   game,
   draft,
   packs,
+  canUseProModes,
   members,
   memberNames,
   memberNotice,
@@ -2248,6 +2268,7 @@ function GameManageDrawer({
   game: Game | null;
   draft: GameSettingsDraft | null;
   packs: QuestionPack[];
+  canUseProModes: boolean;
   members: GameMember[];
   memberNames: string;
   memberNotice: string;
@@ -2293,6 +2314,7 @@ function GameManageDrawer({
   const updateDraft = (patch: Partial<GameSettingsDraft>) => {
     onDraftChange((current) => (current ? { ...current, ...patch } : current));
   };
+  const proModeLocked = isProGameMode(draft.game_mode) && !canUseProModes;
   const joinedMembers = members.filter((member) => ['joined', 'active'].includes(member.status));
   const waitingMembers = members.filter((member) => member.status === 'invited');
   const inactiveMembers = members.filter((member) => !['active', 'invited', 'joined'].includes(member.status));
@@ -2410,9 +2432,14 @@ function GameManageDrawer({
                 >
                   <option value="classic">Classic last player standing</option>
                   <option value="race_to_points">Race to points</option>
-                  <option value="speed_round">Speed round</option>
-                  <option value="elimination_ladder">Elimination ladder</option>
+                  <option value="speed_round" disabled={!canUseProModes}>
+                    Speed round (Pro)
+                  </option>
+                  <option value="elimination_ladder" disabled={!canUseProModes}>
+                    Elimination ladder (Pro)
+                  </option>
                 </select>
+                {proModeLocked && <span className="field-hint">Upgrade to Pro to save this game mode.</span>}
               </label>
               <NumberInput label="Starting points" value={draft.starting_points} disabled={!canManage} onChange={(value) => updateDraft({ starting_points: value })} />
               {(draft.game_mode === 'race_to_points' || draft.game_mode === 'speed_round') && <NumberInput label="Target points" value={draft.target_points} disabled={!canManage} onChange={(value) => updateDraft({ target_points: value })} />}
@@ -2553,6 +2580,7 @@ function GameWizardModal({
   form,
   packs,
   packQuestionCounts,
+  canUseProModes,
   hostDisplayName,
   includeHostAsPlayer,
   memberNames,
@@ -2563,6 +2591,7 @@ function GameWizardModal({
   setIncludeHostAsPlayer,
   setMemberNames,
   onClose,
+  onUpgrade,
   onSubmit,
 }: {
   open: boolean;
@@ -2570,6 +2599,7 @@ function GameWizardModal({
   form: typeof defaultForm;
   packs: QuestionPack[];
   packQuestionCounts: Record<string, number>;
+  canUseProModes: boolean;
   hostDisplayName: string;
   includeHostAsPlayer: boolean;
   memberNames: string;
@@ -2580,6 +2610,7 @@ function GameWizardModal({
   setIncludeHostAsPlayer: React.Dispatch<React.SetStateAction<boolean>>;
   setMemberNames: React.Dispatch<React.SetStateAction<string>>;
   onClose: () => void;
+  onUpgrade: () => void;
   onSubmit: () => void;
 }) {
   const [playerNameDraft, setPlayerNameDraft] = useState('');
@@ -2602,19 +2633,20 @@ function GameWizardModal({
     },
     speed_round: {
       title: 'Speed Round',
-      badge: 'Free',
+      badge: 'Pro',
       description: 'Everyone sees the same question at once.',
       helper: 'The first player to answer takes control. If they miss, they get one locked-in second chance before everyone rejoins.',
     },
     elimination_ladder: {
       title: 'Elimination Ladder',
-      badge: 'Free',
+      badge: 'Pro',
       description: 'Round-by-round elimination by score.',
       helper: 'Everyone answers their own question each round. The lowest score drops out until the final places are decided.',
     },
   };
+  const selectedModeLocked = isProGameMode(form.gameMode) && !canUseProModes;
   const selectedPack = packs.find((pack) => pack.id === form.questionPackId);
-  const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId);
+  const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId && !selectedModeLocked);
   const isTargetMode = form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
   const isEliminationMode = form.gameMode === 'elimination_ladder';
   const canAdvanceRules =
@@ -2763,31 +2795,47 @@ function GameWizardModal({
                   </div>
                 </div>
                 <div className="mode-choice-grid">
-                  {(Object.keys(modeDetails) as GameMode[]).map((mode) => (
-                    <button
-                      className={`mode-choice-card ${form.gameMode === mode ? 'selected' : ''}`}
-                      key={mode}
-                      onClick={() =>
-                        setForm({
-                          ...form,
-                          gameMode: mode,
-                          startingPoints: mode === 'race_to_points' || mode === 'speed_round' ? 0 : form.startingPoints || 100,
-                          targetPoints: mode === 'race_to_points' || mode === 'speed_round' ? form.targetPoints || 100 : form.targetPoints,
-                          eliminationRounds: mode === 'elimination_ladder' ? form.eliminationRounds || 3 : form.eliminationRounds,
-                          questionsPerRound: mode === 'elimination_ladder' ? form.questionsPerRound || 3 : form.questionsPerRound,
-                        })
-                      }
-                      type="button"
-                    >
-                      <span className="mode-card-top">
-                        <strong>{modeDetails[mode].title}</strong>
-                        <em>{modeDetails[mode].badge}</em>
-                      </span>
-                      <span>{modeDetails[mode].description}</span>
-                    </button>
-                  ))}
+                  {(Object.keys(modeDetails) as GameMode[]).map((mode) => {
+                    const locked = isProGameMode(mode) && !canUseProModes;
+
+                    return (
+                      <button
+                        className={`mode-choice-card ${form.gameMode === mode ? 'selected' : ''} ${locked ? 'locked' : ''}`}
+                        key={mode}
+                        onClick={() => {
+                          if (locked) {
+                            onUpgrade();
+                            return;
+                          }
+
+                          setForm({
+                            ...form,
+                            gameMode: mode,
+                            startingPoints: mode === 'race_to_points' || mode === 'speed_round' ? 0 : form.startingPoints || 100,
+                            targetPoints: mode === 'race_to_points' || mode === 'speed_round' ? form.targetPoints || 100 : form.targetPoints,
+                            eliminationRounds: mode === 'elimination_ladder' ? form.eliminationRounds || 3 : form.eliminationRounds,
+                            questionsPerRound: mode === 'elimination_ladder' ? form.questionsPerRound || 3 : form.questionsPerRound,
+                          });
+                        }}
+                        type="button"
+                      >
+                        <span className="mode-card-top">
+                          <strong>{modeDetails[mode].title}</strong>
+                          <em>{modeDetails[mode].badge}</em>
+                        </span>
+                        <span>{modeDetails[mode].description}</span>
+                        {locked && (
+                          <span className="mode-lock-note">
+                            <Lock size={13} />
+                            Upgrade to unlock
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
                 <p className="mode-helper">{modeDetails[form.gameMode].helper}</p>
+                {selectedModeLocked && <p className="form-helper">Choose a free mode or upgrade to Pro to continue.</p>}
               </div>
             </div>
           )}

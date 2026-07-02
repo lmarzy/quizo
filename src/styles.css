@@ -476,6 +476,15 @@ textarea:focus {
   margin: -8px 0 0;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .toast {
   position: fixed;
   z-index: 80;
@@ -2769,6 +2778,14 @@ textarea:focus {
   transform: translateY(-1px);
 }
 
+.mode-choice-card.locked {
+  background: #f7f7f7;
+}
+
+.mode-choice-card.locked:hover {
+  border-color: #bcbcbc;
+}
+
 .mode-choice-card.selected {
   border-color: #050505;
   box-shadow: inset 4px 0 0 #050505;
@@ -2800,6 +2817,20 @@ textarea:focus {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.4;
+}
+
+.mode-lock-note {
+  width: max-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #050505;
+  background: white;
+  font-size: 12px;
+  font-weight: 950;
 }
 
 .mode-helper {
