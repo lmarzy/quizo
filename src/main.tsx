@@ -204,7 +204,7 @@ const defaultForm = {
   gameMode: 'classic' as GameMode,
   questionPackId: '',
   startingPoints: 100,
-  targetPoints: 100,
+  targetPoints: 150,
   eliminationRounds: 3,
   questionsPerRound: 3,
   wrongPenalty: 10,
@@ -748,7 +748,7 @@ function Dashboard({ session }: { session: Session }) {
       return;
     }
 
-    const isTargetMode = form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
+    const isTargetMode = form.gameMode === 'classic' || form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
     const isEliminationMode = form.gameMode === 'elimination_ladder';
 
     if (isProGameMode(form.gameMode) && !canUseProModes) {
@@ -757,7 +757,14 @@ function Dashboard({ session }: { session: Session }) {
       return;
     }
 
-    if ((!isTargetMode && form.startingPoints <= 0) || form.targetPoints <= 0 || form.timeLimit < 5 || form.maxConsecutiveQuestions < 1 || (isEliminationMode && (form.eliminationRounds < 1 || form.questionsPerRound < 1))) {
+    if (
+      form.startingPoints < 0 ||
+      (form.gameMode === 'classic' && (form.startingPoints <= 0 || form.targetPoints <= form.startingPoints)) ||
+      ((form.gameMode === 'race_to_points' || form.gameMode === 'speed_round') && form.targetPoints <= 0) ||
+      form.timeLimit < 5 ||
+      form.maxConsecutiveQuestions < 1 ||
+      (isEliminationMode && (form.eliminationRounds < 1 || form.questionsPerRound < 1))
+    ) {
       setWizardNotice('Check the rules before creating the game.');
       setWizardStep(2);
       return;
@@ -1110,6 +1117,11 @@ function Dashboard({ session }: { session: Session }) {
 
     if (isProGameMode(gameSettingsDraft.game_mode) && !canUseProModes) {
       setMemberNotice('Upgrade to Pro to use Speed Round or Elimination Ladder.');
+      return;
+    }
+
+    if (gameSettingsDraft.game_mode === 'classic' && Number(gameSettingsDraft.target_points) <= Number(gameSettingsDraft.starting_points)) {
+      setMemberNotice('Classic winning score must be higher than the starting points.');
       return;
     }
 
@@ -2460,7 +2472,14 @@ function GameManageDrawer({
                     updateDraft({
                       game_mode: nextMode,
                       starting_points: nextMode === 'race_to_points' || nextMode === 'speed_round' ? 0 : draft.starting_points || 100,
-                      target_points: nextMode === 'race_to_points' || nextMode === 'speed_round' ? draft.target_points || 100 : draft.target_points,
+                      target_points:
+                        nextMode === 'classic'
+                          ? draft.target_points > (draft.starting_points || 100)
+                            ? draft.target_points
+                            : (draft.starting_points || 100) + 50
+                          : nextMode === 'race_to_points' || nextMode === 'speed_round'
+                            ? draft.target_points || 100
+                            : draft.target_points,
                     });
                   }}
                   disabled={!canManage}
@@ -2477,7 +2496,7 @@ function GameManageDrawer({
                 {proModeLocked && <span className="field-hint">Upgrade to Pro to save this game mode.</span>}
               </label>
               <NumberInput label="Starting points" value={draft.starting_points} disabled={!canManage} onChange={(value) => updateDraft({ starting_points: value })} />
-              {(draft.game_mode === 'race_to_points' || draft.game_mode === 'speed_round') && <NumberInput label="Target points" value={draft.target_points} disabled={!canManage} onChange={(value) => updateDraft({ target_points: value })} />}
+              {(draft.game_mode === 'classic' || draft.game_mode === 'race_to_points' || draft.game_mode === 'speed_round') && <NumberInput label={draft.game_mode === 'classic' ? 'Winning score' : 'Target points'} value={draft.target_points} disabled={!canManage} onChange={(value) => updateDraft({ target_points: value })} />}
               {draft.game_mode === 'elimination_ladder' && <NumberInput label="Ladder rounds" value={draft.elimination_rounds} disabled={!canManage} onChange={(value) => updateDraft({ elimination_rounds: value })} />}
               {draft.game_mode === 'elimination_ladder' && <NumberInput label="Questions/round" value={draft.questions_per_round} disabled={!canManage} onChange={(value) => updateDraft({ questions_per_round: value })} />}
               <NumberInput label="Wrong penalty" value={draft.wrong_answer_penalty} disabled={!canManage} onChange={(value) => updateDraft({ wrong_answer_penalty: value })} />
@@ -2661,8 +2680,8 @@ function GameWizardModal({
     classic: {
       title: 'Classic',
       badge: 'Free',
-      description: 'Turn-based last-player-standing quiz.',
-      helper: 'Players start with points. A wrong answer costs points, a second correct answer recovers them, and play moves on.',
+      description: 'Turn-based quiz with points and knockouts.',
+      helper: 'Players start with points. Correct answers build toward the winning score, wrong answers cost points, and play moves on.',
     },
     race_to_points: {
       title: 'Race to Points',
@@ -2686,10 +2705,10 @@ function GameWizardModal({
   const selectedModeLocked = isProGameMode(form.gameMode) && !canUseProModes;
   const selectedPack = packs.find((pack) => pack.id === form.questionPackId);
   const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId && !selectedModeLocked);
-  const isTargetMode = form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
+  const isTargetMode = form.gameMode === 'classic' || form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
   const isEliminationMode = form.gameMode === 'elimination_ladder';
   const canAdvanceRules =
-    (isTargetMode || form.startingPoints > 0) &&
+    (form.gameMode === 'classic' ? form.startingPoints > 0 && form.targetPoints > form.startingPoints : isTargetMode || form.startingPoints > 0) &&
     form.targetPoints > 0 &&
     (!isEliminationMode || (form.eliminationRounds > 0 && form.questionsPerRound > 0)) &&
     form.wrongPenalty >= 0 &&
@@ -2858,7 +2877,14 @@ function GameWizardModal({
                             ...form,
                             gameMode: mode,
                             startingPoints: mode === 'race_to_points' || mode === 'speed_round' ? 0 : form.startingPoints || 100,
-                            targetPoints: mode === 'race_to_points' || mode === 'speed_round' ? form.targetPoints || 100 : form.targetPoints,
+                            targetPoints:
+                              mode === 'classic'
+                                ? form.targetPoints > (form.startingPoints || 100)
+                                  ? form.targetPoints
+                                  : (form.startingPoints || 100) + 50
+                                : mode === 'race_to_points' || mode === 'speed_round'
+                                  ? form.targetPoints || 100
+                                  : form.targetPoints,
                             eliminationRounds: mode === 'elimination_ladder' ? form.eliminationRounds || 3 : form.eliminationRounds,
                             questionsPerRound: mode === 'elimination_ladder' ? form.questionsPerRound || 3 : form.questionsPerRound,
                           });
@@ -2889,14 +2915,14 @@ function GameWizardModal({
           {step === 2 && (
             <div className="form-grid">
               <NumberInput label="Starting points" value={form.startingPoints} onChange={(value) => setForm({ ...form, startingPoints: value })} />
-              {isTargetMode && <NumberInput label="Target points" value={form.targetPoints} onChange={(value) => setForm({ ...form, targetPoints: value })} />}
+              {isTargetMode && <NumberInput label={form.gameMode === 'classic' ? 'Winning score' : 'Target points'} value={form.targetPoints} onChange={(value) => setForm({ ...form, targetPoints: value })} />}
               {isEliminationMode && <NumberInput label="Ladder rounds" value={form.eliminationRounds} onChange={(value) => setForm({ ...form, eliminationRounds: value })} />}
               {isEliminationMode && <NumberInput label="Questions/round" value={form.questionsPerRound} onChange={(value) => setForm({ ...form, questionsPerRound: value })} />}
               <NumberInput label="Wrong penalty" value={form.wrongPenalty} onChange={(value) => setForm({ ...form, wrongPenalty: value })} />
               <NumberInput label="Correct points" value={form.recoveryPoints} onChange={(value) => setForm({ ...form, recoveryPoints: value })} />
               <NumberInput label="Seconds/question" value={form.timeLimit} onChange={(value) => setForm({ ...form, timeLimit: value })} />
               {form.gameMode !== 'speed_round' && form.gameMode !== 'elimination_ladder' && <NumberInput label="Questions/turn" value={form.maxConsecutiveQuestions} onChange={(value) => setForm({ ...form, maxConsecutiveQuestions: value })} />}
-              {!canAdvanceRules && <p className="form-helper wide">Check the scores, target, ladder rounds, question count, 5 seconds per question, and at least 1 question per turn.</p>}
+              {!canAdvanceRules && <p className="form-helper wide">Check the scores, winning target, ladder rounds, question count, 5 seconds per question, and at least 1 question per turn.</p>}
             </div>
           )}
 
@@ -2987,7 +3013,7 @@ function GameWizardModal({
                   {isEliminationMode
                     ? `${form.startingPoints} pts · ${form.eliminationRounds} rounds · ${form.questionsPerRound} questions/round`
                     : isTargetMode
-                      ? `${form.startingPoints} start · ${form.targetPoints} target`
+                      ? `${form.startingPoints} start · ${form.targetPoints} ${form.gameMode === 'classic' ? 'to win' : 'target'}`
                       : `${form.startingPoints} pts`} · -{form.wrongPenalty} wrong · +{form.recoveryPoints} correct · {form.timeLimit}s
                 </strong>
               </div>
@@ -3197,7 +3223,7 @@ function GameRow({
       <div>
         <h3>{game.name}</h3>
         <p>
-          {game.status} · {getGameModeLabel(game.game_mode)} · {game.game_mode === 'elimination_ladder' ? `${game.elimination_rounds} rounds` : game.game_mode === 'race_to_points' || game.game_mode === 'speed_round' ? `Race to ${game.target_points}` : `${game.starting_points} pts`} · -{game.wrong_answer_penalty} wrong · {game.question_time_limit_seconds}s
+          {game.status} · {getGameModeLabel(game.game_mode)} · {game.game_mode === 'elimination_ladder' ? `${game.elimination_rounds} rounds` : game.game_mode === 'race_to_points' || game.game_mode === 'speed_round' ? `Race to ${game.target_points}` : `${game.starting_points} start · ${game.target_points} to win`} · -{game.wrong_answer_penalty} wrong · {game.question_time_limit_seconds}s
         </p>
       </div>
       <div className="join-code">
@@ -3658,7 +3684,7 @@ function JoinGame({ joinCode }: { joinCode: string }) {
               <p className="eyebrow">Game code {payload.game.join_code}</p>
               <h1>{payload.game.name}</h1>
               <p>
-                {payload.game.status} · {getGameModeLabel(payload.game.game_mode)} · {payload.game.game_mode === 'elimination_ladder' ? `${payload.game.elimination_rounds || 3} rounds · ${payload.game.questions_per_round || 3} questions/round` : payload.game.game_mode === 'race_to_points' || payload.game.game_mode === 'speed_round' ? `Race to ${payload.game.target_points || 100}` : `${payload.game.starting_points} starting points`} · {payload.game.question_time_limit_seconds}s per question
+                {payload.game.status} · {getGameModeLabel(payload.game.game_mode)} · {payload.game.game_mode === 'elimination_ladder' ? `${payload.game.elimination_rounds || 3} rounds · ${payload.game.questions_per_round || 3} questions/round` : payload.game.game_mode === 'race_to_points' || payload.game.game_mode === 'speed_round' ? `Race to ${payload.game.target_points || 100}` : `${payload.game.starting_points} start · ${payload.game.target_points || 150} to win`} · {payload.game.question_time_limit_seconds}s per question
               </p>
             </div>
 
