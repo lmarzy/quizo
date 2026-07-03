@@ -4468,7 +4468,7 @@ function TimeoutResultToast({ event }: { event: GameRoomPayload['events'][number
       </div>
       <div>
         <strong>Time's up</strong>
-        <span>{event.message}</span>
+        <span>No answer locked in. Points lost.</span>
       </div>
     </div>
   );
@@ -4478,8 +4478,11 @@ function AnswerResultToast({ answer }: { answer: NonNullable<GameRoomPayload['la
   const isRecoveryAttempt = (answer.attempt || 1) > 1;
   const result = answer.is_correct ? (isRecoveryAttempt ? 'Recovered' : 'Correct') : 'Wrong';
   const pointText = answer.points_delta !== 0 ? `${answer.points_delta > 0 ? '+' : ''}${answer.points_delta} points` : 'No points change';
-  const selectedText = answer.is_correct ? `Selected ${answer.selected_option}` : `Selected ${answer.selected_option}`;
-  const followUpText = !answer.is_correct && answer.points_delta < 0 && !isRecoveryAttempt ? ' Second chance coming up.' : '';
+  const answerText = answer.is_correct
+    ? `You chose ${answer.correct_answer}`
+    : `Correct answer: ${answer.correct_answer}`;
+  const followUpText = !answer.is_correct && answer.points_delta < 0 && !isRecoveryAttempt ? 'Second chance next' : '';
+  const detailParts = [answerText, pointText, followUpText].filter(Boolean);
 
   return (
     <div className={`answer-result-toast ${answer.is_correct ? 'correct' : 'wrong'}`} role="status" aria-live="polite">
@@ -4488,9 +4491,7 @@ function AnswerResultToast({ answer }: { answer: NonNullable<GameRoomPayload['la
         <strong>
           {result}
         </strong>
-        <span>
-          {answer.member_name}: {selectedText}. Correct answer: {answer.correct_option}, {answer.correct_answer} · {pointText}.{followUpText}
-        </span>
+        <span>{detailParts.join(' · ')}</span>
       </div>
     </div>
   );
