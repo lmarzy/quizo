@@ -3491,6 +3491,7 @@ function JoinGame({ joinCode }: { joinCode: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const refreshInFlightRef = useRef(false);
 
   useEffect(() => {
     void loadJoinGame();
@@ -3529,35 +3530,58 @@ function JoinGame({ joinCode }: { joinCode: string }) {
       )
       .subscribe();
 
+    const pollId = window.setInterval(() => void loadJoinGame(false), room ? 5000 : 3000);
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void loadJoinGame(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshWhenVisible);
+
     return () => {
+      window.clearInterval(pollId);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshWhenVisible);
       void supabase.removeChannel(channel);
     };
   }, [payload?.game.id, room?.game.id]);
 
   async function loadJoinGame(showLoading = true) {
-    if (showLoading) setLoading(true);
-    setMessage('');
-
-    const { data, error } = await supabase.rpc('get_joinable_game', { p_join_code: joinCode });
-
-    if (showLoading) setLoading(false);
-
-    if (error) {
-      setMessage(error.message);
-      return;
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
+    if (showLoading) {
+      setLoading(true);
+      setMessage('');
     }
 
-    const nextPayload = data as JoinGamePayload;
-    setPayload(nextPayload);
-    setSelectedMemberId((current) => current || nextPayload.members.find((member) => member.status === 'invited')?.id || '');
+    try {
+      const { data, error } = await supabase.rpc('get_joinable_game', { p_join_code: joinCode });
 
-    if (nextPayload.game.status === 'active' || nextPayload.game.status === 'finished') {
-      const roomResult = await supabase.rpc('get_game_room', { p_join_code: joinCode });
-      if (!roomResult.error) {
-        setRoom(roomResult.data as GameRoomPayload);
+      if (showLoading) setLoading(false);
+
+      if (error) {
+        setMessage(error.message);
+        return;
       }
-    } else {
-      setRoom(null);
+
+      const nextPayload = data as JoinGamePayload;
+      setPayload(nextPayload);
+      setSelectedMemberId((current) => current || nextPayload.members.find((member) => member.status === 'invited')?.id || '');
+
+      if (nextPayload.game.status === 'active' || nextPayload.game.status === 'finished') {
+        const roomResult = await supabase.rpc('get_game_room', { p_join_code: joinCode });
+        if (!roomResult.error) {
+          setRoom(roomResult.data as GameRoomPayload);
+        }
+      } else {
+        setRoom(null);
+      }
+    } finally {
+      if (showLoading) setLoading(false);
+      refreshInFlightRef.current = false;
     }
   }
 
