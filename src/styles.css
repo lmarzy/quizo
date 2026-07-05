@@ -9674,3 +9674,32 @@ body,
     width: auto;
   }
 }
+
+/* Gameplay modal stacking and density */
+.modal-backdrop {
+  z-index: 300;
+}
+
+.control-room-backdrop {
+  z-index: 320;
+}
+
+.control-room-modal .game-stage .game-room-header {
+  display: none;
+}
+
+.control-room-modal .host-live-section.game-stage {
+  padding: 16px;
+}
+
+.control-room-modal .host-live-section.game-stage .game-room {
+  gap: 14px;
+}
+
+.control-room-modal .host-live-section.game-stage .turn-banner {
+  margin-top: 0;
+}
+
+.control-room-close {
+  z-index: 340;
+}
