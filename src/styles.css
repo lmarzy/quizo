@@ -9496,3 +9496,43 @@ body,
     text-align: left;
   }
 }
+
+/* Member gameplay header clearance */
+.join-layout.game-stage:has(.live-game-panel) {
+  align-items: stretch;
+  min-height: 100vh;
+  overflow-y: auto;
+  padding: 82px 18px 18px;
+}
+
+.join-layout.game-stage:has(.live-game-panel) .member-corner-logo {
+  z-index: 20;
+}
+
+.join-layout.game-stage:has(.live-game-panel) .live-game-panel {
+  min-height: calc(100vh - 100px);
+}
+
+.join-layout.game-stage:has(.live-game-panel) .live-game-panel .game-room-header {
+  display: none;
+}
+
+.join-layout.game-stage:has(.live-game-panel) .turn-banner {
+  margin-top: 0;
+}
+
+@media (max-width: 760px) {
+  .join-layout.game-stage:has(.live-game-panel) {
+    padding: 76px 10px 10px;
+  }
+
+  .join-layout.game-stage:has(.live-game-panel) .live-game-panel {
+    min-height: calc(100vh - 86px);
+  }
+
+  .member-corner-logo {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+  }
+}
