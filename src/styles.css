@@ -9194,13 +9194,13 @@ body,
 
 .dashboard .games-table tbody tr.selected td,
 .dashboard .games-table tbody tr.selected-row td {
-  border-color: #e6e6e6;
-  background: #ffffff;
+  border-color: #e8e8e8;
+  background: #fcfcfc;
 }
 
 .dashboard .games-table tbody tr.selected td:first-child,
 .dashboard .games-table tbody tr.selected-row td:first-child {
-  box-shadow: inset 5px 0 0 #050505;
+  box-shadow: none;
 }
 
 .dashboard .games-table td:first-child {
