@@ -198,7 +198,7 @@ button {
   position: relative;
   z-index: 1;
   width: min(540px, 100%);
-  min-height: 250px;
+  min-height: 330px;
   margin-top: 28px;
 }
 
@@ -214,7 +214,7 @@ button {
 .auth-quiz-card.primary {
   inset: 12px auto auto 6%;
   width: min(360px, 64%);
-  min-height: 220px;
+  min-height: 300px;
   display: grid;
   align-content: space-between;
   gap: 22px;
@@ -242,7 +242,7 @@ button {
   gap: 7px;
 }
 
-.auth-answer-list b {
+.auth-answer-list button {
   min-height: 34px;
   display: flex;
   align-items: center;
@@ -252,13 +252,90 @@ button {
   color: #050505;
   background: #fffaf0;
   font-size: 14px;
+  font-weight: 900;
+  text-align: left;
 }
 
-.auth-answer-list b:first-child {
+.auth-answer-list button:first-child {
   grid-column: 1 / -1;
+}
+
+.auth-answer-list button:hover:not(:disabled) {
+  border-color: #050505;
+  transform: translateY(-1px);
+}
+
+.auth-answer-list button.correct {
   color: white;
   border-color: #050505;
   background: #050505;
+}
+
+.auth-answer-list button.wrong {
+  color: #9d2024;
+  border-color: rgba(217, 63, 70, 0.38);
+  background: #fff0f1;
+}
+
+.auth-answer-list button.muted {
+  color: #888;
+  background: #f6f2e9;
+}
+
+.auth-answer-list button:not(.correct):not(.wrong):not(.muted) {
+  color: #050505;
+  border-color: #e4dfd5;
+  background: #fffaf0;
+}
+
+.auth-answer-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: #f7f7f7;
+}
+
+.auth-answer-result.correct {
+  color: #125f4c;
+  background: #eafaf2;
+}
+
+.auth-answer-result.wrong {
+  color: #9d2024;
+  background: #fff0f1;
+}
+
+.auth-answer-result strong,
+.auth-answer-result span {
+  display: block;
+}
+
+.auth-answer-result strong {
+  color: inherit;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.auth-answer-result span {
+  color: #555;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.auth-answer-result button {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(5, 5, 5, 0.12);
+  border-radius: 999px;
+  color: #050505;
+  background: white;
+  font-size: 12px;
+  font-weight: 950;
 }
 
 .auth-quiz-card.score {
@@ -296,12 +373,6 @@ button {
   top: 0;
   right: 9%;
   transform: rotate(7deg);
-}
-
-.auth-mini-card.bottom {
-  bottom: 0;
-  left: 3%;
-  transform: rotate(-6deg);
 }
 
 .auth-form-heading {
@@ -7431,7 +7502,7 @@ body,
     transform: rotate(4deg);
   }
 
-  .auth-answer-list b:nth-child(3) {
+  .auth-answer-list button:nth-child(3) {
     display: none;
   }
 

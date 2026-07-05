@@ -313,8 +313,16 @@ function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [previewAnswer, setPreviewAnswer] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const previewQuestion = {
+    prompt: 'Which city is known as the Eternal City?',
+    options: ['Rome', 'Paris', 'Athens'],
+    correct: 'Rome',
+  };
+  const previewAnswered = previewAnswer.length > 0;
+  const previewCorrect = previewAnswer === previewQuestion.correct;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -359,27 +367,47 @@ function AuthScreen() {
             </div>
             <span>Quizo</span>
           </div>
-          <h1>Quiz nights that feel alive.</h1>
-          <p>Play solo, host the room, unlock bigger packs, and keep every question feeling sharp.</p>
+          <h1>Play quizzes your way.</h1>
+          <p>Jump into a solo round, host a live game, or challenge friends with sharper question packs.</p>
         </div>
 
-        <div className="auth-showcase" aria-hidden="true">
+        <div className="auth-showcase">
           <div className="auth-quiz-card primary">
-            <span>Question 08</span>
-            <strong>Which city is known as the Eternal City?</strong>
+            <span>Try a question</span>
+            <strong>{previewQuestion.prompt}</strong>
             <div className="auth-answer-list">
-              <b>Rome</b>
-              <b>Paris</b>
-              <b>Athens</b>
+              {previewQuestion.options.map((option) => {
+                const answerState = previewAnswered
+                  ? option === previewQuestion.correct
+                    ? 'correct'
+                    : option === previewAnswer
+                      ? 'wrong'
+                      : 'muted'
+                  : '';
+
+                return (
+                  <button className={answerState} disabled={previewAnswered} key={option} onClick={() => setPreviewAnswer(option)} type="button">
+                    {option}
+                  </button>
+                );
+              })}
             </div>
+            {previewAnswered && (
+              <div className={`auth-answer-result ${previewCorrect ? 'correct' : 'wrong'}`} role="status" aria-live="polite">
+                <strong>{previewCorrect ? 'Correct' : 'Wrong'}</strong>
+                <span>{previewCorrect ? 'Nice start.' : `Correct answer: ${previewQuestion.correct}`}</span>
+                <button onClick={() => setPreviewAnswer('')} type="button">
+                  Try again
+                </button>
+              </div>
+            )}
           </div>
           <div className="auth-quiz-card score">
             <span>Solo score</span>
-            <strong>82%</strong>
-            <small>14 question streak</small>
+            <strong>{previewAnswered ? (previewCorrect ? '100%' : '0%') : '82%'}</strong>
+            <small>{previewAnswered ? (previewCorrect ? 'Answer locked in' : 'Quick reset?') : '14 question streak'}</small>
           </div>
           <div className="auth-mini-card top">Live room</div>
-          <div className="auth-mini-card bottom">100 questions</div>
         </div>
       </section>
 
