@@ -6879,15 +6879,15 @@ body,
 
 .dashboard::before {
   position: fixed;
-  top: -210px;
-  right: -190px;
+  top: -230px;
+  left: -180px;
   z-index: 0;
-  width: min(560px, 70vw);
-  height: min(560px, 70vw);
+  width: min(680px, 78vw);
+  height: min(620px, 74vw);
   pointer-events: none;
   content: '';
-  background: radial-gradient(circle, rgba(255, 205, 91, 0.36) 0%, rgba(255, 224, 153, 0.22) 36%, rgba(255, 255, 255, 0) 72%);
-  filter: blur(42px);
+  background: radial-gradient(circle, rgba(255, 205, 91, 0.32) 0%, rgba(255, 224, 153, 0.2) 38%, rgba(255, 255, 255, 0) 74%);
+  filter: blur(48px);
 }
 
 .dashboard > * {
@@ -6896,13 +6896,14 @@ body,
 }
 
 .dashboard .topbar {
-  width: min(100%, 1480px);
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   padding: 24px clamp(18px, 4vw, 44px) 12px;
   color: #050505;
   border-bottom: 0;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(18px);
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .dashboard .brand-row {
@@ -7197,11 +7198,11 @@ body,
 
 @media (max-width: 720px) {
   .dashboard::before {
-    top: -150px;
-    right: -150px;
-    width: 340px;
-    height: 340px;
-    filter: blur(54px);
+    top: -120px;
+    left: -150px;
+    width: 360px;
+    height: 330px;
+    filter: blur(50px);
   }
 
   .dashboard .topbar {
