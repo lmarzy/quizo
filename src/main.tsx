@@ -491,12 +491,21 @@ function Dashboard({ session }: { session: Session }) {
     if (!overlayOpen) return undefined;
 
     const { body, documentElement } = document;
+    const scrollY = window.scrollY;
     const previousBodyOverflow = body.style.overflow;
     const previousBodyPaddingRight = body.style.paddingRight;
+    const previousBodyPosition = body.style.position;
+    const previousBodyTop = body.style.top;
+    const previousBodyWidth = body.style.width;
+    const previousDocumentOverflow = documentElement.style.overflow;
     const previousDocumentOverscroll = documentElement.style.overscrollBehavior;
     const scrollbarWidth = window.innerWidth - documentElement.clientWidth;
 
     body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
+    documentElement.style.overflow = 'hidden';
     documentElement.style.overscrollBehavior = 'contain';
 
     if (scrollbarWidth > 0) {
@@ -506,7 +515,12 @@ function Dashboard({ session }: { session: Session }) {
     return () => {
       body.style.overflow = previousBodyOverflow;
       body.style.paddingRight = previousBodyPaddingRight;
+      body.style.position = previousBodyPosition;
+      body.style.top = previousBodyTop;
+      body.style.width = previousBodyWidth;
+      documentElement.style.overflow = previousDocumentOverflow;
       documentElement.style.overscrollBehavior = previousDocumentOverscroll;
+      window.scrollTo(0, scrollY);
     };
   }, [overlayOpen]);
 
