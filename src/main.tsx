@@ -2008,9 +2008,9 @@ function PracticeModeModal({
 
   const selectedPack = includedPacks.find((pack) => pack.id === selectedPackId) || null;
   const availableQuestionCount = selectedPack ? packQuestionCounts[selectedPack.id] || 0 : 0;
-  const maxPracticeQuestions = currentPlanId === 'free' ? 10 : currentPlanId === 'pro' ? 25 : Math.max(availableQuestionCount, 50);
+  const maxPracticeQuestions = availableQuestionCount;
   const maxSelectableQuestions = Math.min(availableQuestionCount, maxPracticeQuestions);
-  const questionOptions = Array.from(new Set([10, 20, 50, maxSelectableQuestions].filter((count) => count > 0 && count <= maxSelectableQuestions))).sort((a, b) => a - b);
+  const questionOptions = Array.from(new Set([10, 20, 30, 50, 75, 100, maxSelectableQuestions].filter((count) => count > 0 && count <= maxSelectableQuestions))).sort((a, b) => a - b);
   const currentQuestion = practiceQuestions[currentIndex] || null;
   const currentAnswer = currentQuestion ? answers.find((answer) => answer.question.id === currentQuestion.id) || null : null;
   const practiceStarted = practiceQuestions.length > 0;
@@ -2106,13 +2106,13 @@ function PracticeModeModal({
   }
 
   return (
-    <div className="modal-backdrop practice-backdrop" role="dialog" aria-modal="true" aria-label="Practice mode">
+    <div className="modal-backdrop practice-backdrop" role="dialog" aria-modal="true" aria-label="Solo game">
       <section className="practice-modal">
         <div className="practice-modal-header">
           <div>
             <p className="eyebrow">Single player</p>
-            <h2>{practiceStarted ? selectedPack?.name || 'Practice mode' : 'Practice mode'}</h2>
-            <span>Answer questions at your own pace, then review the results.</span>
+            <h2>{practiceStarted ? selectedPack?.name || 'Solo game' : 'Solo game'}</h2>
+            <span>Pick a pack, choose a round length, and play through your own quiz.</span>
           </div>
           <div className="practice-modal-actions">
             {practiceStarted && !practiceComplete && (
@@ -2121,7 +2121,7 @@ function PracticeModeModal({
                 Setup
               </button>
             )}
-            <button className="icon-button neutral" onClick={closePractice} type="button" aria-label="Close practice" title="Close practice">
+            <button className="icon-button neutral" onClick={closePractice} type="button" aria-label="Close solo game" title="Close solo game">
               <X size={18} />
             </button>
           </div>
@@ -2160,7 +2160,7 @@ function PracticeModeModal({
                     >
                       <div>
                         <strong>{pack.name}</strong>
-                        <span>{pack.description || 'Practice questions'}</span>
+                        <span>{pack.description || 'Solo quiz questions'}</span>
                       </div>
                       <div className="practice-pack-meta">
                         <em>{packQuestionCounts[pack.id] || 0}</em>
@@ -2194,11 +2194,11 @@ function PracticeModeModal({
             <div className="practice-settings">
               <div className="subscription-detail-list practice-stat-list">
                 <div>
-                  <span>Available</span>
+                  <span>Pack</span>
                   <strong>{availableQuestionCount}</strong>
                 </div>
                 <div>
-                  <span>This plan</span>
+                  <span>Max round</span>
                   <strong>{maxPracticeQuestions}</strong>
                 </div>
                 <div>
@@ -2221,8 +2221,8 @@ function PracticeModeModal({
 
               {currentPlanId === 'free' && (
                 <div className="billing-note">
-                  <strong>Free practice sessions include up to 10 questions.</strong>
-                  <span>Upgrade for longer sessions and more packs.</span>
+                  <strong>Free solo games can use every question in your included packs.</strong>
+                  <span>Upgrade to unlock more packs and more ways to play.</span>
                   <button className="primary-button compact-button" onClick={onUpgrade} type="button">
                     Upgrade
                   </button>
@@ -2233,7 +2233,7 @@ function PracticeModeModal({
 
               <button className="primary-button" disabled={loading || !selectedPack || maxSelectableQuestions === 0} onClick={() => void startPractice()} type="button">
                 {loading ? <RefreshCw className="spin" size={18} /> : <Play size={18} />}
-                Start practice
+                Start solo game
               </button>
             </div>
           </section>
@@ -2246,7 +2246,7 @@ function PracticeModeModal({
             <span>{scorePercent}% correct</span>
             <button className="primary-button compact-button" onClick={resetPractice} type="button">
               <RefreshCw size={17} />
-              New practice
+              New solo game
             </button>
           </section>
 
