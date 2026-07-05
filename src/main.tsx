@@ -1537,10 +1537,10 @@ function Dashboard({ session }: { session: Session }) {
             {games.length === 0 ? (
               <div className="empty-workspace compact-empty">
                 <h1>No games yet</h1>
-                <p>Create your first game with the Add game button, then invite players from the table.</p>
+                <p>Create your first multiplayer game, then invite players from the table.</p>
                 <button className="primary-button" onClick={openGameWizard} type="button">
                   <Plus size={18} />
-                  Add game
+                  Create game
                 </button>
               </div>
             ) : activeGames.length === 0 ? (
