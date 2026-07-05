@@ -9536,3 +9536,84 @@ body,
     right: 12px;
   }
 }
+
+/* Host gameplay modal polish */
+.control-room-backdrop {
+  align-items: flex-start;
+  overflow: auto;
+  padding: 16px;
+}
+
+.control-room-modal {
+  position: relative;
+  width: min(1240px, calc(100vw - 32px));
+  margin: 0 auto;
+  overflow: visible;
+  border-radius: 28px;
+}
+
+.control-room-close {
+  inset: 16px 16px auto auto;
+  z-index: 40;
+  transform: none;
+}
+
+.control-room-modal .host-live-section.game-stage {
+  padding: 16px;
+}
+
+.control-room-modal .host-live-section.game-stage .game-room {
+  gap: 12px;
+}
+
+.control-room-modal .game-stage .game-room-header {
+  min-height: 44px;
+  justify-content: flex-end;
+  margin: 0 0 10px;
+  padding: 0 58px 0 0;
+}
+
+.control-room-modal .game-stage .game-room-header-spacer {
+  display: none;
+}
+
+.control-room-modal .host-live-section.game-stage .game-room-status {
+  justify-content: flex-end;
+  width: auto;
+  margin: 0;
+}
+
+.control-room-modal .host-live-section.game-stage .game-room-status .eyebrow {
+  min-height: 40px;
+}
+
+.control-room-modal .host-live-section.game-stage .turn-banner {
+  margin-top: 0;
+}
+
+@media (max-width: 760px) {
+  .control-room-backdrop {
+    padding: 8px;
+  }
+
+  .control-room-modal {
+    width: calc(100vw - 16px);
+    border-radius: 22px;
+  }
+
+  .control-room-close {
+    inset: 12px 12px auto auto;
+    width: 40px;
+    height: 40px;
+  }
+
+  .control-room-modal .host-live-section.game-stage {
+    padding: 10px;
+    border-radius: 22px;
+  }
+
+  .control-room-modal .game-stage .game-room-header {
+    min-height: 40px;
+    padding-right: 48px;
+  }
+}
