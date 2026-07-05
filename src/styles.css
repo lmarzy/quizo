@@ -9296,3 +9296,203 @@ body,
     flex-wrap: wrap;
   }
 }
+
+/* Gameplay density and scroll fix */
+.control-room-backdrop {
+  align-items: flex-start;
+  overflow: auto;
+  padding: 18px;
+}
+
+.control-room-modal {
+  max-height: none;
+  overflow: visible;
+  border-radius: 28px;
+}
+
+.control-room-close {
+  top: 12px;
+  right: 12px;
+}
+
+.host-live-section.game-stage {
+  overflow: visible;
+  padding: 18px;
+  border-radius: 28px;
+}
+
+.host-live-section.game-stage .game-room,
+.live-game-panel .game-room {
+  gap: 12px;
+}
+
+.control-room-modal .game-stage .game-room-header,
+.game-stage .game-room-header {
+  min-height: 36px;
+  padding-right: 48px;
+}
+
+.live-game-panel .game-room-status .eyebrow,
+.host-live-section.game-stage .game-room-status .eyebrow,
+.game-stage .game-room-status .eyebrow {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.68rem;
+  box-shadow: none;
+}
+
+.live-game-panel .live-play-layout,
+.host-live-section.game-stage .live-play-layout,
+.game-stage .live-play-layout {
+  gap: 14px;
+}
+
+.game-stage .turn-banner,
+.turn-banner,
+.game-stage .turn-banner.is-my-turn,
+.turn-banner.is-my-turn,
+.live-game-panel .turn-banner,
+.host-live-section.game-stage .turn-banner {
+  min-height: 82px;
+  padding: 12px 14px;
+  border-radius: 22px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.07);
+}
+
+.active-turn-card {
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.active-turn-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  font-size: 1rem;
+  box-shadow: none;
+}
+
+.active-turn-copy span {
+  min-height: 24px;
+  margin-bottom: 4px;
+  padding: 0 9px;
+  font-size: 0.62rem;
+}
+
+.active-turn-copy strong,
+.live-game-panel .turn-banner strong,
+.host-live-section.game-stage .turn-banner strong {
+  font-size: clamp(22px, 2.8vw, 34px);
+  line-height: 0.98;
+}
+
+.active-turn-copy small,
+.live-game-panel .turn-banner small,
+.host-live-section.game-stage .turn-banner small {
+  margin-top: 5px;
+  font-size: 0.84rem;
+  line-height: 1.25;
+}
+
+.turn-banner:has(.active-turn-card) .turn-meta,
+.live-game-panel .turn-meta,
+.host-live-section.game-stage .turn-meta {
+  min-width: 128px;
+  padding: 8px 10px;
+  border-radius: 16px;
+}
+
+.turn-banner:has(.active-turn-card) .turn-meta strong {
+  font-size: clamp(22px, 2.8vw, 32px);
+}
+
+.turn-banner:has(.active-turn-card) .turn-countdown span,
+.live-game-panel .turn-countdown span,
+.host-live-section.game-stage .turn-countdown span {
+  min-height: 34px;
+  min-width: 64px;
+  font-size: 20px;
+}
+
+.live-game-panel .question-panel,
+.host-live-section.game-stage .question-panel,
+.game-stage .question-panel {
+  min-height: auto;
+  align-content: start;
+  padding: clamp(24px, 3.5vw, 42px);
+  padding-top: clamp(54px, 4vw, 64px);
+}
+
+.live-game-panel .question-panel h2,
+.host-live-section.game-stage .question-panel h2,
+.game-stage .question-panel h2 {
+  max-width: 900px;
+  font-size: clamp(34px, 4.7vw, 58px);
+  line-height: 1.02;
+}
+
+.live-game-panel .answer-grid,
+.host-live-section.game-stage .answer-grid,
+.game-stage .answer-grid {
+  margin-top: 20px;
+}
+
+.live-game-panel .answer-button,
+.host-live-section.game-stage .answer-button,
+.game-stage .answer-button {
+  min-height: 82px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  font-size: clamp(15px, 1.2vw, 18px);
+}
+
+.live-game-panel .leaderboard-panel,
+.host-live-section.game-stage .leaderboard-panel,
+.game-stage .leaderboard-panel {
+  min-height: auto;
+  padding: 18px;
+  border-radius: 26px;
+}
+
+.live-game-panel .leaderboard-panel h2,
+.host-live-section.game-stage .leaderboard-panel h2,
+.game-stage .leaderboard-panel h2 {
+  font-size: 24px;
+}
+
+.live-game-panel .leaderboard-row,
+.host-live-section.game-stage .leaderboard-row,
+.game-stage .leaderboard-row {
+  min-height: 58px;
+  border-radius: 18px;
+}
+
+@media (max-width: 760px) {
+  .control-room-backdrop {
+    padding: 8px;
+  }
+
+  .host-live-section.game-stage {
+    padding: 10px;
+  }
+
+  .game-stage .turn-banner,
+  .turn-banner,
+  .game-stage .turn-banner.is-my-turn,
+  .turn-banner.is-my-turn {
+    gap: 10px;
+  }
+
+  .active-turn-copy strong,
+  .live-game-panel .turn-banner strong,
+  .host-live-section.game-stage .turn-banner strong {
+    font-size: clamp(24px, 8vw, 34px);
+  }
+
+  .live-game-panel .question-panel h2,
+  .host-live-section.game-stage .question-panel h2,
+  .game-stage .question-panel h2 {
+    font-size: clamp(30px, 9vw, 42px);
+    text-align: left;
+  }
+}
