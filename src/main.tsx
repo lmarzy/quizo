@@ -4435,6 +4435,95 @@ function GameRoom({
   const timeoutToastVisible = Boolean(latestTimeoutEvent && visibleTimeoutId === latestTimeoutEvent.id);
   const delayingFinalReveal = room.game.status === 'finished' && (resultToastVisible || timeoutToastVisible || roundResultVisible);
   const showFinalResults = room.game.status === 'finished' && !delayingFinalReveal;
+  const turnStatusLabel = delayingFinalReveal
+    ? 'Final answer'
+    : roundResultVisible
+      ? `Round ${latestLadderResultEvent?.metadata?.ladder_round || ladderRoundNumber} complete`
+      : preparingNextQuestion
+        ? isSpeedRound
+          ? 'Next round'
+          : isRecoveryQuestion
+            ? 'Second chance next'
+            : 'Up next'
+        : isSpeedRound && speedLockedMember
+          ? 'Second chance'
+        : isEliminationLadder || isSpeedRound
+          ? 'Everyone answers'
+          : isRecoveryQuestion
+            ? 'Second chance'
+            : isMyTurn
+              ? 'Your turn'
+              : 'Now playing';
+  const turnPlayerName = delayingFinalReveal
+    ? toastAnswer?.member_name || room.active_member?.display_name || 'Last answer'
+    : roundResultVisible
+      ? isLadderTieResult
+        ? 'Scores tied'
+        : `${roundLoser?.display_name || 'Lowest score'} is out`
+      : isEliminationLadder
+        ? `${room.speed_round?.answers.length || 0} answered`
+        : isSpeedRound
+          ? speedLockedMember
+            ? speedLockedMember.display_name
+            : 'Open to everyone'
+          : room.active_member?.display_name || 'Waiting';
+  const turnHelperText = delayingFinalReveal
+    ? 'Revealing the winner next'
+    : roundResultVisible
+      ? roundWinner
+        ? isLadderTieResult
+          ? 'No one is eliminated. Tie-break question coming up.'
+          : `${roundWinner.display_name} leads this round. Next question starts shortly.`
+        : 'Next round starts shortly.'
+      : preparingNextQuestion
+        ? isEliminationLadder
+          ? 'Get ready for the next ladder question'
+          : isSpeedRound
+            ? speedLockedMember
+              ? `${speedLockedMember.display_name} gets one more go`
+              : 'Get ready for the next shared question'
+            : isRecoveryQuestion
+              ? 'Get it right to recover the points'
+              : 'Get ready'
+        : isEliminationLadder
+          ? hasAnsweredSharedQuestion
+            ? 'Answer locked. Waiting for everyone else.'
+            : `You are ${myMember ? myMember.display_name : 'watching'}`
+          : isSpeedRound
+            ? hasSpeedSecondChance
+              ? 'Second chance: pick again to recover'
+              : speedLockedMember
+                ? `Waiting for ${speedLockedMember.display_name}`
+                : `You are ${myMember ? myMember.display_name : 'watching'}`
+            : isRecoveryQuestion
+              ? 'Get it right to win the points back'
+              : isMyTurn
+                ? 'Choose your answer'
+                : `Waiting for ${room.active_member?.display_name || 'the active player'} to answer`;
+  const turnMetaLabel = delayingFinalReveal
+    ? 'Result'
+    : roundResultVisible
+      ? 'Next round'
+      : preparingNextQuestion
+        ? 'Starts in'
+        : isEliminationLadder
+          ? `Round ${ladderRoundNumber}`
+          : isSpeedRound
+            ? 'Round'
+            : isRecoveryQuestion
+              ? 'Chance'
+              : 'Question';
+  const turnMetaValue = delayingFinalReveal
+    ? 'Soon'
+    : roundResultVisible
+      ? `${roundResultSeconds}s`
+      : preparingNextQuestion
+        ? `${nextQuestionInSeconds}s`
+        : isEliminationLadder
+          ? `${currentAttempt} / ${room.game.questions_per_round || 3}`
+          : isSpeedRound
+            ? `${room.speed_round?.round_number || currentAttempt}`
+            : `${currentAttempt} / ${maxAttempts}`;
 
   function getAudioContext() {
     const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -4696,66 +4785,17 @@ function GameRoom({
               } as React.CSSProperties
             }
           >
-            <div>
-              <span>
-                {delayingFinalReveal
-                  ? 'Final answer'
-                  : roundResultVisible
-                    ? `Round ${latestLadderResultEvent?.metadata?.ladder_round || ladderRoundNumber} complete`
-                  : preparingNextQuestion
-                    ? isSpeedRound
-                      ? 'Next round'
-                      : isRecoveryQuestion
-                        ? 'Second chance next'
-                        : 'Up next'
-                    : isEliminationLadder
-                      ? 'Everyone answers'
-                      : isSpeedRound
-                      ? 'Everyone answers'
-                      : isRecoveryQuestion
-                        ? 'Recovery question'
-                        : 'On turn'}
-              </span>
-              <strong>{delayingFinalReveal ? toastAnswer?.member_name || room.active_member?.display_name || 'Last answer' : roundResultVisible ? isLadderTieResult ? 'Scores tied' : `${roundLoser?.display_name || 'Lowest score'} is out` : isEliminationLadder ? `${room.speed_round?.answers.length || 0} answered` : isSpeedRound ? speedLockedMember ? `${speedLockedMember.display_name}'s second chance` : 'Open to everyone' : room.active_member?.display_name || 'Waiting'}</strong>
-              <small>
-                {delayingFinalReveal
-                  ? 'Revealing the winner next'
-                  : roundResultVisible
-                    ? roundWinner
-                      ? isLadderTieResult
-                        ? 'No one is eliminated. Tie-break question coming up.'
-                        : `${roundWinner.display_name} leads this round. Next question starts shortly.`
-                      : 'Next round starts shortly.'
-                  : preparingNextQuestion
-                  ? isEliminationLadder
-                    ? 'Get ready for the next ladder question'
-                    : isSpeedRound
-                    ? speedLockedMember
-                      ? `${speedLockedMember.display_name} gets one more go`
-                      : 'Get ready for the next shared question'
-                    : isRecoveryQuestion
-                      ? 'Get it right to recover the points'
-                      : 'Get ready'
-                    : isEliminationLadder
-                      ? hasAnsweredSharedQuestion
-                        ? 'Answer locked. Waiting for everyone else.'
-                        : `You are ${myMember ? myMember.display_name : 'watching'}`
-                      : isSpeedRound
-                      ? hasSpeedSecondChance
-                          ? 'Second chance: pick again to recover'
-                          : speedLockedMember
-                            ? `Waiting for ${speedLockedMember.display_name}`
-                            : `You are ${myMember ? myMember.display_name : 'watching'}`
-                    : isRecoveryQuestion
-                      ? 'Get it right to win the points back'
-                      : `You are ${myMember ? myMember.display_name : 'watching'}`}
-              </small>
+            <div className="active-turn-card">
+              <div className="active-turn-avatar">{getInitials(turnPlayerName) || <User size={22} />}</div>
+              <div className="active-turn-copy">
+                <span>{turnStatusLabel}</span>
+                <strong>{turnPlayerName}</strong>
+                <small>{turnHelperText}</small>
+              </div>
             </div>
             <div className="turn-meta">
-              <span>{delayingFinalReveal ? 'Result' : roundResultVisible ? 'Next round' : preparingNextQuestion ? 'Starts in' : isEliminationLadder ? `Round ${ladderRoundNumber}` : isSpeedRound ? 'Round' : isRecoveryQuestion ? 'Chance' : 'Question'}</span>
-              <strong>
-                {delayingFinalReveal ? 'Soon' : roundResultVisible ? `${roundResultSeconds}s` : preparingNextQuestion ? `${nextQuestionInSeconds}s` : isEliminationLadder ? `${currentAttempt} / ${room.game.questions_per_round || 3}` : isSpeedRound ? `${room.speed_round?.round_number || currentAttempt}` : isRecoveryQuestion ? `${currentAttempt} / ${maxAttempts}` : `${currentAttempt} / ${maxAttempts}`}
-              </strong>
+              <span>{turnMetaLabel}</span>
+              <strong>{turnMetaValue}</strong>
               {!preparingNextQuestion && !roundResultVisible && !delayingFinalReveal && (
                 <div className="turn-countdown">
                   <span>{secondsLeft}s</span>
