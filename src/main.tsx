@@ -1413,10 +1413,6 @@ function Dashboard({ session }: { session: Session }) {
               <BookOpen size={18} />
               Packs
             </button>
-            <button className="primary-button" onClick={openGameWizard} type="button">
-              <Plus size={18} />
-              Add game
-            </button>
           </div>
         </div>
 

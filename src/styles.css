@@ -1492,15 +1492,6 @@ textarea:focus {
   box-shadow: var(--shadow-tight);
 }
 
-.play-choice-card.solo {
-  border-color: #f0d8b5;
-  background: #fff8ee;
-}
-
-.play-choice-card.multiplayer {
-  border-color: #d9d9d9;
-}
-
 .play-choice-icon {
   width: 54px;
   height: 54px;
@@ -1533,7 +1524,7 @@ textarea:focus {
   margin-top: 6px;
 }
 
-.play-choice-card.multiplayer > button {
+.play-choice-card > .primary-button {
   min-height: 44px;
 }
 
