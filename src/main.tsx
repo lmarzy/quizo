@@ -20,6 +20,21 @@ type QuestionPack = {
   tier: string;
 };
 
+type PracticeQuestion = {
+  id: string;
+  prompt: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  correct_option: string;
+};
+
+type PracticeAnswer = {
+  question: PracticeQuestion;
+  selectedOption: string;
+  isCorrect: boolean;
+};
+
 type Subscription = {
   plan_id: string;
   status: string;
@@ -414,7 +429,7 @@ function Dashboard({ session }: { session: Session }) {
   const [wizardStep, setWizardStep] = useState(1);
   const [includeHostAsPlayer, setIncludeHostAsPlayer] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'games' | 'profile'>('games');
+  const [activeView, setActiveView] = useState<'games' | 'profile' | 'practice'>('games');
   const [accountNameDraft, setAccountNameDraft] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -1377,6 +1392,15 @@ function Dashboard({ session }: { session: Session }) {
           onSaveName={() => void saveAccountName()}
           onUpgrade={openUpgradeModal}
         />
+      ) : activeView === 'practice' ? (
+        <PracticeModeView
+          currentPlanId={currentPlanId}
+          packQuestionCounts={packQuestionCounts}
+          packs={usablePacks}
+          planLabel={planLabel}
+          onBack={() => setActiveView('games')}
+          onUpgrade={openUpgradeModal}
+        />
       ) : (
       <section className="game-table-shell">
         <div className="table-toolbar">
@@ -1388,6 +1412,10 @@ function Dashboard({ session }: { session: Session }) {
             <button className="ghost-button table-button toolbar-packs-button" onClick={() => setPacksDrawerOpen(true)} type="button">
               <BookOpen size={18} />
               Packs
+            </button>
+            <button className="ghost-button table-button" onClick={() => setActiveView('practice')} type="button">
+              <CheckCircle2 size={18} />
+              Practice
             </button>
             <button className="primary-button" onClick={openGameWizard} type="button">
               <Plus size={18} />
@@ -1895,6 +1923,316 @@ function DashboardLoadingState() {
         </div>
       </section>
     </div>
+  );
+}
+
+function PracticeModeView({
+  currentPlanId,
+  packs,
+  packQuestionCounts,
+  planLabel,
+  onBack,
+  onUpgrade,
+}: {
+  currentPlanId: PlanId;
+  packs: QuestionPack[];
+  packQuestionCounts: Record<string, number>;
+  planLabel: string;
+  onBack: () => void;
+  onUpgrade: () => void;
+}) {
+  const [selectedPackId, setSelectedPackId] = useState(packs[0]?.id || '');
+  const [questionCount, setQuestionCount] = useState(10);
+  const [practiceQuestions, setPracticeQuestions] = useState<PracticeQuestion[]>([]);
+  const [answers, setAnswers] = useState<PracticeAnswer[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (!packs.length) {
+      setSelectedPackId('');
+      return;
+    }
+
+    if (!packs.some((pack) => pack.id === selectedPackId)) {
+      setSelectedPackId(packs[0].id);
+    }
+  }, [packs, selectedPackId]);
+
+  const selectedPack = packs.find((pack) => pack.id === selectedPackId) || null;
+  const availableQuestionCount = selectedPack ? packQuestionCounts[selectedPack.id] || 0 : 0;
+  const maxPracticeQuestions = currentPlanId === 'free' ? 10 : currentPlanId === 'pro' ? 25 : Math.max(availableQuestionCount, 50);
+  const maxSelectableQuestions = Math.min(availableQuestionCount, maxPracticeQuestions);
+  const questionOptions = Array.from(new Set([10, 20, 50, maxSelectableQuestions].filter((count) => count > 0 && count <= maxSelectableQuestions))).sort((a, b) => a - b);
+  const currentQuestion = practiceQuestions[currentIndex] || null;
+  const currentAnswer = currentQuestion ? answers.find((answer) => answer.question.id === currentQuestion.id) || null : null;
+  const practiceStarted = practiceQuestions.length > 0;
+  const practiceComplete = practiceStarted && currentIndex >= practiceQuestions.length;
+  const correctCount = answers.filter((answer) => answer.isCorrect).length;
+  const wrongAnswers = answers.filter((answer) => !answer.isCorrect);
+  const scorePercent = answers.length ? Math.round((correctCount / answers.length) * 100) : 0;
+
+  useEffect(() => {
+    if (maxSelectableQuestions > 0 && questionCount > maxSelectableQuestions) {
+      setQuestionCount(maxSelectableQuestions);
+    }
+  }, [maxSelectableQuestions, questionCount]);
+
+  function getOptionText(question: PracticeQuestion, option: string) {
+    if (option === 'A') return question.option_a;
+    if (option === 'B') return question.option_b;
+    return question.option_c;
+  }
+
+  async function startPractice() {
+    if (!selectedPack) {
+      setMessage('Choose a question pack first.');
+      return;
+    }
+
+    if (maxSelectableQuestions <= 0) {
+      setMessage('This pack does not have any questions yet.');
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    const { data, error } = await supabase
+      .from('questions')
+      .select('id,prompt,option_a,option_b,option_c,correct_option')
+      .eq('pack_id', selectedPack.id);
+
+    setLoading(false);
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    const shuffledQuestions = [...((data || []) as PracticeQuestion[])]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(questionCount, maxSelectableQuestions));
+
+    if (shuffledQuestions.length === 0) {
+      setMessage('No questions found for this pack.');
+      return;
+    }
+
+    setPracticeQuestions(shuffledQuestions);
+    setAnswers([]);
+    setCurrentIndex(0);
+  }
+
+  function chooseAnswer(option: string) {
+    if (!currentQuestion || currentAnswer) return;
+
+    setAnswers((current) => [
+      ...current,
+      {
+        question: currentQuestion,
+        selectedOption: option,
+        isCorrect: currentQuestion.correct_option === option,
+      },
+    ]);
+  }
+
+  function goNextQuestion() {
+    setCurrentIndex((current) => current + 1);
+  }
+
+  function resetPractice() {
+    setPracticeQuestions([]);
+    setAnswers([]);
+    setCurrentIndex(0);
+    setMessage('');
+  }
+
+  return (
+    <section className="practice-page">
+      <div className="profile-toolbar">
+        <button className="ghost-button table-button" onClick={practiceStarted ? resetPractice : onBack} type="button">
+          <ArrowLeft size={17} />
+          {practiceStarted ? 'Setup' : 'Back'}
+        </button>
+      </div>
+
+      <div className="practice-hero">
+        <div>
+          <p className="eyebrow">Single player</p>
+          <h1>Practice mode</h1>
+          <span>Answer a set of questions at your own pace, then review what you missed.</span>
+        </div>
+        <span className="plan-badge large">{planLabel}</span>
+      </div>
+
+      {!practiceStarted ? (
+        <div className="practice-grid">
+          <section className="practice-card">
+            <div className="profile-card-header">
+              <div>
+                <p className="eyebrow">Pack</p>
+                <h2>Choose questions</h2>
+              </div>
+              <BookOpen size={22} />
+            </div>
+            <div className="practice-pack-list">
+              {packs.length === 0 ? (
+                <p className="empty-state">No packs are available on this plan yet.</p>
+              ) : (
+                packs.map((pack) => (
+                  <button
+                    className={`practice-pack-button ${selectedPackId === pack.id ? 'selected' : ''}`}
+                    key={pack.id}
+                    onClick={() => setSelectedPackId(pack.id)}
+                    type="button"
+                  >
+                    <div>
+                      <strong>{pack.name}</strong>
+                      <span>{pack.description || 'Practice questions'}</span>
+                    </div>
+                    <em>{packQuestionCounts[pack.id] || 0}</em>
+                  </button>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="practice-card">
+            <div className="profile-card-header">
+              <div>
+                <p className="eyebrow">Session</p>
+                <h2>Set the length</h2>
+              </div>
+              <CheckCircle2 size={22} />
+            </div>
+
+            <div className="practice-settings">
+              <div className="subscription-detail-list practice-stat-list">
+                <div>
+                  <span>Available</span>
+                  <strong>{availableQuestionCount}</strong>
+                </div>
+                <div>
+                  <span>This plan</span>
+                  <strong>{maxPracticeQuestions}</strong>
+                </div>
+                <div>
+                  <span>Selected</span>
+                  <strong>{questionCount}</strong>
+                </div>
+              </div>
+
+              <div className="practice-count-options" aria-label="Choose question count">
+                {questionOptions.length === 0 ? (
+                  <p className="empty-state">Choose a pack with questions to start.</p>
+                ) : (
+                  questionOptions.map((count) => (
+                    <button className={questionCount === count ? 'active' : ''} key={count} onClick={() => setQuestionCount(count)} type="button">
+                      {count}
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {currentPlanId === 'free' && (
+                <div className="billing-note">
+                  <strong>Free practice sessions include up to 10 questions.</strong>
+                  <span>Upgrade for longer sessions and more packs.</span>
+                  <button className="primary-button compact-button" onClick={onUpgrade} type="button">
+                    Upgrade
+                  </button>
+                </div>
+              )}
+
+              {message && <p className="form-message">{message}</p>}
+
+              <button className="primary-button" disabled={loading || !selectedPack || maxSelectableQuestions === 0} onClick={() => void startPractice()} type="button">
+                {loading ? <RefreshCw className="spin" size={18} /> : <Play size={18} />}
+                Start practice
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : practiceComplete ? (
+        <div className="practice-results">
+          <section className="practice-card practice-score-card">
+            <p className="eyebrow">Results</p>
+            <h2>{correctCount} / {practiceQuestions.length}</h2>
+            <span>{scorePercent}% correct</span>
+            <button className="primary-button compact-button" onClick={resetPractice} type="button">
+              <RefreshCw size={17} />
+              New practice
+            </button>
+          </section>
+
+          <section className="practice-card">
+            <div className="profile-card-header">
+              <div>
+                <p className="eyebrow">Review</p>
+                <h2>{wrongAnswers.length ? 'Questions to revisit' : 'Perfect score'}</h2>
+              </div>
+              <CheckCircle2 size={22} />
+            </div>
+            <div className="practice-review-list">
+              {(wrongAnswers.length ? wrongAnswers : answers).map((answer, index) => (
+                <article className={`practice-review-row ${answer.isCorrect ? 'correct' : 'wrong'}`} key={answer.question.id}>
+                  <span>{index + 1}</span>
+                  <div>
+                    <strong>{answer.question.prompt}</strong>
+                    <small>
+                      You chose {getOptionText(answer.question, answer.selectedOption)} · Correct answer: {getOptionText(answer.question, answer.question.correct_option)}
+                    </small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : currentQuestion ? (
+        <section className="practice-play-card">
+          <div className="practice-progress">
+            <span>Question {currentIndex + 1} of {practiceQuestions.length}</span>
+            <strong>{selectedPack?.name || 'Practice'}</strong>
+          </div>
+
+          <div className="practice-question">
+            <h2>{currentQuestion.prompt}</h2>
+            <div className="practice-answer-grid">
+              {(['A', 'B', 'C'] as const).map((option) => {
+                const isSelected = currentAnswer?.selectedOption === option;
+                const isCorrectOption = currentAnswer && currentQuestion.correct_option === option;
+                const answerState = currentAnswer ? (isCorrectOption ? 'correct' : isSelected ? 'wrong' : 'muted') : '';
+
+                return (
+                  <button
+                    className={`practice-answer-button ${answerState}`}
+                    disabled={Boolean(currentAnswer)}
+                    key={option}
+                    onClick={() => chooseAnswer(option)}
+                    type="button"
+                  >
+                    <span>{option}</span>
+                    {getOptionText(currentQuestion, option)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {currentAnswer && (
+            <div className={`practice-answer-feedback ${currentAnswer.isCorrect ? 'correct' : 'wrong'}`}>
+              <strong>{currentAnswer.isCorrect ? 'Correct' : 'Wrong'}</strong>
+              <span>Correct answer: {getOptionText(currentQuestion, currentQuestion.correct_option)}</span>
+              <button className="primary-button compact-button" onClick={goNextQuestion} type="button">
+                {currentIndex + 1 >= practiceQuestions.length ? 'Show results' : 'Next question'}
+              </button>
+            </div>
+          )}
+        </section>
+      ) : null}
+    </section>
   );
 }
 
