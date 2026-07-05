@@ -1420,8 +1420,9 @@ function Dashboard({ session }: { session: Session }) {
               <h2>Play solo</h2>
               <p>Pick a pack, answer at your own pace, then review your score and missed questions.</p>
             </div>
-            <button className="ghost-button table-button" onClick={() => setPracticeOpen(true)} type="button">
-              Start practice
+            <button className="primary-button" onClick={() => setPracticeOpen(true)} type="button">
+              <Play size={18} />
+              Start game
             </button>
           </section>
 
