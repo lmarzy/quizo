@@ -1472,6 +1472,71 @@ textarea:focus {
   font-size: 14px;
 }
 
+.play-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.play-choice-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: var(--shadow-tight);
+}
+
+.play-choice-card.solo {
+  border-color: #f0d8b5;
+  background: #fff8ee;
+}
+
+.play-choice-card.multiplayer {
+  border-color: #d9d9d9;
+}
+
+.play-choice-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: white;
+  background: #050505;
+}
+
+.play-choice-card h2 {
+  margin: 0 0 8px;
+  color: #050505;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 0.96;
+}
+
+.play-choice-card p:not(.eyebrow) {
+  max-width: 520px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.play-choice-card > button {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 6px;
+}
+
+.play-choice-card.multiplayer > button {
+  min-height: 44px;
+}
+
 .dashboard-main-grid {
   display: grid;
   grid-template-columns: minmax(260px, 0.32fr) minmax(0, 1fr);
@@ -5536,6 +5601,10 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .play-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
   .workspace-header,
   .table-toolbar,
   .selected-game-actions,
@@ -5546,6 +5615,10 @@ textarea:focus {
 
   .table-toolbar-actions {
     justify-content: stretch;
+  }
+
+  .table-toolbar-actions button {
+    flex: 1 1 160px;
   }
 
   .table-toolbar-actions .metric {
@@ -6804,6 +6877,21 @@ body,
 }
 
 @media (max-width: 720px) {
+  .play-choice-card {
+    grid-template-columns: 44px minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .play-choice-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .play-choice-card > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
   .practice-hero h1 {
     font-size: clamp(38px, 12vw, 52px);
   }

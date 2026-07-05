@@ -1405,17 +1405,13 @@ function Dashboard({ session }: { session: Session }) {
       <section className="game-table-shell">
         <div className="table-toolbar">
           <div>
-            <p className="eyebrow">Host dashboard</p>
-            <h1>Games</h1>
+            <p className="eyebrow">Dashboard</p>
+            <h1>Choose how to play</h1>
           </div>
           <div className="table-toolbar-actions">
             <button className="ghost-button table-button toolbar-packs-button" onClick={() => setPacksDrawerOpen(true)} type="button">
               <BookOpen size={18} />
               Packs
-            </button>
-            <button className="ghost-button table-button" onClick={() => setActiveView('practice')} type="button">
-              <CheckCircle2 size={18} />
-              Practice
             </button>
             <button className="primary-button" onClick={openGameWizard} type="button">
               <Plus size={18} />
@@ -1425,6 +1421,37 @@ function Dashboard({ session }: { session: Session }) {
         </div>
 
         {(notice || memberNotice) && <p className="form-message">{notice || memberNotice}</p>}
+
+        <div className="play-choice-grid" aria-label="Choose play mode">
+          <section className="play-choice-card solo">
+            <div className="play-choice-icon">
+              <CheckCircle2 size={22} />
+            </div>
+            <div>
+              <p className="eyebrow">Single player</p>
+              <h2>Play solo</h2>
+              <p>Pick a pack, answer at your own pace, then review your score and missed questions.</p>
+            </div>
+            <button className="ghost-button table-button" onClick={() => setActiveView('practice')} type="button">
+              Start practice
+            </button>
+          </section>
+
+          <section className="play-choice-card multiplayer">
+            <div className="play-choice-icon">
+              <UserPlus size={22} />
+            </div>
+            <div>
+              <p className="eyebrow">Multiplayer</p>
+              <h2>Host a game</h2>
+              <p>Create a live quiz, invite players with a join link, and run the game with a leaderboard.</p>
+            </div>
+            <button className="primary-button" onClick={openGameWizard} type="button">
+              <Plus size={18} />
+              Create game
+            </button>
+          </section>
+        </div>
 
         <AvailablePacksPanel
           canUseCreatorFeatures={canUseCreatorFeatures}
@@ -1445,7 +1472,8 @@ function Dashboard({ session }: { session: Session }) {
             <div className="games-table-wrap">
               <div className="games-section-heading">
                 <div>
-                  <h2>Current games</h2>
+                  <p className="eyebrow">Multiplayer</p>
+                  <h2>Hosted games</h2>
                 </div>
                 <span>{activeGames.length} game{activeGames.length === 1 ? '' : 's'}</span>
               </div>
