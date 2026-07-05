@@ -2161,12 +2161,12 @@ function PracticeModeModal({
 
   return (
     <div className="modal-backdrop practice-backdrop" role="dialog" aria-modal="true" aria-label="Solo game">
-      <section className="practice-modal">
+      <section className={`practice-modal ${practiceStarted ? 'is-playing' : ''} ${practiceComplete ? 'is-complete' : ''}`}>
         <div className="practice-modal-header">
           <div>
             <p className="eyebrow">Single player</p>
             <h2>{practiceStarted ? selectedPack?.name || 'Solo game' : 'Solo game'}</h2>
-            <span>Pick a pack, choose a round length, and play through your own quiz.</span>
+            {!practiceStarted && <span>Pick a pack, choose a round length, and play through your own quiz.</span>}
           </div>
           <div className="practice-modal-actions">
             {practiceStarted && !practiceComplete && (

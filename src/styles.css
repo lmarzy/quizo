@@ -8859,3 +8859,156 @@ body,
     height: 42px;
   }
 }
+
+/* Solo gameplay focus */
+.practice-modal.is-playing {
+  gap: 12px;
+}
+
+.practice-modal.is-playing .practice-modal-header {
+  min-height: 58px;
+  align-items: center;
+  padding: 10px 12px 10px 16px;
+  border-radius: 24px;
+}
+
+.practice-modal.is-playing .practice-modal-header .eyebrow {
+  margin-bottom: 2px;
+  font-size: 0.62rem;
+}
+
+.practice-modal.is-playing .practice-modal-header h2 {
+  margin: 0;
+  font-size: clamp(20px, 2.4vw, 28px);
+  line-height: 1;
+}
+
+.practice-modal.is-playing .practice-modal-actions {
+  gap: 8px;
+}
+
+.practice-modal.is-playing .practice-modal-actions .table-button {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.practice-modal.is-playing .practice-play-card {
+  min-height: min(720px, calc(100vh - 150px));
+  align-content: center;
+  gap: clamp(18px, 3vw, 30px);
+  padding: clamp(22px, 4vw, 48px);
+}
+
+.practice-modal.is-playing .practice-progress {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+}
+
+.practice-modal.is-playing .practice-progress span,
+.practice-modal.is-playing .practice-progress strong {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid #eeeeee;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+}
+
+.practice-modal.is-playing .practice-progress strong {
+  max-width: min(52vw, 420px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practice-modal.is-playing .practice-question {
+  display: grid;
+  gap: clamp(20px, 3vw, 34px);
+}
+
+.practice-modal.is-playing .practice-question h2 {
+  max-width: 1040px;
+  margin: 0 auto;
+  font-size: clamp(38px, 6vw, 78px);
+  line-height: 0.98;
+  text-align: center;
+}
+
+.practice-modal.is-playing .practice-answer-grid {
+  width: min(1040px, 100%);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 auto;
+}
+
+.practice-modal.is-playing .practice-answer-button {
+  min-height: 118px;
+  align-content: start;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  padding: 18px;
+  font-size: clamp(16px, 1.5vw, 20px);
+}
+
+.practice-modal.is-playing .practice-answer-button span {
+  width: 46px;
+  height: 46px;
+}
+
+@media (max-width: 920px) {
+  .practice-modal.is-playing .practice-answer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-modal.is-playing .practice-answer-button {
+    min-height: 76px;
+    grid-template-columns: 46px minmax(0, 1fr);
+    align-items: center;
+    align-content: center;
+  }
+}
+
+@media (max-width: 720px) {
+  .practice-modal.is-playing .practice-modal-header {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .practice-modal.is-playing .practice-modal-actions {
+    width: auto;
+  }
+
+  .practice-modal.is-playing .practice-modal-actions .table-button {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .practice-modal.is-playing .practice-play-card {
+    min-height: calc(100vh - 132px);
+    padding: 72px 18px 20px;
+  }
+
+  .practice-modal.is-playing .practice-progress {
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .practice-modal.is-playing .practice-progress strong {
+    display: none;
+  }
+
+  .practice-modal.is-playing .practice-question h2 {
+    font-size: clamp(32px, 10vw, 48px);
+  }
+}
