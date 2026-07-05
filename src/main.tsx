@@ -429,7 +429,7 @@ function Dashboard({ session }: { session: Session }) {
   const [wizardStep, setWizardStep] = useState(1);
   const [includeHostAsPlayer, setIncludeHostAsPlayer] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'games' | 'profile' | 'practice'>('games');
+  const [activeView, setActiveView] = useState<'games' | 'profile'>('games');
   const [accountNameDraft, setAccountNameDraft] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -437,6 +437,7 @@ function Dashboard({ session }: { session: Session }) {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [planActionBusy, setPlanActionBusy] = useState<PlanId | ''>('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [practiceOpen, setPracticeOpen] = useState(false);
   const [packsDrawerOpen, setPacksDrawerOpen] = useState(false);
   const [manageDrawerOpen, setManageDrawerOpen] = useState(false);
   const [controlRoomGame, setControlRoomGame] = useState<Game | null>(null);
@@ -1392,15 +1393,6 @@ function Dashboard({ session }: { session: Session }) {
           onSaveName={() => void saveAccountName()}
           onUpgrade={openUpgradeModal}
         />
-      ) : activeView === 'practice' ? (
-        <PracticeModeView
-          currentPlanId={currentPlanId}
-          packQuestionCounts={packQuestionCounts}
-          packs={usablePacks}
-          planLabel={planLabel}
-          onBack={() => setActiveView('games')}
-          onUpgrade={openUpgradeModal}
-        />
       ) : (
       <section className="game-table-shell">
         <div className="table-toolbar">
@@ -1428,7 +1420,7 @@ function Dashboard({ session }: { session: Session }) {
               <h2>Play solo</h2>
               <p>Pick a pack, answer at your own pace, then review your score and missed questions.</p>
             </div>
-            <button className="ghost-button table-button" onClick={() => setActiveView('practice')} type="button">
+            <button className="ghost-button table-button" onClick={() => setPracticeOpen(true)} type="button">
               Start practice
             </button>
           </section>
@@ -1651,6 +1643,16 @@ function Dashboard({ session }: { session: Session }) {
           }}
           onUpgrade={openUpgradeModal}
           onSubmit={() => void createGame()}
+        />
+
+        <PracticeModeModal
+          currentPlanId={currentPlanId}
+          open={practiceOpen}
+          packQuestionCounts={packQuestionCounts}
+          packs={usablePacks}
+          planLabel={planLabel}
+          onClose={() => setPracticeOpen(false)}
+          onUpgrade={openUpgradeModal}
         />
 
         <ControlRoomModal game={controlRoomGame} hostMember={hostMember} onClose={() => setControlRoomGame(null)} />
@@ -1950,19 +1952,21 @@ function DashboardLoadingState() {
   );
 }
 
-function PracticeModeView({
+function PracticeModeModal({
   currentPlanId,
+  open,
   packs,
   packQuestionCounts,
   planLabel,
-  onBack,
+  onClose,
   onUpgrade,
 }: {
   currentPlanId: PlanId;
+  open: boolean;
   packs: QuestionPack[];
   packQuestionCounts: Record<string, number>;
   planLabel: string;
-  onBack: () => void;
+  onClose: () => void;
   onUpgrade: () => void;
 }) {
   const [selectedPackId, setSelectedPackId] = useState(packs[0]?.id || '');
@@ -1972,6 +1976,7 @@ function PracticeModeView({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [visibleResultId, setVisibleResultId] = useState('');
 
   useEffect(() => {
     if (!packs.length) {
@@ -2002,6 +2007,8 @@ function PracticeModeView({
       setQuestionCount(maxSelectableQuestions);
     }
   }, [maxSelectableQuestions, questionCount]);
+
+  if (!open) return null;
 
   function getOptionText(question: PracticeQuestion, option: string) {
     if (option === 'A') return question.option_a;
@@ -2047,22 +2054,24 @@ function PracticeModeView({
     setPracticeQuestions(shuffledQuestions);
     setAnswers([]);
     setCurrentIndex(0);
+    setVisibleResultId('');
   }
 
   function chooseAnswer(option: string) {
     if (!currentQuestion || currentAnswer) return;
 
-    setAnswers((current) => [
-      ...current,
-      {
-        question: currentQuestion,
-        selectedOption: option,
-        isCorrect: currentQuestion.correct_option === option,
-      },
-    ]);
+    const nextAnswer = {
+      question: currentQuestion,
+      selectedOption: option,
+      isCorrect: currentQuestion.correct_option === option,
+    };
+
+    setAnswers((current) => [...current, nextAnswer]);
+    setVisibleResultId(currentQuestion.id);
   }
 
   function goNextQuestion() {
+    setVisibleResultId('');
     setCurrentIndex((current) => current + 1);
   }
 
@@ -2070,26 +2079,36 @@ function PracticeModeView({
     setPracticeQuestions([]);
     setAnswers([]);
     setCurrentIndex(0);
+    setVisibleResultId('');
     setMessage('');
   }
 
-  return (
-    <section className="practice-page">
-      <div className="profile-toolbar">
-        <button className="ghost-button table-button" onClick={practiceStarted ? resetPractice : onBack} type="button">
-          <ArrowLeft size={17} />
-          {practiceStarted ? 'Setup' : 'Back'}
-        </button>
-      </div>
+  function closePractice() {
+    resetPractice();
+    onClose();
+  }
 
-      <div className="practice-hero">
-        <div>
-          <p className="eyebrow">Single player</p>
-          <h1>Practice mode</h1>
-          <span>Answer a set of questions at your own pace, then review what you missed.</span>
+  return (
+    <div className="modal-backdrop practice-backdrop" role="dialog" aria-modal="true" aria-label="Practice mode">
+      <section className="practice-modal">
+        <div className="practice-modal-header">
+          <div>
+            <p className="eyebrow">Single player</p>
+            <h2>{practiceStarted ? selectedPack?.name || 'Practice mode' : 'Practice mode'}</h2>
+            <span>Answer questions at your own pace, then review the results.</span>
+          </div>
+          <div className="practice-modal-actions">
+            {practiceStarted && !practiceComplete && (
+              <button className="ghost-button table-button" onClick={resetPractice} type="button">
+                <ArrowLeft size={17} />
+                Setup
+              </button>
+            )}
+            <button className="icon-button neutral" onClick={closePractice} type="button" aria-label="Close practice" title="Close practice">
+              <X size={18} />
+            </button>
+          </div>
         </div>
-        <span className="plan-badge large">{planLabel}</span>
-      </div>
 
       {!practiceStarted ? (
         <div className="practice-grid">
@@ -2245,18 +2264,43 @@ function PracticeModeView({
             </div>
           </div>
 
-          {currentAnswer && (
-            <div className={`practice-answer-feedback ${currentAnswer.isCorrect ? 'correct' : 'wrong'}`}>
-              <strong>{currentAnswer.isCorrect ? 'Correct' : 'Wrong'}</strong>
-              <span>Correct answer: {getOptionText(currentQuestion, currentQuestion.correct_option)}</span>
-              <button className="primary-button compact-button" onClick={goNextQuestion} type="button">
-                {currentIndex + 1 >= practiceQuestions.length ? 'Show results' : 'Next question'}
-              </button>
-            </div>
+          {currentAnswer && visibleResultId === currentQuestion.id && (
+            <PracticeAnswerPopup
+              answer={currentAnswer}
+              correctAnswer={getOptionText(currentQuestion, currentQuestion.correct_option)}
+              isFinalQuestion={currentIndex + 1 >= practiceQuestions.length}
+              onNext={goNextQuestion}
+            />
           )}
         </section>
       ) : null}
-    </section>
+      </section>
+    </div>
+  );
+}
+
+function PracticeAnswerPopup({
+  answer,
+  correctAnswer,
+  isFinalQuestion,
+  onNext,
+}: {
+  answer: PracticeAnswer;
+  correctAnswer: string;
+  isFinalQuestion: boolean;
+  onNext: () => void;
+}) {
+  return (
+    <div className={`practice-result-popup ${answer.isCorrect ? 'correct' : 'wrong'}`} role="status" aria-live="polite">
+      <div className="answer-result-icon">{answer.isCorrect ? <CheckCircle2 size={24} /> : <X size={24} />}</div>
+      <div>
+        <strong>{answer.isCorrect ? 'Correct' : 'Wrong'}</strong>
+        <span>Correct answer: {correctAnswer}</span>
+      </div>
+      <button className="primary-button compact-button" onClick={onNext} type="button">
+        {isFinalQuestion ? 'Show results' : 'Next question'}
+      </button>
+    </div>
   );
 }
 
