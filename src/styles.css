@@ -9617,3 +9617,23 @@ body,
     padding-right: 48px;
   }
 }
+
+/* Toast placement */
+.toast,
+.dashboard .toast {
+  position: fixed;
+  inset: auto clamp(14px, 2vw, 28px) clamp(14px, 2vw, 28px) auto;
+  width: min(380px, calc(100vw - 28px));
+  max-width: calc(100vw - 28px);
+  border-radius: 18px;
+  animation-name: toast-in-bottom;
+}
+
+@media (max-width: 520px) {
+  .toast,
+  .dashboard .toast {
+    right: 14px;
+    left: 14px;
+    width: auto;
+  }
+}
