@@ -352,17 +352,43 @@ function AuthScreen() {
   return (
     <main className="auth-layout">
       <section className="auth-intro">
-        <div className="brand-row">
-          <div className="brand-mark">
-            <LogoMark size={32} />
+        <div className="auth-intro-copy">
+          <div className="brand-row">
+            <div className="brand-mark">
+              <LogoMark size={32} />
+            </div>
+            <span>Quizo</span>
           </div>
-          <span>Quizo</span>
+          <h1>Quiz nights that feel alive.</h1>
+          <p>Play solo, host the room, unlock bigger packs, and keep every question feeling sharp.</p>
         </div>
-        <h1>Live quiz rooms for groups that like a little pressure.</h1>
-        <p>Create a game, choose a question pack, invite members, and keep everyone watching the same live scoreboard.</p>
+
+        <div className="auth-showcase" aria-hidden="true">
+          <div className="auth-quiz-card primary">
+            <span>Question 08</span>
+            <strong>Which city is known as the Eternal City?</strong>
+            <div className="auth-answer-list">
+              <b>Rome</b>
+              <b>Paris</b>
+              <b>Athens</b>
+            </div>
+          </div>
+          <div className="auth-quiz-card score">
+            <span>Solo score</span>
+            <strong>82%</strong>
+            <small>14 question streak</small>
+          </div>
+          <div className="auth-mini-card top">Live room</div>
+          <div className="auth-mini-card bottom">100 questions</div>
+        </div>
       </section>
 
       <section className="auth-panel">
+        <div className="auth-form-heading">
+          <span>{mode === 'sign-up' ? 'Start playing' : 'Welcome back'}</span>
+          <h2>{mode === 'sign-up' ? 'Create your Quizo account' : 'Log in to Quizo'}</h2>
+        </div>
+
         <div className="mode-switch" aria-label="Authentication mode">
           <button className={mode === 'sign-in' ? 'active' : ''} onClick={() => setMode('sign-in')} type="button">
             Sign in
