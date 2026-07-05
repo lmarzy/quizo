@@ -9637,3 +9637,40 @@ body,
     width: auto;
   }
 }
+
+/* Account menu layering */
+.dashboard .topbar {
+  position: relative;
+  z-index: 120;
+  overflow: visible;
+}
+
+.dashboard .account-area,
+.dashboard .account-menu {
+  position: relative;
+  z-index: 121;
+}
+
+.dashboard .account-dropdown {
+  z-index: 200;
+  width: min(340px, calc(100vw - 28px));
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+}
+
+.dashboard .account-menu-action,
+.dashboard .account-logout {
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+}
+
+@media (max-width: 560px) {
+  .dashboard .account-dropdown {
+    position: fixed;
+    top: 84px;
+    right: 14px;
+    left: 14px;
+    width: auto;
+  }
+}
