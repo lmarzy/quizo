@@ -9725,3 +9725,62 @@ body,
   bottom: auto;
   left: auto;
 }
+
+/* Member gameplay header layout */
+.join-layout.game-stage:has(.live-game-panel) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
+  place-items: stretch;
+  gap: 14px;
+  padding: 18px;
+}
+
+.join-layout.game-stage:has(.live-game-panel) .member-corner-logo {
+  position: relative;
+  z-index: 5;
+  top: auto;
+  right: auto;
+  left: auto;
+  width: 100%;
+  min-height: 48px;
+  color: #050505;
+}
+
+.join-layout.game-stage:has(.live-game-panel) .member-corner-logo .brand-mark {
+  color: white;
+  background: #050505;
+}
+
+.join-layout.game-stage:has(.live-game-panel) .member-corner-logo b {
+  min-height: 40px;
+}
+
+.join-layout.game-stage:has(.live-game-panel) .live-game-panel {
+  min-height: calc(100vh - 98px);
+}
+
+.join-layout.game-stage:has(.live-game-panel) .final-results {
+  margin-top: 0;
+}
+
+@media (max-width: 760px) {
+  .join-layout.game-stage:has(.live-game-panel) {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .join-layout.game-stage:has(.live-game-panel) .member-corner-logo {
+    min-height: 44px;
+  }
+
+  .join-layout.game-stage:has(.live-game-panel) .member-corner-logo b {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 10px;
+  }
+
+  .join-layout.game-stage:has(.live-game-panel) .live-game-panel {
+    min-height: calc(100vh - 66px);
+  }
+}
