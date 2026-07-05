@@ -9703,3 +9703,25 @@ body,
 .control-room-close {
   z-index: 340;
 }
+
+/* Host in-game focus */
+.dashboard.game-open .topbar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dashboard.game-open .control-room-backdrop {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(24px) saturate(0.95);
+}
+
+.dashboard.game-open .control-room-modal {
+  margin-top: clamp(10px, 2vh, 24px);
+}
+
+.dashboard.game-open .control-room-close {
+  top: 16px;
+  right: 16px;
+  bottom: auto;
+  left: auto;
+}
