@@ -1058,6 +1058,11 @@ textarea:focus {
   text-align: left;
 }
 
+.practice-pack-button.locked {
+  color: #555;
+  background: #f2f2f2;
+}
+
 .practice-pack-button.selected {
   border-color: #050505;
   background: white;
@@ -1083,6 +1088,21 @@ textarea:focus {
   line-height: 1.35;
 }
 
+.practice-pack-meta {
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.practice-pack-button em,
+.practice-pack-button b {
+  font-style: normal;
+  font-weight: 950;
+}
+
 .practice-pack-button em {
   min-width: 42px;
   height: 42px;
@@ -1091,8 +1111,31 @@ textarea:focus {
   border-radius: 999px;
   color: white;
   background: #050505;
-  font-style: normal;
-  font-weight: 950;
+}
+
+.practice-pack-button b {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: white;
+  background: #050505;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.practice-pack-button.locked em {
+  color: #050505;
+  background: white;
+  border: 1px solid #d8d8d8;
+}
+
+.practice-pack-button.locked b {
+  color: #050505;
+  background: white;
+  border: 1px solid #d8d8d8;
 }
 
 .practice-stat-list {

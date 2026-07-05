@@ -481,7 +481,7 @@ function Dashboard({ session }: { session: Session }) {
   const canStartSelectedGame = Boolean(selectedGame && ['draft', 'lobby'].includes(selectedGame.status) && joinedMemberCount >= 2);
   const activeGames = useMemo(() => games.filter((game) => !['finished', 'cancelled'].includes(game.status)), [games]);
   const completedGames = useMemo(() => games.filter((game) => ['finished', 'cancelled'].includes(game.status)), [games]);
-  const overlayOpen = wizardOpen || upgradeOpen || packsDrawerOpen || manageDrawerOpen || Boolean(controlRoomGame) || Boolean(summaryGame) || Boolean(confirmDialog);
+  const overlayOpen = wizardOpen || upgradeOpen || practiceOpen || packsDrawerOpen || manageDrawerOpen || Boolean(controlRoomGame) || Boolean(summaryGame) || Boolean(confirmDialog);
 
   useEffect(() => {
     void loadDashboard();
@@ -1650,7 +1650,7 @@ function Dashboard({ session }: { session: Session }) {
           currentPlanId={currentPlanId}
           open={practiceOpen}
           packQuestionCounts={packQuestionCounts}
-          packs={usablePacks}
+          packs={packs}
           planLabel={planLabel}
           onClose={() => setPracticeOpen(false)}
           onUpgrade={openUpgradeModal}
@@ -1970,7 +1970,9 @@ function PracticeModeModal({
   onClose: () => void;
   onUpgrade: () => void;
 }) {
-  const [selectedPackId, setSelectedPackId] = useState(packs[0]?.id || '');
+  const canUsePracticePack = (pack: QuestionPack) => pack.tier === 'free' || (pack.tier === 'pro' && currentPlanId !== 'free') || (pack.tier === 'creator' && currentPlanId === 'creator');
+  const includedPacks = useMemo(() => packs.filter(canUsePracticePack), [currentPlanId, packs]);
+  const [selectedPackId, setSelectedPackId] = useState(includedPacks[0]?.id || '');
   const [questionCount, setQuestionCount] = useState(10);
   const [practiceQuestions, setPracticeQuestions] = useState<PracticeQuestion[]>([]);
   const [answers, setAnswers] = useState<PracticeAnswer[]>([]);
@@ -1980,17 +1982,17 @@ function PracticeModeModal({
   const [visibleResultId, setVisibleResultId] = useState('');
 
   useEffect(() => {
-    if (!packs.length) {
+    if (!includedPacks.length) {
       setSelectedPackId('');
       return;
     }
 
-    if (!packs.some((pack) => pack.id === selectedPackId)) {
-      setSelectedPackId(packs[0].id);
+    if (!includedPacks.some((pack) => pack.id === selectedPackId)) {
+      setSelectedPackId(includedPacks[0].id);
     }
-  }, [packs, selectedPackId]);
+  }, [includedPacks, selectedPackId]);
 
-  const selectedPack = packs.find((pack) => pack.id === selectedPackId) || null;
+  const selectedPack = includedPacks.find((pack) => pack.id === selectedPackId) || null;
   const availableQuestionCount = selectedPack ? packQuestionCounts[selectedPack.id] || 0 : 0;
   const maxPracticeQuestions = currentPlanId === 'free' ? 10 : currentPlanId === 'pro' ? 25 : Math.max(availableQuestionCount, 50);
   const maxSelectableQuestions = Math.min(availableQuestionCount, maxPracticeQuestions);
@@ -2125,20 +2127,43 @@ function PracticeModeModal({
               {packs.length === 0 ? (
                 <p className="empty-state">No packs are available on this plan yet.</p>
               ) : (
-                packs.map((pack) => (
-                  <button
-                    className={`practice-pack-button ${selectedPackId === pack.id ? 'selected' : ''}`}
-                    key={pack.id}
-                    onClick={() => setSelectedPackId(pack.id)}
-                    type="button"
-                  >
-                    <div>
-                      <strong>{pack.name}</strong>
-                      <span>{pack.description || 'Practice questions'}</span>
-                    </div>
-                    <em>{packQuestionCounts[pack.id] || 0}</em>
-                  </button>
-                ))
+                packs.map((pack) => {
+                  const included = canUsePracticePack(pack);
+
+                  return (
+                    <button
+                      className={`practice-pack-button ${selectedPackId === pack.id ? 'selected' : ''} ${included ? 'included' : 'locked'}`}
+                      key={pack.id}
+                      onClick={() => {
+                        if (included) {
+                          setSelectedPackId(pack.id);
+                          setMessage('');
+                        } else {
+                          onUpgrade();
+                        }
+                      }}
+                      type="button"
+                    >
+                      <div>
+                        <strong>{pack.name}</strong>
+                        <span>{pack.description || 'Practice questions'}</span>
+                      </div>
+                      <div className="practice-pack-meta">
+                        <em>{packQuestionCounts[pack.id] || 0}</em>
+                        <b>
+                          {included ? (
+                            'Included'
+                          ) : (
+                            <>
+                              <Lock size={13} />
+                              Upgrade
+                            </>
+                          )}
+                        </b>
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           </section>
