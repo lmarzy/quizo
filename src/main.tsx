@@ -2240,24 +2240,34 @@ function PracticeModeModal({
         </div>
       ) : practiceComplete ? (
         <div className="practice-results">
-          <section className="practice-card practice-score-card">
-            <p className="eyebrow">Results</p>
-            <h2>{correctCount} / {practiceQuestions.length}</h2>
-            <span>{scorePercent}% correct</span>
-            <button className="primary-button compact-button" onClick={resetPractice} type="button">
-              <RefreshCw size={17} />
-              New solo game
-            </button>
-          </section>
-
-          <section className="practice-card">
+          <section className="practice-card practice-results-card">
             <div className="profile-card-header">
               <div>
-                <p className="eyebrow">Review</p>
-                <h2>{wrongAnswers.length ? 'Questions to revisit' : 'Perfect score'}</h2>
+                <p className="eyebrow">Results</p>
+                <h2>{wrongAnswers.length ? 'Round complete' : 'Perfect score'}</h2>
               </div>
               <CheckCircle2 size={22} />
             </div>
+
+            <div className="practice-score-strip">
+              <div className="practice-score-main">
+                <span>Score</span>
+                <strong>{correctCount} / {practiceQuestions.length}</strong>
+              </div>
+              <div className="practice-score-stat">
+                <span>Accuracy</span>
+                <strong>{scorePercent}%</strong>
+              </div>
+              <div className="practice-score-stat">
+                <span>Review</span>
+                <strong>{wrongAnswers.length ? `${wrongAnswers.length} missed` : 'All clear'}</strong>
+              </div>
+              <button className="primary-button compact-button" onClick={resetPractice} type="button">
+                <RefreshCw size={17} />
+                New solo game
+              </button>
+            </div>
+
             <div className="practice-review-list">
               {(wrongAnswers.length ? wrongAnswers : answers).map((answer, index) => (
                 <article className={`practice-review-row ${answer.isCorrect ? 'correct' : 'wrong'}`} key={answer.question.id}>

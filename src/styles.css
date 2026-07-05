@@ -1027,6 +1027,10 @@ textarea:focus {
   align-items: start;
 }
 
+.practice-results {
+  grid-template-columns: 1fr;
+}
+
 .practice-card,
 .practice-play-card {
   min-width: 0;
@@ -1330,21 +1334,63 @@ textarea:focus {
   justify-self: start;
 }
 
-.practice-score-card {
+.practice-results-card {
   display: grid;
-  gap: 8px;
+  gap: 16px;
 }
 
-.practice-score-card h2 {
+.practice-score-strip {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.35fr) repeat(2, minmax(130px, 0.75fr)) auto;
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f7f7;
+}
+
+.practice-score-main,
+.practice-score-stat {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.practice-score-main span,
+.practice-score-stat span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.practice-score-main strong {
   margin: 0;
   color: #050505;
-  font-size: clamp(52px, 10vw, 92px);
+  font-size: clamp(42px, 7vw, 72px);
   line-height: 0.9;
 }
 
-.practice-score-card span {
-  color: var(--muted);
-  font-weight: 900;
+.practice-score-stat strong {
+  color: #050505;
+  font-size: clamp(22px, 4vw, 34px);
+  line-height: 1;
+}
+
+.practice-score-strip .primary-button {
+  align-self: center;
+  min-height: 52px;
+}
+
+.practice-results-card .practice-review-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
 }
 
 .practice-review-row {
@@ -5786,6 +5832,14 @@ textarea:focus {
 
   .practice-grid,
   .practice-results {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-score-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-results-card .practice-review-list {
     grid-template-columns: 1fr;
   }
 
