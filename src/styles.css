@@ -9784,3 +9784,39 @@ body,
     min-height: calc(100vh - 66px);
   }
 }
+
+/* Host close control placement */
+.dashboard.game-open .control-room-modal {
+  position: relative;
+  overflow: hidden;
+  padding-top: 62px;
+}
+
+.dashboard.game-open .control-room-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  bottom: auto;
+  left: auto;
+  width: 46px;
+  height: 46px;
+  margin: 0;
+  transform: none;
+}
+
+.dashboard.game-open .control-room-modal .host-live-section.game-stage {
+  padding-top: 0;
+}
+
+@media (max-width: 760px) {
+  .dashboard.game-open .control-room-modal {
+    padding-top: 56px;
+  }
+
+  .dashboard.game-open .control-room-close {
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+  }
+}
