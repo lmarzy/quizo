@@ -3257,77 +3257,6 @@ function GameWizardModal({
       helper: 'Everyone answers their own question each round. The lowest score drops out until the final places are decided.',
     },
   };
-  const gamePresets: Array<{
-    id: string;
-    title: string;
-    summary: string;
-    tone: string;
-    values: Pick<
-      typeof defaultForm,
-      'gameMode' | 'startingPoints' | 'targetPoints' | 'wrongPenalty' | 'recoveryPoints' | 'timeLimit' | 'maxConsecutiveQuestions'
-    >;
-  }> = [
-    {
-      id: 'quick',
-      title: 'Quick Game',
-      summary: 'Short, balanced and easy to start.',
-      tone: '10 sec turns',
-      values: {
-        gameMode: 'classic',
-        startingPoints: 80,
-        targetPoints: 120,
-        wrongPenalty: 10,
-        recoveryPoints: 10,
-        timeLimit: 10,
-        maxConsecutiveQuestions: 2,
-      },
-    },
-    {
-      id: 'family',
-      title: 'Family Mode',
-      summary: 'More forgiving with a little more thinking time.',
-      tone: 'Gentle',
-      values: {
-        gameMode: 'classic',
-        startingPoints: 100,
-        targetPoints: 150,
-        wrongPenalty: 5,
-        recoveryPoints: 5,
-        timeLimit: 15,
-        maxConsecutiveQuestions: 2,
-      },
-    },
-    {
-      id: 'competitive',
-      title: 'Competitive',
-      summary: 'Higher target, bigger swings, tighter pressure.',
-      tone: 'Sharper',
-      values: {
-        gameMode: 'classic',
-        startingPoints: 100,
-        targetPoints: 180,
-        wrongPenalty: 15,
-        recoveryPoints: 15,
-        timeLimit: 10,
-        maxConsecutiveQuestions: 2,
-      },
-    },
-    {
-      id: 'brutal',
-      title: 'Fast & Brutal',
-      summary: 'Low starting score and costly mistakes.',
-      tone: '8 sec turns',
-      values: {
-        gameMode: 'classic',
-        startingPoints: 60,
-        targetPoints: 110,
-        wrongPenalty: 20,
-        recoveryPoints: 20,
-        timeLimit: 8,
-        maxConsecutiveQuestions: 2,
-      },
-    },
-  ];
   const selectedModeLocked = isProGameMode(form.gameMode) && !canUseProModes;
   const selectedPack = packs.find((pack) => pack.id === form.questionPackId);
   const canAdvanceType = Boolean(form.name.trim() && !selectedModeLocked);
@@ -3408,17 +3337,6 @@ function GameWizardModal({
     setStep((current) => Math.min(5, current + 1));
   }
 
-  function isPresetSelected(preset: (typeof gamePresets)[number]) {
-    return Object.entries(preset.values).every(([key, value]) => form[key as keyof typeof preset.values] === value);
-  }
-
-  function applyPreset(preset: (typeof gamePresets)[number]) {
-    setForm({
-      ...form,
-      ...preset.values,
-    });
-  }
-
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create game wizard">
       <div className="wizard-modal">
@@ -3456,35 +3374,6 @@ function GameWizardModal({
                 Game name
                 <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Friday night knockout" autoFocus />
               </label>
-
-              <div className="wide preset-choice-wrap">
-                <div className="wizard-section-heading">
-                  <div>
-                    <span>Presets</span>
-                    <strong>Choose a starting point</strong>
-                  </div>
-                  <em>Rules can be edited later</em>
-                </div>
-                <div className="preset-choice-grid">
-                  {gamePresets.map((preset) => (
-                    <button
-                      className={`preset-choice-card ${isPresetSelected(preset) ? 'selected' : ''}`}
-                      key={preset.id}
-                      onClick={() => applyPreset(preset)}
-                      type="button"
-                    >
-                      <span className="preset-card-top">
-                        <strong>{preset.title}</strong>
-                        <em>{preset.tone}</em>
-                      </span>
-                      <span>{preset.summary}</span>
-                      <b>
-                        {preset.values.startingPoints} to {preset.values.targetPoints}
-                      </b>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               <div className="wide mode-choice-wrap">
                 <div className="wizard-section-heading">
