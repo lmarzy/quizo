@@ -1491,7 +1491,14 @@ function Dashboard({ session }: { session: Session }) {
             <h1>Choose how to play</h1>
           </div>
           <div className="table-toolbar-actions">
-            <button className="ghost-button table-button toolbar-packs-button" onClick={() => setPacksDrawerOpen(true)} type="button">
+            <button
+              className="ghost-button table-button toolbar-packs-button"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                setPacksDrawerOpen(true);
+              }}
+              type="button"
+            >
               <BookOpen size={18} />
               Packs
             </button>
