@@ -3962,6 +3962,9 @@ type JoinGamePayload = {
     join_code: string;
     status: string;
     game_mode?: string;
+    question_pack_id?: string | null;
+    question_pack_name?: string | null;
+    question_pack_tier?: string | null;
     target_points?: number;
     elimination_rounds?: number;
     questions_per_round?: number;
@@ -3990,6 +3993,9 @@ type GameRoomPayload = {
     join_code: string;
     status: string;
     game_mode?: string;
+    question_pack_id?: string | null;
+    question_pack_name?: string | null;
+    question_pack_tier?: string | null;
     target_points?: number;
     elimination_rounds?: number;
     questions_per_round?: number;
@@ -4831,16 +4837,14 @@ function GameRoom({
 
       {showFinalResults ? (
         <div className="final-results">
-          <div className="winner-panel">
-            <ConfettiBurst />
-            <div className="winner-avatar">{winner ? getInitials(winner.display_name) : <PartyPopper size={34} />}</div>
-            <div>
-              <span>Last player standing</span>
-              <strong>{winner ? `${winner.display_name} wins` : 'Game finished'}</strong>
-              <span>Final scores</span>
-            </div>
-          </div>
-          <FinalLeaderboard members={room.members} winnerId={winner?.id || null} />
+          <FinalResultCard
+            joinCode={joinCode}
+            members={room.members}
+            mode={room.game.game_mode}
+            packName={room.game.question_pack_name || null}
+            gameName={room.game.name}
+            winner={winner}
+          />
         </div>
       ) : (
         <div className={`live-play-layout ${delayingFinalReveal ? 'final-reveal-wait' : ''}`}>
@@ -5022,6 +5026,100 @@ function ConfettiBurst() {
         />
       ))}
     </div>
+  );
+}
+
+function FinalResultCard({
+  joinCode,
+  members,
+  mode,
+  packName,
+  gameName,
+  winner,
+}: {
+  joinCode: string;
+  members: GameRoomPayload['members'];
+  mode?: string | null;
+  packName: string | null;
+  gameName: string;
+  winner: GameRoomPayload['members'][number] | null;
+}) {
+  const [shareMessage, setShareMessage] = useState('');
+  const rankedMembers = [...members].sort((a, b) => b.points - a.points || a.turn_order - b.turn_order);
+  const winnerScore = winner ? `${winner.points} pts` : `${rankedMembers.length} players`;
+  const resultUrl = getJoinUrl(joinCode);
+  const modeLabel = getGameModeLabel(mode);
+  const packLabel = packName || 'Question pack';
+
+  async function shareResults() {
+    const leaderboardText = rankedMembers
+      .map((member, index) => `${index + 1}. ${member.display_name} - ${member.points} pts`)
+      .join('\n');
+    const text = [
+      `Quizo result: ${winner ? `${winner.display_name} won ${gameName}` : `${gameName} finished`}`,
+      `Mode: ${modeLabel}`,
+      `Pack: ${packLabel}`,
+      '',
+      leaderboardText,
+      '',
+      resultUrl,
+    ].join('\n');
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${gameName} results`,
+          text,
+          url: resultUrl,
+        });
+        setShareMessage('Results shared.');
+      } else {
+        await navigator.clipboard.writeText(text);
+        setShareMessage('Results copied.');
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setShareMessage('Could not share results.');
+    }
+  }
+
+  return (
+    <section className="final-result-card" aria-label={`${gameName} final results`}>
+      <ConfettiBurst />
+      <div className="final-result-hero">
+        <div className="winner-avatar">{winner ? getInitials(winner.display_name) : <PartyPopper size={34} />}</div>
+        <div>
+          <span>Final result</span>
+          <strong>{winner ? `${winner.display_name} wins` : 'Game finished'}</strong>
+          <p>{winnerScore}</p>
+        </div>
+      </div>
+
+      <div className="final-result-meta" aria-label="Game details">
+        <div>
+          <span>Mode</span>
+          <strong>{modeLabel}</strong>
+        </div>
+        <div>
+          <span>Pack</span>
+          <strong>{packLabel}</strong>
+        </div>
+        <div>
+          <span>Code</span>
+          <strong>{joinCode}</strong>
+        </div>
+      </div>
+
+      <FinalLeaderboard members={members} winnerId={winner?.id || null} />
+
+      <div className="final-result-actions">
+        <button className="primary-button result-share-button" onClick={() => void shareResults()} type="button">
+          <Send size={18} />
+          Share results
+        </button>
+        {shareMessage && <span>{shareMessage}</span>}
+      </div>
+    </section>
   );
 }
 
