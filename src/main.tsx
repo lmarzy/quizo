@@ -2596,15 +2596,6 @@ function PackDetailsPanel({
   );
 }
 
-function ReadinessItem({ done, label }: { done: boolean; label: string }) {
-  return (
-    <div className={`readiness-item ${done ? 'done' : ''}`}>
-      <CheckCircle2 size={18} />
-      <span>{label}</span>
-    </div>
-  );
-}
-
 function Toast({ toast, onClose }: { toast: ToastState | null; onClose: () => void }) {
   if (!toast) return null;
 
@@ -2904,6 +2895,13 @@ function GameManageDrawer({
   const inactiveMembers = members.filter((member) => !['active', 'invited', 'joined'].includes(member.status));
   const readyLabel = canStart ? 'Ready to start' : members.length === 0 ? 'Add players' : `${Math.max(0, 2 - joinedMemberCount)} more to join`;
   const playerLimitReached = members.length >= maxPlayersPerGame;
+  const selectedPack = packs.find((pack) => pack.id === draft.question_pack_id);
+  const ruleSummary =
+    draft.game_mode === 'elimination_ladder'
+      ? `${draft.elimination_rounds || 3} rounds · ${draft.questions_per_round || 3} questions/round`
+      : draft.game_mode === 'race_to_points' || draft.game_mode === 'speed_round'
+        ? `Race to ${draft.target_points || 100}`
+        : `${draft.starting_points} start · ${draft.target_points || 150} to win`;
 
   return (
     <div
@@ -2933,28 +2931,46 @@ function GameManageDrawer({
         </div>
 
         <div className="drawer-content">
-          <section className="drawer-section">
-            <div className="section-heading">
+          <section className="drawer-section lobby-hero-card">
+            <div className="lobby-hero-main">
               <div>
-                <p className="eyebrow">Share</p>
-                <h2>Join details</h2>
-                <p className="section-helper">Copy this join link and send it to each player. They can open the link or enter the code to join the lobby.</p>
+                <p className="eyebrow">Lobby</p>
+                <h2>{canStart ? 'Ready when you are' : 'Get everyone in'}</h2>
+                <p className="section-helper">Share the link or code with players, then start once at least two people have joined.</p>
               </div>
-              <div className="join-code share-code">
-                <span>{game.join_code}</span>
-                <CopyButton value={selectedJoinUrl} label="Copy join link" variant="label" />
-              </div>
-            </div>
-            <div className="setup-strip">
-              <ReadinessItem done={Boolean(game.join_code)} label="Join code ready" />
-              <ReadinessItem done={members.length > 0} label={`${members.length}/${maxPlayersPerGame} added`} />
-              <ReadinessItem done={joinedMemberCount >= 2} label={`${joinedMemberCount} joined`} />
-            </div>
-            <div className="lobby-readiness">
-              <div className={`readiness-summary ${canStart ? 'ready' : ''}`}>
-                <span>Lobby status</span>
+              <div className={`lobby-ready-pill ${canStart ? 'ready' : ''}`}>
+                <span>{canStart ? 'Ready' : 'Waiting'}</span>
                 <strong>{readyLabel}</strong>
               </div>
+            </div>
+
+            <div className="lobby-share-panel">
+              <div className="lobby-code-block">
+                <span>Join code</span>
+                <strong>{game.join_code}</strong>
+              </div>
+              <div className="lobby-share-actions">
+                <CopyButton value={selectedJoinUrl} label="Copy join link" variant="label" />
+                <CopyButton value={game.join_code} label="Copy code" variant="label" />
+              </div>
+            </div>
+
+            <div className="lobby-game-summary">
+              <div>
+                <span>Mode</span>
+                <strong>{getGameModeLabel(draft.game_mode)}</strong>
+              </div>
+              <div>
+                <span>Pack</span>
+                <strong>{selectedPack?.name || 'Question pack'}</strong>
+              </div>
+              <div>
+                <span>Rules</span>
+                <strong>{ruleSummary} · {draft.question_time_limit_seconds}s</strong>
+              </div>
+            </div>
+
+            <div className="lobby-readiness">
               <div className="lobby-progress" aria-label={`${joinedMemberCount} of ${members.length} players joined`}>
                 <span style={{ width: `${members.length ? Math.round((joinedMemberCount / members.length) * 100) : 0}%` }} />
               </div>
@@ -2968,8 +2984,8 @@ function GameManageDrawer({
                   <strong>{waitingMembers.length}</strong>
                 </div>
                 <div>
-                  <span>Total</span>
-                  <strong>{members.length}</strong>
+                  <span>Players</span>
+                  <strong>{members.length}/{maxPlayersPerGame}</strong>
                 </div>
               </div>
             </div>
@@ -4264,6 +4280,21 @@ function JoinGame({ joinCode }: { joinCode: string }) {
             )}
 
             {message && <p className="form-message">{message}</p>}
+
+            <div className="member-lobby-summary">
+              <div>
+                <span>Joined</span>
+                <strong>{joinedMembers.length}</strong>
+              </div>
+              <div>
+                <span>Waiting</span>
+                <strong>{invitedMembers.length}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>{payload.game.status === 'lobby' || payload.game.status === 'draft' ? 'Waiting' : payload.game.status}</strong>
+              </div>
+            </div>
 
             <div className="lobby-columns">
               <div>
