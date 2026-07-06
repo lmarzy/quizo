@@ -9831,8 +9831,14 @@ body,
 }
 
 /* Dashboard overlay ordering */
-.dashboard > .pack-drawer-backdrop,
-.dashboard > .drawer-backdrop {
+.dashboard .pack-drawer-backdrop,
+.dashboard .drawer-backdrop {
   position: fixed;
   z-index: 500;
+}
+
+.dashboard:has(.pack-drawer-backdrop) .topbar,
+.dashboard:has(.drawer-backdrop) .topbar {
+  z-index: 0;
+  pointer-events: none;
 }
