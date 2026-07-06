@@ -9820,3 +9820,12 @@ body,
     height: 40px;
   }
 }
+
+/* Account menu logout polish */
+.dashboard .account-logout {
+  background: transparent;
+}
+
+.dashboard .account-logout:hover {
+  background: #f6f6f6;
+}
