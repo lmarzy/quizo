@@ -3207,7 +3207,7 @@ function GameWizardModal({
 
   if (!open) return null;
 
-  const steps = ['Basics', 'Rules', 'Players', 'Review'];
+  const steps = ['Game type', 'Rules', 'Pack', 'Players', 'Review'];
   const modeDetails: Record<GameMode, { title: string; badge: string; description: string; helper: string }> = {
     classic: {
       title: 'Classic',
@@ -3236,7 +3236,8 @@ function GameWizardModal({
   };
   const selectedModeLocked = isProGameMode(form.gameMode) && !canUseProModes;
   const selectedPack = packs.find((pack) => pack.id === form.questionPackId);
-  const canAdvanceBasics = Boolean(form.name.trim() && form.questionPackId && !selectedModeLocked);
+  const canAdvanceType = Boolean(form.name.trim() && !selectedModeLocked);
+  const canAdvancePack = Boolean(form.questionPackId);
   const isTargetMode = form.gameMode === 'classic' || form.gameMode === 'race_to_points' || form.gameMode === 'speed_round';
   const isEliminationMode = form.gameMode === 'elimination_ladder';
   const canAdvanceRules =
@@ -3259,7 +3260,7 @@ function GameWizardModal({
   const playerLimitExceeded = playerCount > maxPlayersPerGame;
   const hostToggleDisabled = !includeHostAsPlayer && playerLimitReached;
   const canAdvancePlayers = playerCount > 0 && !playerLimitExceeded;
-  const canFinish = canAdvanceBasics && canAdvanceRules && canAdvancePlayers;
+  const canFinish = canAdvanceType && canAdvanceRules && canAdvancePack && canAdvancePlayers;
 
   function syncPlayerNames(nextNames: string[]) {
     setMemberNames(nextNames.join('\n'));
@@ -3299,16 +3300,18 @@ function GameWizardModal({
 
   function canOpenStep(targetStep: number) {
     if (targetStep === 1) return true;
-    if (targetStep === 2) return canAdvanceBasics;
-    if (targetStep === 3) return canAdvanceBasics && canAdvanceRules;
-    return canAdvanceBasics && canAdvanceRules && canAdvancePlayers;
+    if (targetStep === 2) return canAdvanceType;
+    if (targetStep === 3) return canAdvanceType && canAdvanceRules;
+    if (targetStep === 4) return canAdvanceType && canAdvanceRules && canAdvancePack;
+    return canAdvanceType && canAdvanceRules && canAdvancePack && canAdvancePlayers;
   }
 
   function goNext() {
-    if (step === 1 && !canAdvanceBasics) return;
+    if (step === 1 && !canAdvanceType) return;
     if (step === 2 && !canAdvanceRules) return;
-    if (step === 3 && !canAdvancePlayers) return;
-    setStep((current) => Math.min(4, current + 1));
+    if (step === 3 && !canAdvancePack) return;
+    if (step === 4 && !canAdvancePlayers) return;
+    setStep((current) => Math.min(5, current + 1));
   }
 
   return (
@@ -3348,41 +3351,6 @@ function GameWizardModal({
                 Game name
                 <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Friday night knockout" autoFocus />
               </label>
-              <section className="wide wizard-pack-picker" aria-label="Choose question pack">
-                <div className="wizard-section-heading">
-                  <div>
-                    <span>Question pack</span>
-                    <strong>{selectedPack ? selectedPack.name : 'Choose a pack'}</strong>
-                  </div>
-                  <em>{packs.length} available</em>
-                </div>
-
-                <div className="wizard-pack-list">
-                  {packs.length === 0 && <p className="pack-empty-state">No packs are available on this plan yet.</p>}
-                  {packs.map((pack) => {
-                    const selected = form.questionPackId === pack.id;
-
-                    return (
-                      <button
-                        className={`wizard-pack-row ${selected ? 'selected' : ''}`}
-                        key={pack.id}
-                        onClick={() => setForm({ ...form, questionPackId: pack.id })}
-                        type="button"
-                      >
-                        <span className="wizard-pack-check">{selected ? <CheckCircle2 size={16} /> : <BookOpen size={16} />}</span>
-                        <div>
-                          <strong>{pack.name}</strong>
-                          <span>{pack.description || 'Starter quiz pack'}</span>
-                        </div>
-                        <div className="pack-card-footer">
-                          <em>{packQuestionCounts[pack.id] || 0} questions</em>
-                          <b>{getPackTierLabel(pack.tier)}</b>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
 
               <div className="wide mode-choice-wrap">
                 <div className="wizard-section-heading">
@@ -3440,6 +3408,7 @@ function GameWizardModal({
                 </div>
                 <p className="mode-helper">{modeDetails[form.gameMode].helper}</p>
                 {selectedModeLocked && <p className="form-helper">Choose a free mode or upgrade to Pro to continue.</p>}
+                {!form.name.trim() && <p className="field-hint">Give the game a name to continue.</p>}
               </div>
             </div>
           )}
@@ -3459,6 +3428,45 @@ function GameWizardModal({
           )}
 
           {step === 3 && (
+            <section className="wizard-pack-picker" aria-label="Choose question pack">
+              <div className="wizard-section-heading">
+                <div>
+                  <span>Question pack</span>
+                  <strong>{selectedPack ? selectedPack.name : 'Choose a pack'}</strong>
+                </div>
+                <em>{packs.length} available</em>
+              </div>
+
+              <div className="wizard-pack-list">
+                {packs.length === 0 && <p className="pack-empty-state">No packs are available on this plan yet.</p>}
+                {packs.map((pack) => {
+                  const selected = form.questionPackId === pack.id;
+
+                  return (
+                    <button
+                      className={`wizard-pack-row ${selected ? 'selected' : ''}`}
+                      key={pack.id}
+                      onClick={() => setForm({ ...form, questionPackId: pack.id })}
+                      type="button"
+                    >
+                      <span className="wizard-pack-check">{selected ? <CheckCircle2 size={16} /> : <BookOpen size={16} />}</span>
+                      <div>
+                        <strong>{pack.name}</strong>
+                        <span>{pack.description || 'Starter quiz pack'}</span>
+                      </div>
+                      <div className="pack-card-footer">
+                        <em>{packQuestionCounts[pack.id] || 0} questions</em>
+                        <b>{getPackTierLabel(pack.tier)}</b>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {!canAdvancePack && <p className="form-helper">Choose a question pack to continue.</p>}
+            </section>
+          )}
+
+          {step === 4 && (
             <div className="player-setup">
               <button
                 className={`host-player-card ${includeHostAsPlayer ? 'selected' : ''}`}
@@ -3523,7 +3531,7 @@ function GameWizardModal({
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div className="review-grid">
               <div className="review-card wide">
                 <span>Name</span>
@@ -3568,10 +3576,10 @@ function GameWizardModal({
           <button className="ghost-button" disabled={step === 1 || busy} onClick={() => setStep((current) => Math.max(1, current - 1))} type="button">
             Back
           </button>
-          {step < 4 ? (
+          {step < 5 ? (
             <button
               className="primary-button"
-              disabled={(step === 1 && !canAdvanceBasics) || (step === 2 && !canAdvanceRules) || (step === 3 && !canAdvancePlayers)}
+              disabled={(step === 1 && !canAdvanceType) || (step === 2 && !canAdvanceRules) || (step === 3 && !canAdvancePack) || (step === 4 && !canAdvancePlayers)}
               onClick={goNext}
               type="button"
             >
