@@ -9829,3 +9829,10 @@ body,
 .dashboard .account-logout:hover {
   background: #f6f6f6;
 }
+
+/* Dashboard overlay ordering */
+.dashboard > .pack-drawer-backdrop,
+.dashboard > .drawer-backdrop {
+  position: fixed;
+  z-index: 500;
+}
