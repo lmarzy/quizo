@@ -3214,7 +3214,7 @@ function GameWizardModal({
 
   if (!open) return null;
 
-  const steps = ['Game type', 'Rules', 'Pack', 'Players', 'Review'];
+  const steps = ['Game type', 'Pack', 'Rules', 'Players', 'Review'];
   const modeDetails: Record<GameMode, { title: string; badge: string; description: string; helper: string }> = {
     classic: {
       title: 'Classic',
@@ -3308,15 +3308,15 @@ function GameWizardModal({
   function canOpenStep(targetStep: number) {
     if (targetStep === 1) return true;
     if (targetStep === 2) return canAdvanceType;
-    if (targetStep === 3) return canAdvanceType && canAdvanceRules;
+    if (targetStep === 3) return canAdvanceType && canAdvancePack;
     if (targetStep === 4) return canAdvanceType && canAdvanceRules && canAdvancePack;
     return canAdvanceType && canAdvanceRules && canAdvancePack && canAdvancePlayers;
   }
 
   function goNext() {
     if (step === 1 && !canAdvanceType) return;
-    if (step === 2 && !canAdvanceRules) return;
-    if (step === 3 && !canAdvancePack) return;
+    if (step === 2 && !canAdvancePack) return;
+    if (step === 3 && !canAdvanceRules) return;
     if (step === 4 && !canAdvancePlayers) return;
     setStep((current) => Math.min(5, current + 1));
   }
@@ -3421,20 +3421,6 @@ function GameWizardModal({
           )}
 
           {step === 2 && (
-            <div className="form-grid">
-              <NumberInput label="Starting points" value={form.startingPoints} onChange={(value) => setForm({ ...form, startingPoints: value })} />
-              {isTargetMode && <NumberInput label={form.gameMode === 'classic' ? 'Winning score' : 'Target points'} value={form.targetPoints} onChange={(value) => setForm({ ...form, targetPoints: value })} />}
-              {isEliminationMode && <NumberInput label="Ladder rounds" value={form.eliminationRounds} onChange={(value) => setForm({ ...form, eliminationRounds: value })} />}
-              {isEliminationMode && <NumberInput label="Questions/round" value={form.questionsPerRound} onChange={(value) => setForm({ ...form, questionsPerRound: value })} />}
-              <NumberInput label="Wrong penalty" value={form.wrongPenalty} onChange={(value) => setForm({ ...form, wrongPenalty: value })} />
-              <NumberInput label="Correct points" value={form.recoveryPoints} onChange={(value) => setForm({ ...form, recoveryPoints: value })} />
-              <NumberInput label="Seconds/question" value={form.timeLimit} onChange={(value) => setForm({ ...form, timeLimit: value })} />
-              {form.gameMode !== 'speed_round' && form.gameMode !== 'elimination_ladder' && <NumberInput label="Questions/turn" value={form.maxConsecutiveQuestions} onChange={(value) => setForm({ ...form, maxConsecutiveQuestions: value })} />}
-              {!canAdvanceRules && <p className="form-helper wide">Check the scores, winning target, ladder rounds, question count, 5 seconds per question, and at least 1 question per turn.</p>}
-            </div>
-          )}
-
-          {step === 3 && (
             <section className="wizard-pack-picker" aria-label="Choose question pack">
               <div className="wizard-section-heading">
                 <div>
@@ -3471,6 +3457,20 @@ function GameWizardModal({
               </div>
               {!canAdvancePack && <p className="form-helper">Choose a question pack to continue.</p>}
             </section>
+          )}
+
+          {step === 3 && (
+            <div className="form-grid">
+              <NumberInput label="Starting points" value={form.startingPoints} onChange={(value) => setForm({ ...form, startingPoints: value })} />
+              {isTargetMode && <NumberInput label={form.gameMode === 'classic' ? 'Winning score' : 'Target points'} value={form.targetPoints} onChange={(value) => setForm({ ...form, targetPoints: value })} />}
+              {isEliminationMode && <NumberInput label="Ladder rounds" value={form.eliminationRounds} onChange={(value) => setForm({ ...form, eliminationRounds: value })} />}
+              {isEliminationMode && <NumberInput label="Questions/round" value={form.questionsPerRound} onChange={(value) => setForm({ ...form, questionsPerRound: value })} />}
+              <NumberInput label="Wrong penalty" value={form.wrongPenalty} onChange={(value) => setForm({ ...form, wrongPenalty: value })} />
+              <NumberInput label="Correct points" value={form.recoveryPoints} onChange={(value) => setForm({ ...form, recoveryPoints: value })} />
+              <NumberInput label="Seconds/question" value={form.timeLimit} onChange={(value) => setForm({ ...form, timeLimit: value })} />
+              {form.gameMode !== 'speed_round' && form.gameMode !== 'elimination_ladder' && <NumberInput label="Questions/turn" value={form.maxConsecutiveQuestions} onChange={(value) => setForm({ ...form, maxConsecutiveQuestions: value })} />}
+              {!canAdvanceRules && <p className="form-helper wide">Check the scores, winning target, ladder rounds, question count, 5 seconds per question, and at least 1 question per turn.</p>}
+            </div>
           )}
 
           {step === 4 && (
@@ -3586,7 +3586,7 @@ function GameWizardModal({
           {step < 5 ? (
             <button
               className="primary-button"
-              disabled={(step === 1 && !canAdvanceType) || (step === 2 && !canAdvanceRules) || (step === 3 && !canAdvancePack) || (step === 4 && !canAdvancePlayers)}
+              disabled={(step === 1 && !canAdvanceType) || (step === 2 && !canAdvancePack) || (step === 3 && !canAdvanceRules) || (step === 4 && !canAdvancePlayers)}
               onClick={goNext}
               type="button"
             >
