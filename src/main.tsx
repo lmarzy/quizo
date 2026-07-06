@@ -505,6 +505,7 @@ function Dashboard({ session }: { session: Session }) {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedGame = useMemo(() => games.find((game) => game.id === selectedGameId) || null, [games, selectedGameId]);
   const currentPlanId = normalisePlanId(subscription?.plan_id);
@@ -581,6 +582,27 @@ function Dashboard({ session }: { session: Session }) {
   useEffect(() => {
     setAccountNameDraft(hostDisplayName);
   }, [hostDisplayName]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!accountMenuRef.current || accountMenuRef.current.contains(event.target as Node)) return;
+      setAccountMenuOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setAccountMenuOpen(false);
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [accountMenuOpen]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -1397,7 +1419,7 @@ function Dashboard({ session }: { session: Session }) {
               Upgrade
             </button>
           )}
-          <div className="account-menu">
+          <div className="account-menu" ref={accountMenuRef}>
             <button
               className="account-trigger"
               onClick={() => setAccountMenuOpen((current) => !current)}
