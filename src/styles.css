@@ -2160,10 +2160,10 @@ textarea:focus {
 }
 
 .pack-drawer {
-  width: min(100%, 430px);
+  width: min(100%, 920px);
   max-height: 100%;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 12px;
   overflow: hidden;
   padding: 16px;
@@ -2194,15 +2194,74 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.pack-library-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pack-library-stats div {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfbfb;
+}
+
+.pack-library-stats span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pack-library-stats strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.pack-browser-layout {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
+  gap: 12px;
+}
+
 .pack-browser {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfbfb;
+}
+
+.pack-browser-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pack-browser-heading strong,
+.pack-browser-heading span {
+  display: block;
+}
+
+.pack-browser-heading strong {
+  font-size: 15px;
+}
+
+.pack-browser-heading span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .pack-search {
@@ -2215,6 +2274,19 @@ textarea:focus {
   border-radius: 8px;
   color: var(--muted);
   background: #fafafa;
+}
+
+.pack-search button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  color: #555;
+  background: #eeeeee;
+  cursor: pointer;
 }
 
 .pack-search input {
@@ -2230,7 +2302,7 @@ textarea:focus {
 
 .pack-filter-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -2274,10 +2346,11 @@ textarea:focus {
 .pack-compact-row {
   box-sizing: border-box;
   width: auto;
-  min-height: 106px;
+  min-height: 88px;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  align-items: stretch;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: start;
   gap: 10px;
   padding: 13px;
   border: 1px solid var(--line);
@@ -2302,7 +2375,7 @@ textarea:focus {
 
 .pack-compact-row.included {
   border-color: #d8d8d8;
-  box-shadow: inset 4px 0 0 #050505, var(--shadow-tight);
+  box-shadow: var(--shadow-tight);
 }
 
 .pack-compact-row.selected {
@@ -2313,6 +2386,22 @@ textarea:focus {
   display: block;
   margin: 0;
   font-size: 15px;
+}
+
+.pack-row-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  grid-row: 1 / span 2;
+  border-radius: 999px;
+  color: #050505;
+  background: #fff4df;
+}
+
+.pack-compact-row.locked .pack-row-icon {
+  color: #555;
+  background: #eeeeee;
 }
 
 .pack-compact-row span,
@@ -2330,6 +2419,7 @@ textarea:focus {
 }
 
 .pack-card-footer {
+  grid-column: 2;
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -2368,13 +2458,26 @@ textarea:focus {
 }
 
 .pack-details-panel {
+  min-height: 0;
   display: grid;
+  align-content: start;
   gap: 16px;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: #050505;
   background: #f7f7f7;
+  overflow-y: auto;
+}
+
+.pack-details-panel.empty-details {
+  place-content: center;
+  text-align: center;
+}
+
+.pack-details-panel.empty-details > svg {
+  justify-self: center;
+  color: #777;
 }
 
 .pack-details-header {
@@ -6255,6 +6358,15 @@ textarea:focus {
     width: 100%;
     min-height: 100%;
     border-radius: 0;
+  }
+
+  .pack-browser-layout,
+  .pack-library-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .pack-filter-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .auth-layout {

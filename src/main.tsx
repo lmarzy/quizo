@@ -2458,22 +2458,29 @@ function AvailablePacksPanel({
   onClose: () => void;
   onUpgrade: () => void;
 }) {
-  const [activeTier, setActiveTier] = useState<'all' | 'free' | 'pro' | 'creator'>('all');
+  const [activeTier, setActiveTier] = useState<'all' | 'included' | 'free' | 'pro' | 'creator'>('all');
   const [packSearch, setPackSearch] = useState('');
   const [selectedPack, setSelectedPack] = useState<QuestionPack | null>(null);
   const isPackIncluded = (pack: QuestionPack) => pack.tier === 'free' || (pack.tier === 'pro' && canUseProPacks) || (pack.tier === 'creator' && canUseCreatorFeatures);
-  const tierFilters: Array<{ id: 'all' | 'free' | 'pro' | 'creator'; label: string }> = [
+  const tierFilters: Array<{ id: 'all' | 'included' | 'free' | 'pro' | 'creator'; label: string }> = [
     { id: 'all', label: 'All' },
+    { id: 'included', label: 'Included' },
     { id: 'free', label: 'Free' },
     { id: 'pro', label: 'Pro' },
     { id: 'creator', label: 'Creator' },
   ];
-  const filteredPacks = packs.filter((pack) => {
-    const matchesTier = activeTier === 'all' || pack.tier === activeTier;
-    const searchText = `${pack.name} ${pack.description || ''}`.toLowerCase();
-    return matchesTier && searchText.includes(packSearch.trim().toLowerCase());
-  });
+  const filteredPacks = packs
+    .filter((pack) => {
+      const included = isPackIncluded(pack);
+      const matchesTier = activeTier === 'all' || (activeTier === 'included' ? included : pack.tier === activeTier);
+      const searchText = `${pack.name} ${pack.description || ''}`.toLowerCase();
+      return matchesTier && searchText.includes(packSearch.trim().toLowerCase());
+    })
+    .sort((a, b) => Number(isPackIncluded(b)) - Number(isPackIncluded(a)) || a.tier.localeCompare(b.tier) || a.name.localeCompare(b.name));
   const includedCount = packs.filter(isPackIncluded).length;
+  const lockedCount = packs.length - includedCount;
+  const totalQuestionCount = packs.reduce((total, pack) => total + (packQuestionCounts[pack.id] || 0), 0);
+  const selectedPackVisible = selectedPack && filteredPacks.some((pack) => pack.id === selectedPack.id);
 
   if (!open) return null;
 
@@ -2491,6 +2498,21 @@ function AvailablePacksPanel({
           </button>
         </div>
 
+        <div className="pack-library-stats" aria-label="Question pack summary">
+          <div>
+            <span>Included</span>
+            <strong>{includedCount}</strong>
+          </div>
+          <div>
+            <span>Locked</span>
+            <strong>{lockedCount}</strong>
+          </div>
+          <div>
+            <span>Questions</span>
+            <strong>{totalQuestionCount}</strong>
+          </div>
+        </div>
+
         <div className="pack-plan-actions">
           <span className="plan-badge large">{planLabel}</span>
           {currentPlanId === 'free' && (
@@ -2500,57 +2522,81 @@ function AvailablePacksPanel({
           )}
         </div>
 
-        <div className="pack-browser">
-          <label className="pack-search">
-            <Search size={16} />
-            <input value={packSearch} onChange={(event) => setPackSearch(event.target.value)} placeholder="Search packs" type="search" />
-          </label>
+        <div className="pack-browser-layout">
+          <div className="pack-browser">
+            <div className="pack-browser-heading">
+              <div>
+                <strong>{filteredPacks.length} packs</strong>
+                <span>{activeTier === 'included' ? 'Available on your plan' : 'Browse by plan and topic'}</span>
+              </div>
+            </div>
 
-          <div className="pack-filter-tabs" aria-label="Filter question packs">
-            {tierFilters.map((filter) => (
-              <button className={activeTier === filter.id ? 'active' : ''} key={filter.id} onClick={() => setActiveTier(filter.id)} type="button">
-                {filter.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="pack-compact-list">
-            {filteredPacks.length === 0 && <p className="pack-empty-state">No packs match that search.</p>}
-            {filteredPacks.map((pack) => {
-              const included = isPackIncluded(pack);
-
-              return (
-                <button className={`pack-compact-row ${included ? 'included' : 'locked'} ${selectedPack?.id === pack.id ? 'selected' : ''}`} key={pack.id} onClick={() => setSelectedPack(pack)} type="button">
-                  <div>
-                    <strong>{pack.name}</strong>
-                    <span>{pack.description || 'Starter quiz pack'}</span>
-                  </div>
-                  <div className="pack-card-footer">
-                    <em>{packQuestionCounts[pack.id] || 0} questions</em>
-                    {included ? (
-                      <b>Included</b>
-                    ) : (
-                      <b>
-                        <Lock size={14} />
-                        {getPackTierLabel(pack.tier)}
-                      </b>
-                    )}
-                  </div>
+            <label className="pack-search">
+              <Search size={16} />
+              <input value={packSearch} onChange={(event) => setPackSearch(event.target.value)} placeholder="Search packs" type="search" />
+              {packSearch && (
+                <button onClick={() => setPackSearch('')} type="button" aria-label="Clear pack search" title="Clear search">
+                  <X size={14} />
                 </button>
-              );
-            })}
-          </div>
-        </div>
+              )}
+            </label>
 
-        {selectedPack && (
-          <PackDetailsPanel
-            included={isPackIncluded(selectedPack)}
-            pack={selectedPack}
-            questionCount={packQuestionCounts[selectedPack.id] || 0}
-            onClear={() => setSelectedPack(null)}
-            onUpgrade={onUpgrade}
-          />
-        )}
+            <div className="pack-filter-tabs" aria-label="Filter question packs">
+              {tierFilters.map((filter) => (
+                <button className={activeTier === filter.id ? 'active' : ''} key={filter.id} onClick={() => setActiveTier(filter.id)} type="button">
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="pack-compact-list">
+              {filteredPacks.length === 0 && <p className="pack-empty-state">No packs match that search.</p>}
+              {filteredPacks.map((pack) => {
+                const included = isPackIncluded(pack);
+
+                return (
+                  <button className={`pack-compact-row ${included ? 'included' : 'locked'} ${selectedPack?.id === pack.id ? 'selected' : ''}`} key={pack.id} onClick={() => setSelectedPack(pack)} type="button">
+                    <span className="pack-row-icon">{included ? <BookOpen size={17} /> : <Lock size={16} />}</span>
+                    <div>
+                      <strong>{pack.name}</strong>
+                      <span>{pack.description || 'Starter quiz pack'}</span>
+                    </div>
+                    <div className="pack-card-footer">
+                      <em>{packQuestionCounts[pack.id] || 0} questions</em>
+                      {included ? (
+                        <b>Included</b>
+                      ) : (
+                        <b>
+                          <Lock size={14} />
+                          {getPackTierLabel(pack.tier)}
+                        </b>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {selectedPack && selectedPackVisible ? (
+            <PackDetailsPanel
+              included={isPackIncluded(selectedPack)}
+              pack={selectedPack}
+              questionCount={packQuestionCounts[selectedPack.id] || 0}
+              onClear={() => setSelectedPack(null)}
+              onUpgrade={onUpgrade}
+            />
+          ) : (
+            <section className="pack-details-panel empty-details" aria-label="Pack details">
+              <BookOpen size={28} />
+              <div>
+                <p className="eyebrow">Pack details</p>
+                <h2>Select a pack</h2>
+              </div>
+              <p>Choose any pack to see what plan it belongs to, how many questions it contains, and whether it is included for you.</p>
+            </section>
+          )}
+        </div>
       </aside>
     </div>
   );
