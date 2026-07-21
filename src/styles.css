@@ -3630,6 +3630,10 @@ textarea:focus {
 .wizard-pack-row .pack-card-footer {
   grid-column: 2;
   align-self: end;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 6px;
 }
 
@@ -3646,6 +3650,7 @@ textarea:focus {
 }
 
 .wizard-pack-row .pack-card-footer em {
+  order: 2;
   padding: 0 8px;
   color: #333;
   border: 1px solid #e2e2e2;
@@ -3653,6 +3658,7 @@ textarea:focus {
 }
 
 .wizard-pack-row .pack-card-footer b {
+  order: 1;
   padding: 0 9px;
   color: white;
   background: #050505;
