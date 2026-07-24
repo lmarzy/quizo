@@ -27,6 +27,7 @@ type PracticeQuestion = {
   option_b: string;
   option_c: string;
   correct_option: string;
+  topic: string | null;
 };
 
 type PracticeAnswer = {
@@ -34,6 +35,53 @@ type PracticeAnswer = {
   selectedOption: string;
   isCorrect: boolean;
 };
+
+function shuffleItems<T>(items: T[]) {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  return shuffled;
+}
+
+function createVariedQuestionSequence(questions: PracticeQuestion[], count: number) {
+  const buckets = questions.reduce<Map<string, PracticeQuestion[]>>((groups, question) => {
+    const topic = question.topic?.trim() || 'mixed';
+    groups.set(topic, [...(groups.get(topic) || []), question]);
+    return groups;
+  }, new Map());
+
+  buckets.forEach((topicQuestions, topic) => {
+    buckets.set(topic, shuffleItems(topicQuestions));
+  });
+
+  const sequence: PracticeQuestion[] = [];
+  let previousTopic = '';
+
+  while (sequence.length < count) {
+    const availableTopics = [...buckets.entries()]
+      .filter(([, topicQuestions]) => topicQuestions.length > 0)
+      .map(([topic]) => topic);
+
+    if (availableTopics.length === 0) break;
+
+    const eligibleTopics = availableTopics.length > 1 ? availableTopics.filter((topic) => topic !== previousTopic) : availableTopics;
+    const largestBucketSize = Math.max(...eligibleTopics.map((topic) => buckets.get(topic)?.length || 0));
+    const balancedTopics = eligibleTopics.filter((topic) => (buckets.get(topic)?.length || 0) === largestBucketSize);
+    const nextTopic = balancedTopics[Math.floor(Math.random() * balancedTopics.length)];
+    const nextQuestion = buckets.get(nextTopic)?.pop();
+
+    if (!nextQuestion) break;
+
+    sequence.push(nextQuestion);
+    previousTopic = nextTopic;
+  }
+
+  return sequence;
+}
 
 type Subscription = {
   plan_id: string;
@@ -2132,7 +2180,7 @@ function PracticeModeModal({
 
     const { data, error } = await supabase
       .from('questions')
-      .select('id,prompt,option_a,option_b,option_c,correct_option')
+      .select('id,prompt,option_a,option_b,option_c,correct_option,topic')
       .eq('pack_id', selectedPack.id);
 
     setLoading(false);
@@ -2142,9 +2190,10 @@ function PracticeModeModal({
       return;
     }
 
-    const shuffledQuestions = [...((data || []) as PracticeQuestion[])]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, Math.min(questionCount, maxSelectableQuestions));
+    const shuffledQuestions = createVariedQuestionSequence(
+      (data || []) as PracticeQuestion[],
+      Math.min(questionCount, maxSelectableQuestions),
+    );
 
     if (shuffledQuestions.length === 0) {
       setMessage('No questions found for this pack.');
