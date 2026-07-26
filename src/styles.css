@@ -26,6 +26,347 @@
   --shadow-tight: 0 10px 26px rgba(0, 0, 0, 0.08);
 }
 
+/* Daily Challenge */
+.daily-challenge-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(310px, 0.9fr);
+  gap: 0;
+  margin-bottom: 18px;
+  overflow: hidden;
+  border: 1px solid #d9d9d9;
+  border-radius: 20px;
+  color: #050505;
+  background: white;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.06);
+}
+
+.daily-challenge-card.completed {
+  border-color: #b8d9c4;
+}
+
+.daily-challenge-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 22px;
+}
+
+.daily-challenge-main h2,
+.daily-challenge-main p {
+  margin: 0;
+}
+
+.daily-challenge-main h2 {
+  margin-bottom: 7px;
+  font-size: 23px;
+}
+
+.daily-challenge-main p:not(.eyebrow) {
+  max-width: 620px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.daily-challenge-icon,
+.daily-result-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: #6d3c08;
+  background: #fff0d8;
+}
+
+.daily-challenge-card.completed .daily-challenge-icon {
+  color: #166534;
+  background: #e9f8ee;
+}
+
+.daily-week-summary {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-left: 1px solid #e3e3e3;
+  background: #fafafa;
+}
+
+.daily-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+}
+
+.daily-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #666;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.daily-stats strong {
+  color: #050505;
+}
+
+.daily-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.daily-day {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  padding: 7px 2px;
+  border: 1px solid #e3e3e3;
+  border-radius: 9px;
+  color: #9a9a9a;
+  background: white;
+}
+
+.daily-day span {
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.daily-day strong {
+  font-size: 13px;
+}
+
+.daily-day.complete {
+  color: #166534;
+  border-color: #b8d9c4;
+  background: #edf9f1;
+}
+
+.daily-day.today {
+  color: #050505;
+  border-color: #050505;
+}
+
+.daily-challenge-backdrop {
+  z-index: 80;
+  padding: 28px;
+}
+
+.daily-challenge-modal {
+  width: min(900px, 100%);
+  max-height: min(820px, calc(100vh - 56px));
+  overflow-y: auto;
+  border: 1px solid #d8d8d8;
+  border-radius: 24px;
+  background: white;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.2);
+}
+
+.daily-challenge-modal .practice-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid #e5e5e5;
+  border-radius: 24px 24px 0 0;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(14px);
+}
+
+.daily-play-card {
+  padding: 24px;
+}
+
+.daily-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  color: #686868;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: capitalize;
+}
+
+.daily-progress-row strong {
+  color: #050505;
+}
+
+.daily-progress-track {
+  height: 7px;
+  margin-bottom: 28px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ededed;
+}
+
+.daily-progress-track span {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: #050505;
+  transition: width 0.2s ease;
+}
+
+.daily-answer-note {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px 16px;
+  margin-top: 20px;
+  padding: 14px;
+  border: 1px solid #d7d7d7;
+  border-radius: 14px;
+  background: #f8f8f8;
+}
+
+.daily-answer-note.correct {
+  border-color: #abd6b9;
+  background: #eefaf2;
+}
+
+.daily-answer-note.wrong {
+  border-color: #e6b9b9;
+  background: #fff2f2;
+}
+
+.daily-answer-note span {
+  grid-column: 1;
+  color: #606060;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.daily-answer-note button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.daily-loading {
+  min-height: 360px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 30px;
+  text-align: center;
+}
+
+.daily-result-layout {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  padding: 34px;
+}
+
+.daily-result-hero {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.daily-result-hero h2 {
+  margin: 4px 0;
+  font-size: clamp(38px, 7vw, 62px);
+}
+
+.daily-result-hero p:not(.eyebrow) {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.daily-result-icon {
+  margin-bottom: 16px;
+}
+
+.daily-result-stats {
+  width: min(620px, 100%);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.daily-result-stats div {
+  display: grid;
+  gap: 5px;
+  padding: 13px;
+  border: 1px solid #e1e1e1;
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+.daily-result-stats span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.daily-result-stats strong {
+  font-size: 15px;
+}
+
+@media (max-width: 900px) {
+  .daily-challenge-card {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-week-summary {
+    border-top: 1px solid #e3e3e3;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .daily-challenge-main {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 18px;
+  }
+
+  .daily-challenge-main > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .daily-challenge-backdrop {
+    padding: 0;
+  }
+
+  .daily-challenge-modal {
+    min-height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .daily-challenge-modal .practice-modal-header {
+    border-radius: 0;
+  }
+
+  .daily-play-card {
+    padding: 18px;
+  }
+
+  .daily-answer-note {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-answer-note button,
+  .daily-answer-note span {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .daily-result-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 * {
   box-sizing: border-box;
 }

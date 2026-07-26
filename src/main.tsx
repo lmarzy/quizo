@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, Clipboard, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Trash2, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookOpen, Brain, CalendarDays, CheckCircle2, Clipboard, Flame, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Timer, Trash2, Trophy, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import './styles.css';
@@ -35,6 +35,181 @@ type PracticeAnswer = {
   selectedOption: string;
   isCorrect: boolean;
 };
+
+type DailyChallengeAttempt = {
+  id: string;
+  challenge_date: string;
+  quiz_correct: number;
+  bonus_correct: boolean;
+  score: number;
+  duration_seconds: number;
+  completed_at: string;
+};
+
+type DailyBonusChallenge = {
+  title: string;
+  kind: string;
+  prompt: string;
+  options: string[];
+  correctOption: number;
+  explanation: string;
+};
+
+const dailyBonusChallenges: DailyBonusChallenge[] = [
+  {
+    title: 'Sequence solver',
+    kind: 'Number puzzle',
+    prompt: 'What number comes next: 2, 6, 12, 20, 30, ?',
+    options: ['36', '40', '42'],
+    correctOption: 2,
+    explanation: 'The gaps increase by two each time: +4, +6, +8, +10, then +12.',
+  },
+  {
+    title: 'Odd one out',
+    kind: 'Word puzzle',
+    prompt: 'Which word is the odd one out?',
+    options: ['Triangle', 'Circle', 'Cube'],
+    correctOption: 2,
+    explanation: 'A cube is three-dimensional; a triangle and circle are two-dimensional shapes.',
+  },
+  {
+    title: 'Math target',
+    kind: 'Quick maths',
+    prompt: 'Using each number once, which expression makes 24 from 8, 3, and 1?',
+    options: ['8 × 3 × 1', '8 × (3 + 1)', '(8 − 1) × 3'],
+    correctOption: 0,
+    explanation: '8 × 3 × 1 equals 24.',
+  },
+  {
+    title: 'Missing link',
+    kind: 'Word puzzle',
+    prompt: 'Which word can follow SUN, MOON, and STAR?',
+    options: ['Light', 'Stone', 'Rise'],
+    correctOption: 0,
+    explanation: 'Sunlight, moonlight, and starlight are all familiar words.',
+  },
+  {
+    title: 'What came first?',
+    kind: 'Timeline',
+    prompt: 'Which happened first?',
+    options: ['First Moon landing', 'First powered flight', 'First modern Olympics'],
+    correctOption: 2,
+    explanation: 'The first modern Olympics took place in 1896, before powered flight in 1903 and the Moon landing in 1969.',
+  },
+  {
+    title: 'Logic check',
+    kind: 'Logic puzzle',
+    prompt: 'Every Zorb is blue. This object is not blue. What must be true?',
+    options: ['It is a Zorb', 'It is not a Zorb', 'It might be a blue Zorb'],
+    correctOption: 1,
+    explanation: 'If every Zorb is blue, an object that is not blue cannot be a Zorb.',
+  },
+  {
+    title: 'Closest wins',
+    kind: 'Estimation',
+    prompt: 'Which is closest to the number of minutes in one week?',
+    options: ['7,200', '10,000', '15,000'],
+    correctOption: 1,
+    explanation: 'A week contains 7 × 24 × 60 = 10,080 minutes.',
+  },
+];
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function dateFromKey(dateKey: string) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day, 12);
+}
+
+function addLocalDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function getCurrentWeekDates(today = new Date()) {
+  const mondayOffset = (today.getDay() + 6) % 7;
+  const monday = addLocalDays(today, -mondayOffset);
+  return Array.from({ length: 7 }, (_, index) => addLocalDays(monday, index));
+}
+
+function getDailyChallengeNumber(dateKey: string) {
+  const launchDate = new Date(2026, 0, 1, 12);
+  return Math.max(1, Math.floor((dateFromKey(dateKey).getTime() - launchDate.getTime()) / 86400000) + 1);
+}
+
+function getDailySeed(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createSeededRandom(seed: number) {
+  let state = seed || 1;
+  return () => {
+    state += 0x6d2b79f5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seededShuffle<T>(items: T[], random: () => number) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function createDailyQuiz(questions: PracticeQuestion[], dateKey: string, count = 5) {
+  const random = createSeededRandom(getDailySeed(`quizo-${dateKey}`));
+  const buckets = questions.reduce<Map<string, PracticeQuestion[]>>((groups, question) => {
+    const topic = question.topic?.trim() || 'mixed';
+    groups.set(topic, [...(groups.get(topic) || []), question]);
+    return groups;
+  }, new Map());
+
+  const topics = seededShuffle([...buckets.keys()].sort(), random);
+  buckets.forEach((topicQuestions, topic) => {
+    buckets.set(topic, seededShuffle([...topicQuestions].sort((left, right) => left.id.localeCompare(right.id)), random));
+  });
+
+  const quiz: PracticeQuestion[] = [];
+  let round = 0;
+  while (quiz.length < count && topics.some((topic) => (buckets.get(topic)?.length || 0) > round)) {
+    for (const topic of topics) {
+      const question = buckets.get(topic)?.[round];
+      if (question) quiz.push(question);
+      if (quiz.length === count) break;
+    }
+    round += 1;
+  }
+
+  return quiz;
+}
+
+function calculateDailyStreak(attempts: DailyChallengeAttempt[], todayKey: string) {
+  const completedDates = new Set(attempts.map((attempt) => attempt.challenge_date));
+  let cursor = dateFromKey(todayKey);
+  if (!completedDates.has(todayKey)) cursor = addLocalDays(cursor, -1);
+  let streak = 0;
+  while (completedDates.has(getLocalDateKey(cursor))) {
+    streak += 1;
+    cursor = addLocalDays(cursor, -1);
+  }
+  return streak;
+}
 
 function shuffleItems<T>(items: T[]) {
   const shuffled = [...items];
@@ -540,6 +715,8 @@ function Dashboard({ session }: { session: Session }) {
   const [planActionBusy, setPlanActionBusy] = useState<PlanId | ''>('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [practiceOpen, setPracticeOpen] = useState(false);
+  const [dailyChallengeOpen, setDailyChallengeOpen] = useState(false);
+  const [dailyAttempts, setDailyAttempts] = useState<DailyChallengeAttempt[]>([]);
   const [packsDrawerOpen, setPacksDrawerOpen] = useState(false);
   const [manageDrawerOpen, setManageDrawerOpen] = useState(false);
   const [controlRoomGame, setControlRoomGame] = useState<Game | null>(null);
@@ -584,7 +761,7 @@ function Dashboard({ session }: { session: Session }) {
   const canStartSelectedGame = Boolean(selectedGame && ['draft', 'lobby'].includes(selectedGame.status) && joinedMemberCount >= 2);
   const activeGames = useMemo(() => games.filter((game) => !['finished', 'cancelled'].includes(game.status)), [games]);
   const completedGames = useMemo(() => games.filter((game) => ['finished', 'cancelled'].includes(game.status)), [games]);
-  const overlayOpen = wizardOpen || upgradeOpen || practiceOpen || packsDrawerOpen || manageDrawerOpen || Boolean(controlRoomGame) || Boolean(summaryGame) || Boolean(confirmDialog);
+  const overlayOpen = wizardOpen || upgradeOpen || practiceOpen || dailyChallengeOpen || packsDrawerOpen || manageDrawerOpen || Boolean(controlRoomGame) || Boolean(summaryGame) || Boolean(confirmDialog);
 
   useEffect(() => {
     void loadDashboard();
@@ -722,7 +899,7 @@ function Dashboard({ session }: { session: Session }) {
 
   async function loadDashboard() {
     try {
-      const [profileResult, subscriptionResult, gamesResult] = await Promise.all([
+      const [profileResult, subscriptionResult, gamesResult, dailyAttemptsResult] = await Promise.all([
         supabase.from('profiles').select('id,email,display_name').eq('id', session.user.id).single(),
         supabase.from('subscriptions').select('plan_id,status,current_period_end,cancel_at_period_end,billing_interval,billing_amount_cents,currency').eq('user_id', session.user.id).single(),
         supabase
@@ -731,10 +908,17 @@ function Dashboard({ session }: { session: Session }) {
             'id,name,join_code,status,game_mode,question_pack_id,starting_points,target_points,elimination_rounds,questions_per_round,wrong_answer_penalty,recovery_points,question_time_limit_seconds,current_member_id,current_question_id,current_turn_attempt,max_consecutive_questions,timer_ends_at,created_at',
           )
           .order('created_at', { ascending: false }),
+        supabase
+          .from('daily_challenge_attempts')
+          .select('id,challenge_date,quiz_correct,bonus_correct,score,duration_seconds,completed_at')
+          .eq('user_id', session.user.id)
+          .gte('challenge_date', getLocalDateKey(addLocalDays(new Date(), -120)))
+          .order('challenge_date', { ascending: false }),
       ]);
 
       if (profileResult.data) setProfile(profileResult.data);
       if (subscriptionResult.data) setSubscription(subscriptionResult.data);
+      if (dailyAttemptsResult.data) setDailyAttempts(dailyAttemptsResult.data as DailyChallengeAttempt[]);
       if (gamesResult.data) {
         setGames(gamesResult.data);
         setSelectedGameId((current) => current || gamesResult.data[0]?.id || '');
@@ -764,6 +948,32 @@ function Dashboard({ session }: { session: Session }) {
     } finally {
       setDashboardLoading(false);
     }
+  }
+
+  async function recordDailyChallenge(attempt: Omit<DailyChallengeAttempt, 'id' | 'completed_at'>) {
+    const { data, error } = await supabase
+      .from('daily_challenge_attempts')
+      .upsert(
+        {
+          user_id: session.user.id,
+          ...attempt,
+          completed_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,challenge_date' },
+      )
+      .select('id,challenge_date,quiz_correct,bonus_correct,score,duration_seconds,completed_at')
+      .single();
+
+    if (error) {
+      showToast(error.message, 'error');
+      return false;
+    }
+
+    if (data) {
+      setDailyAttempts((current) => [data as DailyChallengeAttempt, ...current.filter((item) => item.challenge_date !== data.challenge_date)]);
+    }
+    showToast('Daily Challenge completed. Your streak has been updated.');
+    return true;
   }
 
   async function loadQuestionPacks() {
@@ -1555,6 +1765,8 @@ function Dashboard({ session }: { session: Session }) {
 
         {(notice || memberNotice) && <p className="form-message">{notice || memberNotice}</p>}
 
+        <DailyChallengePanel attempts={dailyAttempts} onOpen={() => setDailyChallengeOpen(true)} />
+
         <div className="play-choice-grid" aria-label="Choose play mode">
           <section className="play-choice-card solo">
             <div className="play-choice-icon">
@@ -1799,6 +2011,13 @@ function Dashboard({ session }: { session: Session }) {
           planLabel={planLabel}
           onClose={() => setPracticeOpen(false)}
           onUpgrade={openUpgradeModal}
+        />
+
+        <DailyChallengeModal
+          attempts={dailyAttempts}
+          open={dailyChallengeOpen}
+          onClose={() => setDailyChallengeOpen(false)}
+          onComplete={recordDailyChallenge}
         />
 
         <ControlRoomModal game={controlRoomGame} hostMember={hostMember} onClose={() => setControlRoomGame(null)} />
@@ -2069,6 +2288,259 @@ function ProfileView({
         </section>
       </div>
     </section>
+  );
+}
+
+function DailyChallengePanel({ attempts, onOpen }: { attempts: DailyChallengeAttempt[]; onOpen: () => void }) {
+  const todayKey = getLocalDateKey();
+  const todayAttempt = attempts.find((attempt) => attempt.challenge_date === todayKey) || null;
+  const weekDates = getCurrentWeekDates();
+  const weekKeys = new Set(weekDates.map(getLocalDateKey));
+  const weekAttempts = attempts.filter((attempt) => weekKeys.has(attempt.challenge_date));
+  const streak = calculateDailyStreak(attempts, todayKey);
+  const wins = weekAttempts.filter((attempt) => attempt.score >= 500).length;
+  const bestScore = weekAttempts.length ? Math.max(...weekAttempts.map((attempt) => attempt.score)) : 0;
+
+  return (
+    <section className={`daily-challenge-card ${todayAttempt ? 'completed' : ''}`}>
+      <div className="daily-challenge-main">
+        <div className="daily-challenge-icon">
+          {todayAttempt ? <CheckCircle2 size={24} /> : <Brain size={24} />}
+        </div>
+        <div>
+          <p className="eyebrow">Daily challenge #{getDailyChallengeNumber(todayKey)}</p>
+          <h2>{todayAttempt ? 'Today complete' : 'Your daily mix is ready'}</h2>
+          <p>{todayAttempt ? `You scored ${todayAttempt.score} points in ${Math.max(1, Math.round(todayAttempt.duration_seconds / 60))} minutes.` : 'Five mixed questions and one rotating puzzle, designed to take less than 10 minutes.'}</p>
+        </div>
+        <button className="primary-button" onClick={onOpen} type="button">
+          {todayAttempt ? <Trophy size={18} /> : <Play size={18} />}
+          {todayAttempt ? 'View result' : 'Start challenge'}
+        </button>
+      </div>
+
+      <div className="daily-week-summary">
+        <div className="daily-stats">
+          <span><Flame size={16} /> <strong>{streak}</strong> day streak</span>
+          <span><Trophy size={16} /> <strong>{wins}</strong> wins this week</span>
+          <span><CheckCircle2 size={16} /> <strong>{weekAttempts.length}/7</strong> completed</span>
+          <span><strong>{bestScore}</strong> best score</span>
+        </div>
+        <div className="daily-week-strip" aria-label="Daily Challenge completion this week">
+          {weekDates.map((date) => {
+            const dateKey = getLocalDateKey(date);
+            const attempt = attempts.find((item) => item.challenge_date === dateKey);
+            const isToday = dateKey === todayKey;
+            return (
+              <div className={`daily-day ${attempt ? 'complete' : ''} ${isToday ? 'today' : ''}`} key={dateKey} title={attempt ? `${attempt.score} points` : isToday ? 'Today' : 'Not completed'}>
+                <span>{date.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2)}</span>
+                <strong>{attempt ? '✓' : isToday ? '•' : '—'}</strong>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DailyChallengeModal({
+  attempts,
+  open,
+  onClose,
+  onComplete,
+}: {
+  attempts: DailyChallengeAttempt[];
+  open: boolean;
+  onClose: () => void;
+  onComplete: (attempt: Omit<DailyChallengeAttempt, 'id' | 'completed_at'>) => Promise<boolean>;
+}) {
+  const todayKey = getLocalDateKey();
+  const savedAttempt = attempts.find((attempt) => attempt.challenge_date === todayKey) || null;
+  const bonusChallenge = dailyBonusChallenges[getDailyChallengeNumber(todayKey) % dailyBonusChallenges.length];
+  const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | number | null>(null);
+  const [quizCorrect, setQuizCorrect] = useState(0);
+  const [bonusCorrect, setBonusCorrect] = useState(false);
+  const [completedAttempt, setCompletedAttempt] = useState<DailyChallengeAttempt | null>(savedAttempt);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const startedAtRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    setCompletedAttempt(savedAttempt);
+    setCurrentIndex(0);
+    setSelectedAnswer(null);
+    setQuizCorrect(0);
+    setBonusCorrect(false);
+    setMessage('');
+
+    if (savedAttempt) return undefined;
+
+    let cancelled = false;
+    setLoading(true);
+    startedAtRef.current = Date.now();
+
+    void supabase
+      .from('questions')
+      .select('id,prompt,option_a,option_b,option_c,correct_option,topic')
+      .eq('pack_id', '00000000-0000-0000-0000-000000000101')
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        setLoading(false);
+        if (error) {
+          setMessage(error.message);
+          return;
+        }
+        const dailyQuestions = createDailyQuiz((data || []) as PracticeQuestion[], todayKey, 5);
+        if (dailyQuestions.length !== 5) {
+          setMessage('Today’s challenge could not be prepared. Please try again.');
+          return;
+        }
+        setQuestions(dailyQuestions);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, savedAttempt?.id, todayKey]);
+
+  if (!open) return null;
+
+  const onBonus = currentIndex >= questions.length;
+  const currentQuestion = questions[currentIndex] || null;
+  const progressStep = Math.min(currentIndex + 1, 6);
+
+  function getQuestionOption(question: PracticeQuestion, option: string) {
+    if (option === 'A') return question.option_a;
+    if (option === 'B') return question.option_b;
+    return question.option_c;
+  }
+
+  function chooseQuizAnswer(option: string) {
+    if (!currentQuestion || selectedAnswer !== null) return;
+    setSelectedAnswer(option);
+    if (currentQuestion.correct_option === option) setQuizCorrect((current) => current + 1);
+  }
+
+  function chooseBonusAnswer(optionIndex: number) {
+    if (selectedAnswer !== null) return;
+    setSelectedAnswer(optionIndex);
+    setBonusCorrect(optionIndex === bonusChallenge.correctOption);
+  }
+
+  function goToNextDailyStep() {
+    setSelectedAnswer(null);
+    setCurrentIndex((current) => current + 1);
+  }
+
+  async function finishDailyChallenge() {
+    const durationSeconds = Math.min(3600, Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)));
+    const score = quizCorrect * 100 + (bonusCorrect ? 300 : 0);
+    const nextAttempt = {
+      challenge_date: todayKey,
+      quiz_correct: quizCorrect,
+      bonus_correct: bonusCorrect,
+      score,
+      duration_seconds: durationSeconds,
+    };
+    setSaving(true);
+    const saved = await onComplete(nextAttempt);
+    setSaving(false);
+    if (saved) {
+      setCompletedAttempt({
+        id: `daily-${todayKey}`,
+        ...nextAttempt,
+        completed_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  return (
+    <div className="modal-backdrop daily-challenge-backdrop" role="dialog" aria-modal="true" aria-label="Daily Challenge">
+      <section className="daily-challenge-modal">
+        <div className="practice-modal-header">
+          <div>
+            <p className="eyebrow">Daily challenge #{getDailyChallengeNumber(todayKey)}</p>
+            <h2>{completedAttempt ? 'Today complete' : onBonus ? bonusChallenge.title : 'Today’s Mix'}</h2>
+            {!completedAttempt && <span>Five questions plus one quick puzzle. Your result counts toward this week.</span>}
+          </div>
+          <button className="icon-button neutral" onClick={onClose} type="button" aria-label="Close Daily Challenge" title="Close Daily Challenge">
+            <X size={18} />
+          </button>
+        </div>
+
+        {completedAttempt ? (
+          <div className="daily-result-layout">
+            <section className="daily-result-hero">
+              <span className="daily-result-icon"><Trophy size={28} /></span>
+              <p className="eyebrow">Final score</p>
+              <h2>{completedAttempt.score} / 800</h2>
+              <p>{completedAttempt.score >= 500 ? 'Daily win secured.' : 'Challenge completed—come back tomorrow to build your streak.'}</p>
+            </section>
+            <div className="daily-result-stats">
+              <div><span>Quick quiz</span><strong>{completedAttempt.quiz_correct} / 5</strong></div>
+              <div><span>Final puzzle</span><strong>{completedAttempt.bonus_correct ? 'Solved' : 'Missed'}</strong></div>
+              <div><span>Time</span><strong>{Math.max(1, Math.round(completedAttempt.duration_seconds / 60))} min</strong></div>
+              <div><span>Status</span><strong>Completed</strong></div>
+            </div>
+            <button className="primary-button" onClick={onClose} type="button">Back to dashboard</button>
+          </div>
+        ) : loading ? (
+          <div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Preparing today’s mix…</strong></div>
+        ) : message ? (
+          <div className="daily-loading"><AlertTriangle size={24} /><p className="form-message">{message}</p></div>
+        ) : onBonus ? (
+          <section className="daily-play-card">
+            <div className="daily-progress-row"><span>Final challenge · 6 of 6</span><strong>{bonusChallenge.kind}</strong></div>
+            <div className="daily-progress-track"><span style={{ width: '100%' }} /></div>
+            <div className="practice-question">
+              <h2>{bonusChallenge.prompt}</h2>
+              <div className="practice-answer-grid">
+                {bonusChallenge.options.map((option, optionIndex) => {
+                  const isSelected = selectedAnswer === optionIndex;
+                  const isCorrect = selectedAnswer !== null && optionIndex === bonusChallenge.correctOption;
+                  const answerState = selectedAnswer !== null ? (isCorrect ? 'correct' : isSelected ? 'wrong' : 'muted') : '';
+                  return <button className={`practice-answer-button ${answerState}`} disabled={selectedAnswer !== null} key={option} onClick={() => chooseBonusAnswer(optionIndex)} type="button"><span>{optionIndex + 1}</span>{option}</button>;
+                })}
+              </div>
+              {selectedAnswer !== null && (
+                <div className={`daily-answer-note ${bonusCorrect ? 'correct' : 'wrong'}`}>
+                  <strong>{bonusCorrect ? 'Puzzle solved · +300 points' : 'Not quite this time'}</strong>
+                  <span>{bonusChallenge.explanation}</span>
+                  <button className="primary-button compact-button" disabled={saving} onClick={() => void finishDailyChallenge()} type="button">{saving ? <RefreshCw className="spin" size={17} /> : <Trophy size={17} />} Finish challenge</button>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : currentQuestion ? (
+          <section className="daily-play-card">
+            <div className="daily-progress-row"><span>Quick quiz · {progressStep} of 6</span><strong>{currentQuestion.topic || 'General knowledge'}</strong></div>
+            <div className="daily-progress-track"><span style={{ width: `${(progressStep / 6) * 100}%` }} /></div>
+            <div className="practice-question">
+              <h2>{currentQuestion.prompt}</h2>
+              <div className="practice-answer-grid">
+                {(['A', 'B', 'C'] as const).map((option) => {
+                  const isSelected = selectedAnswer === option;
+                  const isCorrect = selectedAnswer !== null && currentQuestion.correct_option === option;
+                  const answerState = selectedAnswer !== null ? (isCorrect ? 'correct' : isSelected ? 'wrong' : 'muted') : '';
+                  return <button className={`practice-answer-button ${answerState}`} disabled={selectedAnswer !== null} key={option} onClick={() => chooseQuizAnswer(option)} type="button"><span>{option}</span>{getQuestionOption(currentQuestion, option)}</button>;
+                })}
+              </div>
+              {selectedAnswer !== null && (
+                <div className={`daily-answer-note ${currentQuestion.correct_option === selectedAnswer ? 'correct' : 'wrong'}`}>
+                  <strong>{currentQuestion.correct_option === selectedAnswer ? 'Correct · +100 points' : `Correct answer: ${getQuestionOption(currentQuestion, currentQuestion.correct_option)}`}</strong>
+                  <button className="primary-button compact-button" onClick={goToNextDailyStep} type="button">{currentIndex === questions.length - 1 ? 'Final puzzle' : 'Next question'}</button>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : null}
+      </section>
+    </div>
   );
 }
 
