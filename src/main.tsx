@@ -985,7 +985,7 @@ function Dashboard({ session }: { session: Session }) {
         .order('owner_user_id', { ascending: true, nullsFirst: false })
         .order('tier')
         .order('name'),
-      supabase.from('questions').select('pack_id'),
+      supabase.rpc('get_question_pack_counts'),
     ]);
 
     if (packsResult.error) {
@@ -1007,8 +1007,9 @@ function Dashboard({ session }: { session: Session }) {
         return (starterPackOrder.indexOf(a.name) === -1 ? 99 : starterPackOrder.indexOf(a.name)) - (starterPackOrder.indexOf(b.name) === -1 ? 99 : starterPackOrder.indexOf(b.name));
       },
     );
-    const nextCounts = (questionsResult.data || []).reduce<Record<string, number>>((counts, question) => {
-      counts[question.pack_id] = (counts[question.pack_id] || 0) + 1;
+    const questionCountRows = (questionsResult.data || []) as Array<{ pack_id: string; question_count: number | string }>;
+    const nextCounts = questionCountRows.reduce<Record<string, number>>((counts, question) => {
+      counts[question.pack_id] = Number(question.question_count) || 0;
       return counts;
     }, {});
 
