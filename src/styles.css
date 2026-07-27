@@ -10664,3 +10664,97 @@ body,
     grid-template-columns: 1fr;
   }
 }
+
+/* Keep the short Daily Challenge fully visible without inheriting the large gameplay scale. */
+.daily-challenge-modal .practice-modal-header {
+  padding: 13px 16px;
+}
+
+.daily-challenge-modal .practice-modal-header h2 {
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.05;
+}
+
+.daily-challenge-modal .practice-modal-header span {
+  font-size: 12px;
+}
+
+.daily-challenge-modal .daily-play-card {
+  padding: 16px 20px 20px;
+}
+
+.daily-challenge-modal .daily-progress-track {
+  margin-bottom: 16px;
+}
+
+.daily-challenge-modal .practice-question h2 {
+  max-width: 760px;
+  margin-bottom: 14px;
+  font-size: clamp(23px, 3.2vw, 36px);
+  line-height: 1.08;
+}
+
+.daily-challenge-modal .practice-answer-grid {
+  gap: 8px;
+}
+
+.daily-challenge-modal .practice-answer-button {
+  min-height: 58px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  font-size: clamp(14px, 1.4vw, 17px);
+}
+
+.daily-challenge-modal .practice-answer-button span {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+}
+
+.daily-challenge-modal .daily-answer-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+@media (max-width: 640px) {
+  .daily-challenge-modal .practice-modal-header {
+    padding: 12px 14px;
+  }
+
+  .daily-challenge-modal .practice-modal-header span {
+    display: none;
+  }
+
+  .daily-challenge-modal .daily-play-card {
+    padding: 14px;
+  }
+
+  .daily-challenge-modal .daily-progress-row {
+    margin-bottom: 6px;
+  }
+
+  .daily-challenge-modal .daily-progress-track {
+    margin-bottom: 12px;
+  }
+
+  .daily-challenge-modal .practice-question h2 {
+    margin-bottom: 12px;
+    font-size: clamp(21px, 7vw, 30px);
+  }
+
+  .daily-challenge-modal .practice-answer-button {
+    min-height: 52px;
+    grid-template-columns: 30px minmax(0, 1fr);
+    padding: 7px 10px;
+    border-radius: 12px;
+    font-size: 14px;
+  }
+
+  .daily-challenge-modal .practice-answer-button span {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+}
