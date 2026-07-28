@@ -2353,6 +2353,8 @@ function StudyQuizView({ session }: { session: Session }) {
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [draftQuestions, setDraftQuestions] = useState<StudyQuestionDraft[]>([emptyStudyQuestion()]);
+  const [selectedDraftIndex, setSelectedDraftIndex] = useState(0);
+  const [questionSearch, setQuestionSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -2406,6 +2408,8 @@ function StudyQuizView({ session }: { session: Session }) {
     setSubject('');
     setDescription('');
     setDraftQuestions([emptyStudyQuestion()]);
+    setSelectedDraftIndex(0);
+    setQuestionSearch('');
     setMessage('');
   }
 
@@ -2482,6 +2486,7 @@ function StudyQuizView({ session }: { session: Session }) {
       return;
     }
     setDraftQuestions(imported);
+    setSelectedDraftIndex(0);
     setMessage(`${imported.length} question${imported.length === 1 ? '' : 's'} imported. Review them before saving.`);
   }
 
@@ -2559,6 +2564,31 @@ function StudyQuizView({ session }: { session: Session }) {
   }
 
   if (screen === 'create') {
+    const selectedDraft = draftQuestions[selectedDraftIndex] || draftQuestions[0];
+    const isComplete = (question: StudyQuestionDraft) => Boolean(question.prompt.trim() && question.option_a.trim() && question.option_b.trim() && question.option_c.trim());
+    const completedCount = draftQuestions.filter(isComplete).length;
+    const filteredDraftQuestions = draftQuestions
+      .map((question, index) => ({ question, index }))
+      .filter(({ question }) => question.prompt.toLowerCase().includes(questionSearch.trim().toLowerCase()));
+
+    function addDraftQuestion() {
+      setDraftQuestions((current) => [...current, emptyStudyQuestion()]);
+      setSelectedDraftIndex(draftQuestions.length);
+      setQuestionSearch('');
+    }
+
+    function duplicateDraftQuestion() {
+      if (!selectedDraft) return;
+      setDraftQuestions((current) => [...current.slice(0, selectedDraftIndex + 1), { ...selectedDraft }, ...current.slice(selectedDraftIndex + 1)]);
+      setSelectedDraftIndex(selectedDraftIndex + 1);
+    }
+
+    function removeDraftQuestion() {
+      if (draftQuestions.length === 1) return;
+      setDraftQuestions((current) => current.filter((_, index) => index !== selectedDraftIndex));
+      setSelectedDraftIndex(Math.max(0, Math.min(selectedDraftIndex, draftQuestions.length - 2)));
+    }
+
     return (
       <section className="study-shell">
         <div className="study-page-header">
@@ -2575,19 +2605,35 @@ function StudyQuizView({ session }: { session: Session }) {
             {message && <p className="form-message">{message}</p>}
           </section>
           <section className="study-question-builder">
-            <div className="study-section-title"><div><p className="eyebrow">Questions</p><h2>{draftQuestions.length} in this quiz</h2></div><button className="ghost-button table-button" onClick={() => setDraftQuestions((current) => [...current, emptyStudyQuestion()])} type="button"><Plus size={16} /> Add question</button></div>
-            {draftQuestions.map((question, index) => (
-              <article className="study-question-editor" key={index}>
-                <div className="study-question-editor-heading"><strong>Question {index + 1}</strong>{draftQuestions.length > 1 && <button className="icon-button neutral" onClick={() => setDraftQuestions((current) => current.filter((_, itemIndex) => itemIndex !== index))} type="button" aria-label={`Remove question ${index + 1}`}><Trash2 size={16} /></button>}</div>
-                <label>Question<input value={question.prompt} onChange={(event) => updateDraftQuestion(index, 'prompt', event.target.value)} placeholder="Enter the question" /></label>
+            <div className="study-section-title"><div><p className="eyebrow">Questions</p><h2>{completedCount} of {draftQuestions.length} complete</h2></div><button className="ghost-button table-button" onClick={addDraftQuestion} type="button"><Plus size={16} /> Add question</button></div>
+            <div className="study-builder-workspace">
+              <aside className="study-question-navigator">
+                <label className="study-question-search"><Search size={15} /><input value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} placeholder="Search questions" type="search" /></label>
+                <div className="study-question-nav-list">
+                  {filteredDraftQuestions.map(({ question, index }) => (
+                    <button className={`${selectedDraftIndex === index ? 'active' : ''} ${isComplete(question) ? 'complete' : 'incomplete'}`} key={index} onClick={() => setSelectedDraftIndex(index)} type="button">
+                      <span>{index + 1}</span>
+                      <div><strong>{question.prompt.trim() || 'Untitled question'}</strong><small>{isComplete(question) ? 'Ready' : 'Needs attention'}</small></div>
+                      {isComplete(question) ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+                    </button>
+                  ))}
+                  {filteredDraftQuestions.length === 0 && <p>No questions match that search.</p>}
+                </div>
+                <button className="study-nav-add" onClick={addDraftQuestion} type="button"><Plus size={15} /> Add question</button>
+              </aside>
+              {selectedDraft && <article className="study-question-editor focused-editor">
+                <div className="study-question-editor-heading"><div><small>Editing</small><strong>Question {selectedDraftIndex + 1} of {draftQuestions.length}</strong></div><div className="study-editor-actions"><button className="ghost-button table-button" onClick={duplicateDraftQuestion} type="button"><Clipboard size={15} /> Duplicate</button>{draftQuestions.length > 1 && <button className="icon-button neutral" onClick={removeDraftQuestion} type="button" aria-label={`Remove question ${selectedDraftIndex + 1}`}><Trash2 size={16} /></button>}</div></div>
+                <label>Question<input value={selectedDraft.prompt} onChange={(event) => updateDraftQuestion(selectedDraftIndex, 'prompt', event.target.value)} placeholder="Enter the question" /></label>
                 <div className="study-option-editor">
                   {(['A', 'B', 'C'] as const).map((option) => (
-                    <label className={question.correct_option === option ? 'correct-option' : ''} key={option}><input checked={question.correct_option === option} onChange={() => updateDraftQuestion(index, 'correct_option', option)} type="radio" name={`correct-${index}`} /><span>{option}</span><input value={question[`option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c']} onChange={(event) => updateDraftQuestion(index, `option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c', event.target.value)} placeholder={option === 'A' ? 'Correct or incorrect answer' : 'Answer choice'} /></label>
+                    <label className={selectedDraft.correct_option === option ? 'correct-option' : ''} key={option}><input checked={selectedDraft.correct_option === option} onChange={() => updateDraftQuestion(selectedDraftIndex, 'correct_option', option)} type="radio" name={`correct-${selectedDraftIndex}`} /><span>{option}</span><input value={selectedDraft[`option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c']} onChange={(event) => updateDraftQuestion(selectedDraftIndex, `option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c', event.target.value)} placeholder={option === 'A' ? 'Correct or incorrect answer' : 'Answer choice'} /></label>
                   ))}
                 </div>
-                <label>Explanation <small>(optional)</small><textarea value={question.explanation} onChange={(event) => updateDraftQuestion(index, 'explanation', event.target.value)} placeholder="Help the student understand the answer" rows={2} /></label>
+                <label>Explanation <small>(optional)</small><textarea value={selectedDraft.explanation} onChange={(event) => updateDraftQuestion(selectedDraftIndex, 'explanation', event.target.value)} placeholder="Help the student understand the answer" rows={3} /></label>
+                <div className="study-editor-paging"><button className="ghost-button table-button" disabled={selectedDraftIndex === 0} onClick={() => setSelectedDraftIndex((current) => current - 1)} type="button"><ArrowLeft size={15} /> Previous</button><span>{isComplete(selectedDraft) ? <><CheckCircle2 size={15} /> Question complete</> : <><AlertTriangle size={15} /> Complete all fields</>}</span><button className="ghost-button table-button" disabled={selectedDraftIndex === draftQuestions.length - 1} onClick={() => setSelectedDraftIndex((current) => current + 1)} type="button">Next <ArrowLeft className="study-next-arrow" size={15} /></button></div>
               </article>
-            ))}
+              }
+            </div>
           </section>
         </div>
       </section>
