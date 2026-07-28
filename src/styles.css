@@ -10911,13 +10911,13 @@ body,
 .study-form-card { padding: 20px; position: sticky; top: 20px; }
 .study-form-card label, .study-question-editor > label { display: flex; flex-direction: column; gap: 7px; margin-bottom: 15px; font-weight: 750; }
 .study-form-card input, .study-form-card textarea, .study-question-editor input, .study-question-editor textarea { width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 11px 12px; background: var(--surface); color: inherit; font: inherit; box-sizing: border-box; }
-.study-quiz-details { position: static; display: grid; grid-template-columns: auto minmax(0, 1fr) 290px; gap: 20px; align-items: center; }
-.study-details-heading h2 { margin: 2px 0 0; font-size: 1.12rem; white-space: nowrap; }
-.study-details-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(150px, .6fr); gap: 12px; }
+.study-quiz-details { position: static; display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr) 290px; gap: 16px; align-items: stretch; }
+.study-details-fields { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .study-details-fields label { margin: 0; }
-.study-description-field { grid-column: 1 / -1; }
-.study-quiz-details .study-upload-button { margin: 0; }
-.study-quiz-details > .form-message { grid-column: 2 / -1; margin: -8px 0 0; }
+.study-description-field { margin: 0 !important; }
+.study-description-field textarea { flex: 1; min-height: 0; resize: vertical; }
+.study-quiz-details .study-upload-button { height: 100%; margin: 0; box-sizing: border-box; }
+.study-quiz-details > .form-message { grid-column: 1 / -1; margin: 0; }
 .study-upload-button { flex-direction: row !important; align-items: center; padding: 14px; border: 1px dashed #c9c9c9; border-radius: 13px; cursor: pointer; }
 .study-upload-button span { display: flex; flex-direction: column; gap: 2px; }
 .study-upload-button small { color: var(--muted); font-weight: 500; font-size: .7rem; }
@@ -10998,8 +10998,6 @@ body,
   .study-card-actions { flex-direction: column; }
   .study-quiz-meta, .study-result-summary { grid-template-columns: 1fr; }
   .study-option-editor label { grid-template-columns: auto auto 1fr; }
-  .study-details-fields { grid-template-columns: 1fr; }
-  .study-description-field { grid-column: auto; }
   .study-editor-paging { grid-template-columns: 1fr 1fr; }
   .study-editor-paging > span { grid-column: 1 / -1; grid-row: 1; }
 }

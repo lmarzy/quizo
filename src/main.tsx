@@ -2598,12 +2598,11 @@ function StudyQuizView({ session }: { session: Session }) {
         </div>
         <div className="study-create-layout">
           <section className="study-form-card study-quiz-details">
-            <div className="study-details-heading"><p className="eyebrow">Quiz details</p><h2>Set up your quiz</h2></div>
             <div className="study-details-fields">
               <label>Quiz title<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Biology: Cell Structure" /></label>
               <label>Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Biology" /></label>
-              <label className="study-description-field">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional notes about this quiz" rows={2} /></label>
             </div>
+            <label className="study-description-field">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional notes about this quiz" rows={4} /></label>
             <label className="study-upload-button"><Upload size={18} /><span><strong>Import questions from CSV</strong><small>question, answer, wrong_answer_1, wrong_answer_2, explanation</small></span><input accept=".csv,text/csv" onChange={(event) => event.target.files?.[0] && void importCsv(event.target.files[0])} type="file" /></label>
             {message && <p className="form-message">{message}</p>}
           </section>
