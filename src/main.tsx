@@ -1815,7 +1815,6 @@ function Dashboard({ session }: { session: Session }) {
             { path: '/dashboard', label: 'Overview' },
             { path: '/study', label: 'Study' },
             { path: '/play', label: 'Play' },
-            { path: '/packs', label: 'Packs' },
           ].map((item) => (
             <button className={pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(`${item.path}/`)) ? 'active' : ''} key={item.path} onClick={() => navigate(item.path)} type="button">
               {item.label}
@@ -1914,6 +1913,12 @@ function Dashboard({ session }: { session: Session }) {
             <p className="eyebrow">{activeView === 'play' ? 'Play' : activeView === 'packs' ? 'Library' : activeView === 'daily' ? 'Daily challenge' : 'Dashboard'}</p>
             <h1>{activeView === 'play' ? 'Play quizzes your way' : activeView === 'packs' ? 'Question packs' : activeView === 'daily' ? 'Today’s challenge' : 'What would you like to do today?'}</h1>
           </div>
+          {activeView === 'play' && (
+            <button className="ghost-button table-button toolbar-packs-button" onClick={() => navigate('/packs')} type="button">
+              <BookOpen size={18} />
+              Question packs
+            </button>
+          )}
         </div>
 
         {(notice || memberNotice) && <p className="form-message">{notice || memberNotice}</p>}
