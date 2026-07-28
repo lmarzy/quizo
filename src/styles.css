@@ -10845,6 +10845,7 @@ body,
 .study-page-header > strong { padding: 10px 16px; border: 1px solid var(--line); border-radius: 999px; }
 .study-library-header { grid-template-columns: 1fr auto; }
 .study-create-header { grid-template-columns: 1fr auto; }
+.study-results-header { grid-template-columns: 1fr auto; }
 .study-inline-back { margin-bottom: 14px; }
 
 .study-overview-grid {
