@@ -800,7 +800,7 @@ function Dashboard({ session }: { session: Session }) {
   const [wizardStep, setWizardStep] = useState(1);
   const [includeHostAsPlayer, setIncludeHostAsPlayer] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'games' | 'study' | 'profile'>('games');
+  const [pathname, setPathname] = useState(window.location.pathname === '/' ? '/dashboard' : window.location.pathname);
   const [accountNameDraft, setAccountNameDraft] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -808,14 +808,11 @@ function Dashboard({ session }: { session: Session }) {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [planActionBusy, setPlanActionBusy] = useState<PlanId | ''>('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const [practiceOpen, setPracticeOpen] = useState(false);
-  const [dailyChallengeOpen, setDailyChallengeOpen] = useState(false);
   const [dailyAttempts, setDailyAttempts] = useState<DailyChallengeAttempt[]>([]);
   const [studyQuizzes, setStudyQuizzes] = useState<StudyQuiz[]>([]);
   const [studyQuestions, setStudyQuestions] = useState<StudyQuestion[]>([]);
   const [studyAttempts, setStudyAttempts] = useState<StudyAttempt[]>([]);
   const [studyAnswers, setStudyAnswers] = useState<StudyAnswer[]>([]);
-  const [packsDrawerOpen, setPacksDrawerOpen] = useState(false);
   const [manageDrawerOpen, setManageDrawerOpen] = useState(false);
   const [controlRoomGame, setControlRoomGame] = useState<Game | null>(null);
   const [summaryGame, setSummaryGame] = useState<Game | null>(null);
@@ -829,6 +826,13 @@ function Dashboard({ session }: { session: Session }) {
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const activeView = pathname.startsWith('/study') ? 'study'
+    : pathname.startsWith('/profile') ? 'profile'
+      : pathname.startsWith('/play') ? 'play'
+        : pathname.startsWith('/games') ? 'games'
+          : pathname.startsWith('/packs') ? 'packs'
+            : pathname.startsWith('/daily') ? 'daily'
+              : 'dashboard';
 
   const selectedGame = useMemo(() => games.find((game) => game.id === selectedGameId) || null, [games, selectedGameId]);
   const currentPlanId = normalisePlanId(subscription?.plan_id);
@@ -859,11 +863,38 @@ function Dashboard({ session }: { session: Session }) {
   const canStartSelectedGame = Boolean(selectedGame && ['draft', 'lobby'].includes(selectedGame.status) && joinedMemberCount >= 2);
   const activeGames = useMemo(() => games.filter((game) => !['finished', 'cancelled'].includes(game.status)), [games]);
   const completedGames = useMemo(() => games.filter((game) => ['finished', 'cancelled'].includes(game.status)), [games]);
-  const overlayOpen = wizardOpen || upgradeOpen || practiceOpen || dailyChallengeOpen || packsDrawerOpen || manageDrawerOpen || Boolean(controlRoomGame) || Boolean(summaryGame) || Boolean(confirmDialog);
+  const overlayOpen = wizardOpen || upgradeOpen || pathname === '/play/solo' || activeView === 'daily' || activeView === 'packs' || manageDrawerOpen || Boolean(controlRoomGame) || Boolean(summaryGame) || Boolean(confirmDialog);
 
   useEffect(() => {
     void loadDashboard();
   }, []);
+
+  useEffect(() => {
+    if (window.location.pathname === '/') window.history.replaceState({}, '', '/dashboard');
+    const handlePopState = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      dashboard: 'Overview',
+      study: 'Study',
+      play: 'Play',
+      games: 'Games',
+      packs: 'Question Packs',
+      daily: 'Daily Challenge',
+      profile: 'Profile',
+    };
+    document.title = `${titles[activeView]} · Quizo`;
+  }, [activeView]);
+
+  function navigate(path: string) {
+    if (window.location.pathname !== path) window.history.pushState({}, '', path);
+    setPathname(path);
+    setAccountMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   useEffect(() => {
     if (!overlayOpen) return undefined;
@@ -1710,7 +1741,7 @@ function Dashboard({ session }: { session: Session }) {
 
     if (data) setSubscription(data as Subscription);
     setUpgradeOpen(false);
-    setActiveView('games');
+    navigate('/dashboard');
     showToast(`You are now on the ${getPlanLabel(planId)}.`);
     await loadDashboard();
   }
@@ -1809,7 +1840,7 @@ function Dashboard({ session }: { session: Session }) {
                 <button
                   className="account-menu-action"
                   onClick={() => {
-                    setActiveView('profile');
+                    navigate('/profile');
                     setAccountMenuOpen(false);
                   }}
                   type="button"
@@ -1821,7 +1852,7 @@ function Dashboard({ session }: { session: Session }) {
                 <button
                   className="account-menu-action"
                   onClick={() => {
-                    setActiveView('study');
+                    navigate('/study');
                     setAccountMenuOpen(false);
                   }}
                   type="button"
@@ -1840,6 +1871,20 @@ function Dashboard({ session }: { session: Session }) {
         </div>
       </header>
 
+      <nav className="app-section-nav" aria-label="Main navigation">
+        {[
+          { path: '/dashboard', label: 'Overview' },
+          { path: '/study', label: 'Study' },
+          { path: '/play', label: 'Play' },
+          { path: '/games', label: 'Games' },
+          { path: '/packs', label: 'Packs' },
+        ].map((item) => (
+          <button className={pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(`${item.path}/`)) ? 'active' : ''} key={item.path} onClick={() => navigate(item.path)} type="button">
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
       {activeView === 'profile' ? (
         <ProfileView
           accountBusy={accountBusy}
@@ -1852,7 +1897,7 @@ function Dashboard({ session }: { session: Session }) {
           passwordBusy={passwordBusy}
           planLabel={planLabel}
           subscription={subscription}
-          onBack={() => setActiveView('games')}
+          onBack={() => navigate('/dashboard')}
           onChangePassword={(event) => void changePassword(event)}
           onConfirmPasswordChange={setConfirmPassword}
           onNameChange={setAccountNameDraft}
@@ -1861,57 +1906,60 @@ function Dashboard({ session }: { session: Session }) {
           onUpgrade={openUpgradeModal}
         />
       ) : activeView === 'study' ? (
-        <StudyQuizView session={session} onBack={() => setActiveView('games')} />
+        <StudyQuizView session={session} onBack={() => navigate('/dashboard')} />
       ) : (
       <section className="game-table-shell">
         <div className="table-toolbar">
           <div>
-            <p className="eyebrow">Dashboard</p>
-            <h1>What would you like to do today?</h1>
+            <p className="eyebrow">{activeView === 'games' ? 'Multiplayer' : activeView === 'play' ? 'Play' : activeView === 'packs' ? 'Library' : activeView === 'daily' ? 'Daily challenge' : 'Dashboard'}</p>
+            <h1>{activeView === 'games' ? 'Hosted games' : activeView === 'play' ? 'Choose how to play' : activeView === 'packs' ? 'Question packs' : activeView === 'daily' ? 'Today’s challenge' : 'What would you like to do today?'}</h1>
           </div>
-          <div className="table-toolbar-actions">
-            <button
-              className="ghost-button table-button toolbar-packs-button"
-              onClick={() => {
-                setAccountMenuOpen(false);
-                setPacksDrawerOpen(true);
-              }}
-              type="button"
-            >
-              <BookOpen size={18} />
-              Packs
-            </button>
-          </div>
+          {activeView === 'games' && <button className="primary-button" onClick={openGameWizard} type="button"><Plus size={17} /> Create game</button>}
         </div>
 
         {(notice || memberNotice) && <p className="form-message">{notice || memberNotice}</p>}
 
-        <DashboardLaunchGrid
+        {activeView === 'dashboard' && <DashboardLaunchGrid
           activeGameCount={activeGames.length}
           dailyAttempts={dailyAttempts}
           studyAnswers={studyAnswers}
           studyAttempts={studyAttempts}
           studyQuestions={studyQuestions}
           studyQuizzes={studyQuizzes}
-          onDaily={() => setDailyChallengeOpen(true)}
-          onHost={openGameWizard}
-          onSolo={() => setPracticeOpen(true)}
-          onStudy={() => setActiveView('study')}
-        />
+          onDaily={() => navigate('/daily')}
+          onHost={() => { navigate('/games'); openGameWizard(); }}
+          onSolo={() => navigate('/play')}
+          onStudy={() => navigate('/study')}
+        />}
+
+        {activeView === 'play' && (
+          <div className="play-choice-grid routed-play-grid" aria-label="Choose play mode">
+            <section className="play-choice-card solo">
+              <div className="play-choice-icon"><CheckCircle2 size={22} /></div>
+              <div><p className="eyebrow">Single player</p><h2>Play solo</h2><p>Pick a pack, answer at your own pace, then review your score and missed questions.</p></div>
+              <button className="primary-button" onClick={() => navigate('/play/solo')} type="button"><Play size={18} /> Start solo game</button>
+            </section>
+            <section className="play-choice-card multiplayer">
+              <div className="play-choice-icon"><UserPlus size={22} /></div>
+              <div><p className="eyebrow">Multiplayer</p><h2>Host a game</h2><p>Create a live quiz, invite players, and run the game with a leaderboard.</p></div>
+              <button className="primary-button" onClick={() => { navigate('/games'); openGameWizard(); }} type="button"><Plus size={18} /> Create game</button>
+            </section>
+          </div>
+        )}
 
         <AvailablePacksPanel
           canUseCreatorFeatures={canUseCreatorFeatures}
           canUseProPacks={canUseProPacks}
           currentPlanId={currentPlanId}
-          open={packsDrawerOpen}
+          open={activeView === 'packs'}
           packQuestionCounts={packQuestionCounts}
           packs={packs}
           planLabel={planLabel}
-          onClose={() => setPacksDrawerOpen(false)}
+          onClose={() => navigate('/dashboard')}
           onUpgrade={openUpgradeModal}
         />
 
-        {dashboardLoading ? (
+        {activeView === 'games' && (dashboardLoading ? (
           <DashboardLoadingState />
         ) : (
           <div className="games-table-stack">
@@ -2039,7 +2087,7 @@ function Dashboard({ session }: { session: Session }) {
               </div>
             )}
             </div>
-        )}
+        ))}
 
         <GameManageDrawer
           canUseProModes={canUseProModes}
@@ -2105,18 +2153,18 @@ function Dashboard({ session }: { session: Session }) {
 
         <PracticeModeModal
           currentPlanId={currentPlanId}
-          open={practiceOpen}
+          open={pathname === '/play/solo'}
           packQuestionCounts={packQuestionCounts}
           packs={packs}
           planLabel={planLabel}
-          onClose={() => setPracticeOpen(false)}
+          onClose={() => navigate('/play')}
           onUpgrade={openUpgradeModal}
         />
 
         <DailyChallengeModal
           attempts={dailyAttempts}
-          open={dailyChallengeOpen}
-          onClose={() => setDailyChallengeOpen(false)}
+          open={activeView === 'daily'}
+          onClose={() => navigate('/dashboard')}
           onComplete={recordDailyChallenge}
         />
 
