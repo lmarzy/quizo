@@ -1931,8 +1931,7 @@ function Dashboard({ session }: { session: Session }) {
           studyQuestions={studyQuestions}
           studyQuizzes={studyQuizzes}
           onDaily={() => navigate('/daily')}
-          onHost={() => { navigate('/play'); openGameWizard(); }}
-          onSolo={() => navigate('/play')}
+          onPlay={() => navigate('/play')}
           onStudy={() => navigate('/study')}
         />}
 
@@ -2841,8 +2840,7 @@ function DashboardLaunchGrid({
   studyQuestions,
   studyQuizzes,
   onDaily,
-  onHost,
-  onSolo,
+  onPlay,
   onStudy,
 }: {
   activeGameCount: number;
@@ -2852,8 +2850,7 @@ function DashboardLaunchGrid({
   studyQuestions: StudyQuestion[];
   studyQuizzes: StudyQuiz[];
   onDaily: () => void;
-  onHost: () => void;
-  onSolo: () => void;
+  onPlay: () => void;
   onStudy: () => void;
 }) {
   const todayKey = getLocalDateKey();
@@ -2911,7 +2908,7 @@ function DashboardLaunchGrid({
         </div>
         <p>Play a quick solo round or bring people together for a hosted live quiz.</p>
         <div className="dashboard-launch-status"><span><UserPlus size={15} /> {activeGameCount} active</span><strong>Choose a mode</strong></div>
-        <div className="dashboard-launch-actions"><button className="primary-button" onClick={onSolo} type="button"><Play size={17} /> Play solo</button><button className="ghost-button table-button" onClick={onHost} type="button"><Plus size={16} /> Host</button></div>
+        <button className="primary-button" onClick={onPlay} type="button"><Play size={17} /> Play a game</button>
       </section>
     </div>
   );

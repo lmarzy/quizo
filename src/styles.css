@@ -10820,9 +10820,6 @@ body,
 .dashboard-launch-status span { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
 .dashboard-launch-status strong { font-size: .8rem; }
 .dashboard-launch-card > .primary-button { width: 100%; }
-.dashboard-launch-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-.dashboard-launch-actions .primary-button { width: 100%; }
-
 @media (max-width: 940px) {
   .dashboard-launch-grid { grid-template-columns: 1fr; }
   .dashboard-launch-card { min-height: 0; }
