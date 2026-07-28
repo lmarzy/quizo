@@ -10759,6 +10759,44 @@ body,
   }
 }
 /* Study quizzes */
+.dashboard-launch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.dashboard-launch-card {
+  display: flex;
+  min-height: 275px;
+  flex-direction: column;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+}
+
+.dashboard-launch-card.study { border-color: #e5c99f; background: linear-gradient(145deg, #fffaf2 0%, #fff 62%); }
+.dashboard-launch-card.daily { background: linear-gradient(145deg, #f7f7f7 0%, #fff 62%); }
+.dashboard-launch-card.play { background: linear-gradient(145deg, #f4f7f7 0%, #fff 62%); }
+.dashboard-launch-heading { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+.dashboard-launch-heading > span { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 13px; background: #ededed; }
+.dashboard-launch-card.study .dashboard-launch-heading > span { color: #8d5108; background: #ffedcf; }
+.dashboard-launch-heading h2 { margin: 2px 0 0; font-size: 1.16rem; }
+.dashboard-launch-card > p { flex: 1; margin: 18px 0; color: var(--muted); line-height: 1.5; }
+.dashboard-launch-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 14px; margin-bottom: 14px; border-top: 1px solid var(--line); font-size: .8rem; }
+.dashboard-launch-status span { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.dashboard-launch-status strong { font-size: .8rem; }
+.dashboard-launch-card > .primary-button { width: 100%; }
+.dashboard-launch-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.dashboard-launch-actions .primary-button { width: 100%; }
+
+@media (max-width: 940px) {
+  .dashboard-launch-grid { grid-template-columns: 1fr; }
+  .dashboard-launch-card { min-height: 0; }
+  .dashboard-launch-card > p { min-height: 44px; }
+}
+
 .study-shell {
   width: min(1180px, calc(100% - 40px));
   margin: 0 auto;

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { AlertTriangle, ArrowLeft, BarChart3, BookOpen, Brain, CalendarDays, CheckCircle2, Clipboard, Flame, GraduationCap, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Timer, Trash2, Trophy, Upload, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BarChart3, BookOpen, CalendarDays, CheckCircle2, Clipboard, Flame, GraduationCap, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Timer, Trash2, Trophy, Upload, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import './styles.css';
@@ -234,12 +234,6 @@ function addLocalDays(date: Date, days: number) {
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + days);
   return nextDate;
-}
-
-function getCurrentWeekDates(today = new Date()) {
-  const mondayOffset = (today.getDay() + 6) % 7;
-  const monday = addLocalDays(today, -mondayOffset);
-  return Array.from({ length: 7 }, (_, index) => addLocalDays(monday, index));
 }
 
 function getDailyChallengeNumber(dateKey: string) {
@@ -817,6 +811,10 @@ function Dashboard({ session }: { session: Session }) {
   const [practiceOpen, setPracticeOpen] = useState(false);
   const [dailyChallengeOpen, setDailyChallengeOpen] = useState(false);
   const [dailyAttempts, setDailyAttempts] = useState<DailyChallengeAttempt[]>([]);
+  const [studyQuizzes, setStudyQuizzes] = useState<StudyQuiz[]>([]);
+  const [studyQuestions, setStudyQuestions] = useState<StudyQuestion[]>([]);
+  const [studyAttempts, setStudyAttempts] = useState<StudyAttempt[]>([]);
+  const [studyAnswers, setStudyAnswers] = useState<StudyAnswer[]>([]);
   const [packsDrawerOpen, setPacksDrawerOpen] = useState(false);
   const [manageDrawerOpen, setManageDrawerOpen] = useState(false);
   const [controlRoomGame, setControlRoomGame] = useState<Game | null>(null);
@@ -999,7 +997,7 @@ function Dashboard({ session }: { session: Session }) {
 
   async function loadDashboard() {
     try {
-      const [profileResult, subscriptionResult, gamesResult, dailyAttemptsResult] = await Promise.all([
+      const [profileResult, subscriptionResult, gamesResult, dailyAttemptsResult, studyQuizzesResult, studyQuestionsResult, studyAttemptsResult, studyAnswersResult] = await Promise.all([
         supabase.from('profiles').select('id,email,display_name').eq('id', session.user.id).single(),
         supabase.from('subscriptions').select('plan_id,status,current_period_end,cancel_at_period_end,billing_interval,billing_amount_cents,currency').eq('user_id', session.user.id).single(),
         supabase
@@ -1014,11 +1012,19 @@ function Dashboard({ session }: { session: Session }) {
           .eq('user_id', session.user.id)
           .gte('challenge_date', getLocalDateKey(addLocalDays(new Date(), -120)))
           .order('challenge_date', { ascending: false }),
+        supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at').order('updated_at', { ascending: false }),
+        supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position').order('position'),
+        supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
+        supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
       ]);
 
       if (profileResult.data) setProfile(profileResult.data);
       if (subscriptionResult.data) setSubscription(subscriptionResult.data);
       if (dailyAttemptsResult.data) setDailyAttempts(dailyAttemptsResult.data as DailyChallengeAttempt[]);
+      if (studyQuizzesResult.data) setStudyQuizzes(studyQuizzesResult.data as StudyQuiz[]);
+      if (studyQuestionsResult.data) setStudyQuestions(studyQuestionsResult.data as StudyQuestion[]);
+      if (studyAttemptsResult.data) setStudyAttempts(studyAttemptsResult.data as StudyAttempt[]);
+      if (studyAnswersResult.data) setStudyAnswers(studyAnswersResult.data as StudyAnswer[]);
       if (gamesResult.data) {
         setGames(gamesResult.data);
         setSelectedGameId((current) => current || gamesResult.data[0]?.id || '');
@@ -1861,7 +1867,7 @@ function Dashboard({ session }: { session: Session }) {
         <div className="table-toolbar">
           <div>
             <p className="eyebrow">Dashboard</p>
-            <h1>Choose how to play</h1>
+            <h1>What would you like to do today?</h1>
           </div>
           <div className="table-toolbar-actions">
             <button className="ghost-button table-button" onClick={() => setActiveView('study')} type="button">
@@ -1884,39 +1890,18 @@ function Dashboard({ session }: { session: Session }) {
 
         {(notice || memberNotice) && <p className="form-message">{notice || memberNotice}</p>}
 
-        <DailyChallengePanel attempts={dailyAttempts} onOpen={() => setDailyChallengeOpen(true)} />
-
-        <div className="play-choice-grid" aria-label="Choose play mode">
-          <section className="play-choice-card solo">
-            <div className="play-choice-icon">
-              <CheckCircle2 size={22} />
-            </div>
-            <div>
-              <p className="eyebrow">Single player</p>
-              <h2>Play solo</h2>
-              <p>Pick a pack, answer at your own pace, then review your score and missed questions.</p>
-            </div>
-            <button className="primary-button" onClick={() => setPracticeOpen(true)} type="button">
-              <Play size={18} />
-              Start game
-            </button>
-          </section>
-
-          <section className="play-choice-card multiplayer">
-            <div className="play-choice-icon">
-              <UserPlus size={22} />
-            </div>
-            <div>
-              <p className="eyebrow">Multiplayer</p>
-              <h2>Host a game</h2>
-              <p>Create a live quiz, invite players with a join link, and run the game with a leaderboard.</p>
-            </div>
-            <button className="primary-button" onClick={openGameWizard} type="button">
-              <Plus size={18} />
-              Create game
-            </button>
-          </section>
-        </div>
+        <DashboardLaunchGrid
+          activeGameCount={activeGames.length}
+          dailyAttempts={dailyAttempts}
+          studyAnswers={studyAnswers}
+          studyAttempts={studyAttempts}
+          studyQuestions={studyQuestions}
+          studyQuizzes={studyQuizzes}
+          onDaily={() => setDailyChallengeOpen(true)}
+          onHost={openGameWizard}
+          onSolo={() => setPracticeOpen(true)}
+          onStudy={() => setActiveView('study')}
+        />
 
         <AvailablePacksPanel
           canUseCreatorFeatures={canUseCreatorFeatures}
@@ -2753,55 +2738,87 @@ function ProfileView({
   );
 }
 
-function DailyChallengePanel({ attempts, onOpen }: { attempts: DailyChallengeAttempt[]; onOpen: () => void }) {
+function DashboardLaunchGrid({
+  activeGameCount,
+  dailyAttempts,
+  studyAnswers,
+  studyAttempts,
+  studyQuestions,
+  studyQuizzes,
+  onDaily,
+  onHost,
+  onSolo,
+  onStudy,
+}: {
+  activeGameCount: number;
+  dailyAttempts: DailyChallengeAttempt[];
+  studyAnswers: StudyAnswer[];
+  studyAttempts: StudyAttempt[];
+  studyQuestions: StudyQuestion[];
+  studyQuizzes: StudyQuiz[];
+  onDaily: () => void;
+  onHost: () => void;
+  onSolo: () => void;
+  onStudy: () => void;
+}) {
   const todayKey = getLocalDateKey();
-  const todayAttempt = attempts.find((attempt) => attempt.challenge_date === todayKey) || null;
-  const weekDates = getCurrentWeekDates();
-  const weekKeys = new Set(weekDates.map(getLocalDateKey));
-  const weekAttempts = attempts.filter((attempt) => weekKeys.has(attempt.challenge_date));
-  const streak = calculateDailyStreak(attempts, todayKey);
-  const wins = weekAttempts.filter((attempt) => attempt.score >= 700).length;
-  const bestScore = weekAttempts.length ? Math.max(...weekAttempts.map((attempt) => attempt.score)) : 0;
+  const todayAttempt = dailyAttempts.find((attempt) => attempt.challenge_date === todayKey);
+  const dailyStreak = calculateDailyStreak(dailyAttempts, todayKey);
+  const latestAnswerByQuestion = new Map<string, StudyAnswer>();
+  studyAnswers.forEach((answer) => {
+    if (!latestAnswerByQuestion.has(answer.question_id)) latestAnswerByQuestion.set(answer.question_id, answer);
+  });
+  const mistakes = studyQuestions.filter((question) => latestAnswerByQuestion.get(question.id)?.is_correct === false);
+  const latestStudyAttempt = studyAttempts[0];
+  const latestQuiz = studyQuizzes.find((quiz) => quiz.id === latestStudyAttempt?.quiz_id) || studyQuizzes[0];
+  const studyDates = new Set(studyAttempts.map((attempt) => getLocalDateKey(new Date(attempt.completed_at))));
+  let studyStreak = 0;
+  let cursor = new Date();
+  if (!studyDates.has(getLocalDateKey(cursor))) cursor = addLocalDays(cursor, -1);
+  while (studyDates.has(getLocalDateKey(cursor))) {
+    studyStreak += 1;
+    cursor = addLocalDays(cursor, -1);
+  }
+  const studyPrompt = studyQuizzes.length === 0
+    ? 'Create your first private quiz and start tracking your progress.'
+    : mistakes.length > 0
+      ? `${mistakes.length} question${mistakes.length === 1 ? '' : 's'} ready for focused review${latestQuiz ? `, including ${latestQuiz.title}` : ''}.`
+      : latestQuiz
+        ? `Continue ${latestQuiz.title} or create another study quiz.`
+        : 'Your study library is ready.';
 
   return (
-    <section className={`daily-challenge-card ${todayAttempt ? 'completed' : ''}`}>
-      <div className="daily-challenge-main">
-        <div className="daily-challenge-icon">
-          {todayAttempt ? <CheckCircle2 size={24} /> : <Brain size={24} />}
+    <div className="dashboard-launch-grid" aria-label="Choose an activity">
+      <section className="dashboard-launch-card daily">
+        <div className="dashboard-launch-heading">
+          <span><CalendarDays size={21} /></span>
+          <div><p className="eyebrow">Daily challenge</p><h2>{todayAttempt ? 'Completed today' : 'Today’s mix is ready'}</h2></div>
         </div>
-        <div>
-          <p className="eyebrow">Daily challenge #{getDailyChallengeNumber(todayKey)}</p>
-          <h2>{todayAttempt ? 'Today complete' : 'Your daily mix is ready'}</h2>
-          <p>{todayAttempt ? `You scored ${todayAttempt.score} points in ${Math.max(1, Math.round(todayAttempt.duration_seconds / 60))} minutes.` : 'Five questions that build in difficulty, followed by three quick logic puzzles. Designed to take less than 10 minutes.'}</p>
-        </div>
-        <button className="primary-button" onClick={onOpen} type="button">
-          {todayAttempt ? <Trophy size={18} /> : <Play size={18} />}
-          {todayAttempt ? 'View result' : 'Start challenge'}
-        </button>
-      </div>
+        <p>{todayAttempt ? `You scored ${todayAttempt.score} points. Come back tomorrow to keep going.` : 'Progressive questions and logic puzzles in under 10 minutes.'}</p>
+        <div className="dashboard-launch-status"><span><Flame size={15} /> {dailyStreak} day streak</span><strong>{todayAttempt ? `${todayAttempt.score} pts` : 'Not completed'}</strong></div>
+        <button className="primary-button" onClick={onDaily} type="button">{todayAttempt ? <Trophy size={17} /> : <Play size={17} />}{todayAttempt ? 'View result' : 'Start challenge'}</button>
+      </section>
 
-      <div className="daily-week-summary">
-        <div className="daily-stats">
-          <span><Flame size={16} /> <strong>{streak}</strong> day streak</span>
-          <span><Trophy size={16} /> <strong>{wins}</strong> wins this week</span>
-          <span><CheckCircle2 size={16} /> <strong>{weekAttempts.length}/7</strong> completed</span>
-          <span><strong>{bestScore}</strong> best score</span>
+      <section className="dashboard-launch-card study">
+        <div className="dashboard-launch-heading">
+          <span><GraduationCap size={21} /></span>
+          <div><p className="eyebrow">Study</p><h2>{mistakes.length ? 'Mistakes to practise' : studyQuizzes.length ? 'Keep learning' : 'Build your first quiz'}</h2></div>
         </div>
-        <div className="daily-week-strip" aria-label="Daily Challenge completion this week">
-          {weekDates.map((date) => {
-            const dateKey = getLocalDateKey(date);
-            const attempt = attempts.find((item) => item.challenge_date === dateKey);
-            const isToday = dateKey === todayKey;
-            return (
-              <div className={`daily-day ${attempt ? 'complete' : ''} ${isToday ? 'today' : ''}`} key={dateKey} title={attempt ? `${attempt.score} points` : isToday ? 'Today' : 'Not completed'}>
-                <span>{date.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2)}</span>
-                <strong>{attempt ? '✓' : isToday ? '•' : '—'}</strong>
-              </div>
-            );
-          })}
+        <p>{studyPrompt}</p>
+        <div className="dashboard-launch-status"><span><Flame size={15} /> {studyStreak} day streak</span><strong>{studyQuizzes.length} quiz{studyQuizzes.length === 1 ? '' : 'zes'}</strong></div>
+        <button className="primary-button" onClick={onStudy} type="button"><GraduationCap size={17} />{mistakes.length ? `Review ${mistakes.length} mistake${mistakes.length === 1 ? '' : 's'}` : studyQuizzes.length ? 'Continue studying' : 'Create study quiz'}</button>
+      </section>
+
+      <section className="dashboard-launch-card play">
+        <div className="dashboard-launch-heading">
+          <span><Play size={21} /></span>
+          <div><p className="eyebrow">Play</p><h2>Solo or multiplayer</h2></div>
         </div>
-      </div>
-    </section>
+        <p>Play a quick solo round or bring people together for a hosted live quiz.</p>
+        <div className="dashboard-launch-status"><span><UserPlus size={15} /> {activeGameCount} active</span><strong>Choose a mode</strong></div>
+        <div className="dashboard-launch-actions"><button className="primary-button" onClick={onSolo} type="button"><Play size={17} /> Play solo</button><button className="ghost-button table-button" onClick={onHost} type="button"><Plus size={16} /> Host</button></div>
+      </section>
+    </div>
   );
 }
 
