@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { AlertTriangle, ArrowLeft, BookOpen, Brain, CalendarDays, CheckCircle2, Clipboard, Flame, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Timer, Trash2, Trophy, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BarChart3, BookOpen, Brain, CalendarDays, CheckCircle2, Clipboard, Flame, GraduationCap, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Timer, Trash2, Trophy, Upload, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import './styles.css';
@@ -56,6 +56,46 @@ type DailyBonusChallenge = {
   correctOption: number;
   explanation: string;
   difficulty: 'easy' | 'medium' | 'hard';
+};
+
+type StudyQuiz = {
+  id: string;
+  title: string;
+  subject: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type StudyQuestion = {
+  id: string;
+  quiz_id: string;
+  prompt: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  correct_option: 'A' | 'B' | 'C';
+  explanation: string | null;
+  position: number;
+};
+
+type StudyAttempt = {
+  id: string;
+  quiz_id: string;
+  mode: 'full' | 'mistakes';
+  correct_count: number;
+  question_count: number;
+  duration_seconds: number;
+  completed_at: string;
+};
+
+type StudyAnswer = {
+  id: string;
+  attempt_id: string;
+  question_id: string;
+  selected_option: 'A' | 'B' | 'C';
+  is_correct: boolean;
+  created_at: string;
 };
 
 const dailyBonusChallenges: DailyBonusChallenge[] = [
@@ -766,7 +806,7 @@ function Dashboard({ session }: { session: Session }) {
   const [wizardStep, setWizardStep] = useState(1);
   const [includeHostAsPlayer, setIncludeHostAsPlayer] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'games' | 'profile'>('games');
+  const [activeView, setActiveView] = useState<'games' | 'study' | 'profile'>('games');
   const [accountNameDraft, setAccountNameDraft] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -1772,6 +1812,18 @@ function Dashboard({ session }: { session: Session }) {
                   <User size={16} />
                   Profile
                 </button>
+                <button
+                  className="account-menu-action"
+                  onClick={() => {
+                    setActiveView('study');
+                    setAccountMenuOpen(false);
+                  }}
+                  type="button"
+                  role="menuitem"
+                >
+                  <GraduationCap size={16} />
+                  Study quizzes
+                </button>
                 <button className="account-logout" onClick={signOut} type="button" role="menuitem">
                   <LogOut size={16} />
                   Log out
@@ -1802,6 +1854,8 @@ function Dashboard({ session }: { session: Session }) {
           onSaveName={() => void saveAccountName()}
           onUpgrade={openUpgradeModal}
         />
+      ) : activeView === 'study' ? (
+        <StudyQuizView session={session} onBack={() => setActiveView('games')} />
       ) : (
       <section className="game-table-shell">
         <div className="table-toolbar">
@@ -1810,6 +1864,10 @@ function Dashboard({ session }: { session: Session }) {
             <h1>Choose how to play</h1>
           </div>
           <div className="table-toolbar-actions">
+            <button className="ghost-button table-button" onClick={() => setActiveView('study')} type="button">
+              <GraduationCap size={18} />
+              Study
+            </button>
             <button
               className="ghost-button table-button toolbar-packs-button"
               onClick={() => {
@@ -2192,6 +2250,349 @@ function UpgradeModal({
         </div>
       </section>
     </div>
+  );
+}
+
+type StudyQuestionDraft = {
+  prompt: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  correct_option: 'A' | 'B' | 'C';
+  explanation: string;
+};
+
+const emptyStudyQuestion = (): StudyQuestionDraft => ({
+  prompt: '', option_a: '', option_b: '', option_c: '', correct_option: 'A', explanation: '',
+});
+
+function parseCsvRow(row: string) {
+  const cells: string[] = [];
+  let value = '';
+  let quoted = false;
+  for (let index = 0; index < row.length; index += 1) {
+    const character = row[index];
+    if (character === '"' && quoted && row[index + 1] === '"') {
+      value += '"';
+      index += 1;
+    } else if (character === '"') {
+      quoted = !quoted;
+    } else if (character === ',' && !quoted) {
+      cells.push(value.trim());
+      value = '';
+    } else {
+      value += character;
+    }
+  }
+  cells.push(value.trim());
+  return cells;
+}
+
+function shuffleStudyQuestionOptions(question: StudyQuestion) {
+  const options = shuffleItems([
+    { text: question.option_a, correct: question.correct_option === 'A' },
+    { text: question.option_b, correct: question.correct_option === 'B' },
+    { text: question.option_c, correct: question.correct_option === 'C' },
+  ]);
+  const optionKeys = ['A', 'B', 'C'] as const;
+  return {
+    ...question,
+    option_a: options[0].text,
+    option_b: options[1].text,
+    option_c: options[2].text,
+    correct_option: optionKeys[options.findIndex((option) => option.correct)],
+  };
+}
+
+function StudyQuizView({ session, onBack }: { session: Session; onBack: () => void }) {
+  const [quizzes, setQuizzes] = useState<StudyQuiz[]>([]);
+  const [questions, setQuestions] = useState<StudyQuestion[]>([]);
+  const [attempts, setAttempts] = useState<StudyAttempt[]>([]);
+  const [answerHistory, setAnswerHistory] = useState<StudyAnswer[]>([]);
+  const [screen, setScreen] = useState<'library' | 'create' | 'play' | 'results'>('library');
+  const [selectedQuiz, setSelectedQuiz] = useState<StudyQuiz | null>(null);
+  const [sessionQuestions, setSessionQuestions] = useState<StudyQuestion[]>([]);
+  const [sessionAnswers, setSessionAnswers] = useState<Array<{ question: StudyQuestion; selected: 'A' | 'B' | 'C'; correct: boolean }>>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<'A' | 'B' | 'C' | null>(null);
+  const [sessionMode, setSessionMode] = useState<'full' | 'mistakes'>('full');
+  const [title, setTitle] = useState('');
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [draftQuestions, setDraftQuestions] = useState<StudyQuestionDraft[]>([emptyStudyQuestion()]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const startedAtRef = useRef(Date.now());
+
+  async function loadStudyData() {
+    setLoading(true);
+    const [quizResult, questionResult, attemptResult, answerResult] = await Promise.all([
+      supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at').order('updated_at', { ascending: false }),
+      supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position').order('position'),
+      supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
+      supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
+    ]);
+    setLoading(false);
+    const error = quizResult.error || questionResult.error || attemptResult.error || answerResult.error;
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    setQuizzes((quizResult.data || []) as StudyQuiz[]);
+    setQuestions((questionResult.data || []) as StudyQuestion[]);
+    setAttempts((attemptResult.data || []) as StudyAttempt[]);
+    setAnswerHistory((answerResult.data || []) as StudyAnswer[]);
+  }
+
+  useEffect(() => {
+    void loadStudyData();
+  }, []);
+
+  const attemptDates = new Set(attempts.map((attempt) => getLocalDateKey(new Date(attempt.completed_at))));
+  let streak = 0;
+  let streakDate = new Date();
+  if (!attemptDates.has(getLocalDateKey(streakDate))) streakDate = addLocalDays(streakDate, -1);
+  while (attemptDates.has(getLocalDateKey(streakDate))) {
+    streak += 1;
+    streakDate = addLocalDays(streakDate, -1);
+  }
+  const weekStart = addLocalDays(new Date(), -6);
+  const weekAttempts = attempts.filter((attempt) => new Date(attempt.completed_at) >= weekStart);
+  const latestAnswerByQuestion = new Map<string, StudyAnswer>();
+  answerHistory.forEach((answer) => {
+    if (!latestAnswerByQuestion.has(answer.question_id)) latestAnswerByQuestion.set(answer.question_id, answer);
+  });
+
+  function optionText(question: StudyQuestion, option: 'A' | 'B' | 'C') {
+    return option === 'A' ? question.option_a : option === 'B' ? question.option_b : question.option_c;
+  }
+
+  function resetCreate() {
+    setTitle('');
+    setSubject('');
+    setDescription('');
+    setDraftQuestions([emptyStudyQuestion()]);
+    setMessage('');
+  }
+
+  function updateDraftQuestion(index: number, field: keyof StudyQuestionDraft, value: string) {
+    setDraftQuestions((current) => current.map((question, questionIndex) => (
+      questionIndex === index ? { ...question, [field]: value } : question
+    )));
+  }
+
+  async function createQuiz() {
+    const validQuestions = draftQuestions.filter((question) => question.prompt.trim() || question.option_a.trim() || question.option_b.trim() || question.option_c.trim());
+    if (!title.trim() || !subject.trim()) {
+      setMessage('Add a quiz title and subject.');
+      return;
+    }
+    if (!validQuestions.length || validQuestions.some((question) => !question.prompt.trim() || !question.option_a.trim() || !question.option_b.trim() || !question.option_c.trim())) {
+      setMessage('Complete the question and all three answers for every question.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    const { data: quiz, error: quizError } = await supabase.from('study_quizzes').insert({
+      owner_user_id: session.user.id,
+      title: title.trim(),
+      subject: subject.trim(),
+      description: description.trim() || null,
+    }).select('id').single();
+    if (quizError || !quiz) {
+      setBusy(false);
+      setMessage(quizError?.message || 'Could not create the quiz.');
+      return;
+    }
+    const { error: questionError } = await supabase.from('study_questions').insert(validQuestions.map((question, index) => ({
+      quiz_id: quiz.id,
+      prompt: question.prompt.trim(),
+      option_a: question.option_a.trim(),
+      option_b: question.option_b.trim(),
+      option_c: question.option_c.trim(),
+      correct_option: question.correct_option,
+      explanation: question.explanation.trim() || null,
+      position: index,
+    })));
+    setBusy(false);
+    if (questionError) {
+      await supabase.from('study_quizzes').delete().eq('id', quiz.id);
+      setMessage(questionError.message);
+      return;
+    }
+    resetCreate();
+    await loadStudyData();
+    setScreen('library');
+  }
+
+  async function importCsv(file: File) {
+    const text = await file.text();
+    const rows = text.split(/\r?\n/).filter((row) => row.trim());
+    if (rows.length < 2) {
+      setMessage('The CSV needs a header and at least one question.');
+      return;
+    }
+    const headers = parseCsvRow(rows[0]).map((cell) => cell.toLowerCase().replace(/\s+/g, '_'));
+    const required = ['question', 'answer', 'wrong_answer_1', 'wrong_answer_2'];
+    if (required.some((header) => !headers.includes(header))) {
+      setMessage('Use columns: question, answer, wrong_answer_1, wrong_answer_2, and optional explanation.');
+      return;
+    }
+    const imported = rows.slice(1).map((row) => {
+      const cells = parseCsvRow(row);
+      const get = (name: string) => cells[headers.indexOf(name)] || '';
+      return { prompt: get('question'), option_a: get('answer'), option_b: get('wrong_answer_1'), option_c: get('wrong_answer_2'), correct_option: 'A' as const, explanation: get('explanation') };
+    }).filter((question) => question.prompt && question.option_a && question.option_b && question.option_c);
+    if (!imported.length) {
+      setMessage('No complete questions were found in that CSV.');
+      return;
+    }
+    setDraftQuestions(imported);
+    setMessage(`${imported.length} question${imported.length === 1 ? '' : 's'} imported. Review them before saving.`);
+  }
+
+  function beginQuiz(quiz: StudyQuiz, mode: 'full' | 'mistakes') {
+    const quizQuestions = questions.filter((question) => question.quiz_id === quiz.id);
+    const chosen = mode === 'mistakes'
+      ? quizQuestions.filter((question) => latestAnswerByQuestion.get(question.id)?.is_correct === false)
+      : quizQuestions;
+    if (!chosen.length) {
+      setMessage(mode === 'mistakes' ? 'No mistakes are waiting for review—try the full quiz.' : 'Add questions before starting this quiz.');
+      return;
+    }
+    setSelectedQuiz(quiz);
+    setSessionMode(mode);
+    setSessionQuestions(shuffleItems(chosen).map(shuffleStudyQuestionOptions));
+    setSessionAnswers([]);
+    setCurrentIndex(0);
+    setSelectedOption(null);
+    setMessage('');
+    startedAtRef.current = Date.now();
+    setScreen('play');
+  }
+
+  async function chooseAnswer(option: 'A' | 'B' | 'C') {
+    if (selectedOption || !sessionQuestions[currentIndex]) return;
+    const question = sessionQuestions[currentIndex];
+    setSelectedOption(option);
+    setSessionAnswers((current) => [...current, { question, selected: option, correct: question.correct_option === option }]);
+  }
+
+  async function nextQuestion() {
+    if (currentIndex + 1 < sessionQuestions.length) {
+      setCurrentIndex((current) => current + 1);
+      setSelectedOption(null);
+      return;
+    }
+    if (!selectedQuiz) return;
+    const finalAnswers = sessionAnswers;
+    const correctCount = finalAnswers.filter((answer) => answer.correct).length;
+    const duration = Math.min(14400, Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)));
+    setBusy(true);
+    const { data: attempt, error: attemptError } = await supabase.from('study_attempts').insert({
+      quiz_id: selectedQuiz.id,
+      user_id: session.user.id,
+      mode: sessionMode,
+      correct_count: correctCount,
+      question_count: finalAnswers.length,
+      duration_seconds: duration,
+    }).select('id').single();
+    if (attemptError || !attempt) {
+      setBusy(false);
+      setMessage(attemptError?.message || 'Could not save your result.');
+      return;
+    }
+    const { error: answerError } = await supabase.from('study_answers').insert(finalAnswers.map((answer) => ({
+      attempt_id: attempt.id,
+      question_id: answer.question.id,
+      selected_option: answer.selected,
+      is_correct: answer.correct,
+    })));
+    setBusy(false);
+    if (answerError) {
+      setMessage(answerError.message);
+      return;
+    }
+    await loadStudyData();
+    setScreen('results');
+  }
+
+  async function deleteQuiz(quiz: StudyQuiz) {
+    if (!window.confirm(`Delete “${quiz.title}” and all of its results?`)) return;
+    const { error } = await supabase.from('study_quizzes').delete().eq('id', quiz.id);
+    if (error) setMessage(error.message);
+    else await loadStudyData();
+  }
+
+  if (screen === 'create') {
+    return (
+      <section className="study-shell">
+        <div className="study-page-header">
+          <button className="ghost-button table-button" onClick={() => { resetCreate(); setScreen('library'); }} type="button"><ArrowLeft size={17} /> Library</button>
+          <div><p className="eyebrow">Study quiz</p><h1>Create a quiz</h1><p>Add questions manually or import a CSV, then review everything before saving.</p></div>
+          <button className="primary-button" disabled={busy} onClick={() => void createQuiz()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : <Save size={17} />} Save quiz</button>
+        </div>
+        <div className="study-create-layout">
+          <section className="study-form-card">
+            <label>Quiz title<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Biology: Cell Structure" /></label>
+            <label>Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Biology" /></label>
+            <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional notes about this quiz" rows={3} /></label>
+            <label className="study-upload-button"><Upload size={18} /><span><strong>Import questions from CSV</strong><small>question, answer, wrong_answer_1, wrong_answer_2, explanation</small></span><input accept=".csv,text/csv" onChange={(event) => event.target.files?.[0] && void importCsv(event.target.files[0])} type="file" /></label>
+            {message && <p className="form-message">{message}</p>}
+          </section>
+          <section className="study-question-builder">
+            <div className="study-section-title"><div><p className="eyebrow">Questions</p><h2>{draftQuestions.length} in this quiz</h2></div><button className="ghost-button table-button" onClick={() => setDraftQuestions((current) => [...current, emptyStudyQuestion()])} type="button"><Plus size={16} /> Add question</button></div>
+            {draftQuestions.map((question, index) => (
+              <article className="study-question-editor" key={index}>
+                <div className="study-question-editor-heading"><strong>Question {index + 1}</strong>{draftQuestions.length > 1 && <button className="icon-button neutral" onClick={() => setDraftQuestions((current) => current.filter((_, itemIndex) => itemIndex !== index))} type="button" aria-label={`Remove question ${index + 1}`}><Trash2 size={16} /></button>}</div>
+                <label>Question<input value={question.prompt} onChange={(event) => updateDraftQuestion(index, 'prompt', event.target.value)} placeholder="Enter the question" /></label>
+                <div className="study-option-editor">
+                  {(['A', 'B', 'C'] as const).map((option) => (
+                    <label className={question.correct_option === option ? 'correct-option' : ''} key={option}><input checked={question.correct_option === option} onChange={() => updateDraftQuestion(index, 'correct_option', option)} type="radio" name={`correct-${index}`} /><span>{option}</span><input value={question[`option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c']} onChange={(event) => updateDraftQuestion(index, `option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c', event.target.value)} placeholder={option === 'A' ? 'Correct or incorrect answer' : 'Answer choice'} /></label>
+                  ))}
+                </div>
+                <label>Explanation <small>(optional)</small><textarea value={question.explanation} onChange={(event) => updateDraftQuestion(index, 'explanation', event.target.value)} placeholder="Help the student understand the answer" rows={2} /></label>
+              </article>
+            ))}
+          </section>
+        </div>
+      </section>
+    );
+  }
+
+  if (screen === 'play' && selectedQuiz) {
+    const question = sessionQuestions[currentIndex];
+    const answer = sessionAnswers.find((item) => item.question.id === question?.id);
+    return (
+      <section className="study-shell study-session-shell">
+        <div className="study-page-header"><button className="ghost-button table-button" onClick={() => setScreen('library')} type="button"><X size={17} /> Exit</button><div><p className="eyebrow">{sessionMode === 'mistakes' ? 'Mistake practice' : selectedQuiz.subject}</p><h1>{selectedQuiz.title}</h1></div><strong>{currentIndex + 1} / {sessionQuestions.length}</strong></div>
+        <div className="daily-progress-track"><span style={{ width: `${((currentIndex + 1) / sessionQuestions.length) * 100}%` }} /></div>
+        {question && <section className="study-play-card"><h2>{question.prompt}</h2><div className="practice-answer-grid">{(['A', 'B', 'C'] as const).map((option) => { const isCorrect = selectedOption && option === question.correct_option; const state = selectedOption ? (isCorrect ? 'correct' : option === selectedOption ? 'wrong' : 'muted') : ''; return <button className={`practice-answer-button ${state}`} disabled={Boolean(selectedOption)} key={option} onClick={() => void chooseAnswer(option)} type="button"><span>{option}</span>{optionText(question, option)}</button>; })}</div>{answer && <div className={`daily-answer-note ${answer.correct ? 'correct' : 'wrong'}`}><strong>{answer.correct ? 'Correct' : `Correct answer: ${optionText(question, question.correct_option)}`}</strong>{question.explanation && <span>{question.explanation}</span>}<button className="primary-button compact-button" disabled={busy} onClick={() => void nextQuestion()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : null}{currentIndex + 1 === sessionQuestions.length ? 'See results' : 'Next question'}</button></div>}{message && <p className="form-message">{message}</p>}</section>}
+      </section>
+    );
+  }
+
+  if (screen === 'results' && selectedQuiz) {
+    const correct = sessionAnswers.filter((answer) => answer.correct).length;
+    const percent = Math.round((correct / sessionAnswers.length) * 100);
+    const missed = sessionAnswers.filter((answer) => !answer.correct);
+    return (
+      <section className="study-shell">
+        <div className="study-page-header"><button className="ghost-button table-button" onClick={() => setScreen('library')} type="button"><ArrowLeft size={17} /> Library</button><div><p className="eyebrow">Attempt complete</p><h1>{selectedQuiz.title}</h1><p>{sessionMode === 'mistakes' ? 'Mistake practice' : 'Full quiz'} results</p></div><button className="primary-button" onClick={() => beginQuiz(selectedQuiz, missed.length ? 'mistakes' : 'full')} type="button"><RefreshCw size={17} />{missed.length ? 'Practise mistakes' : 'Retake quiz'}</button></div>
+        <div className="study-result-summary"><div><span>Score</span><strong>{correct} / {sessionAnswers.length}</strong></div><div><span>Accuracy</span><strong>{percent}%</strong></div><div><span>To review</span><strong>{missed.length}</strong></div></div>
+        <section className="study-review-card"><div className="study-section-title"><div><p className="eyebrow">Answer review</p><h2>Learn from this attempt</h2></div></div>{sessionAnswers.map((answer, index) => <article className={`study-review-row ${answer.correct ? 'correct' : 'wrong'}`} key={answer.question.id}><span>{answer.correct ? <CheckCircle2 size={18} /> : <X size={18} />}</span><div><small>Question {index + 1}</small><strong>{answer.question.prompt}</strong><p>You answered: {optionText(answer.question, answer.selected)} · Correct: {optionText(answer.question, answer.question.correct_option)}</p>{answer.question.explanation && <em>{answer.question.explanation}</em>}</div></article>)}</section>
+      </section>
+    );
+  }
+
+  return (
+    <section className="study-shell">
+      <div className="study-page-header"><button className="ghost-button table-button" onClick={onBack} type="button"><ArrowLeft size={17} /> Dashboard</button><div><p className="eyebrow">Study</p><h1>Your study quizzes</h1><p>Create, practise, review mistakes, and build lasting mastery.</p></div><button className="primary-button" onClick={() => { resetCreate(); setScreen('create'); }} type="button"><Plus size={17} /> Create quiz</button></div>
+      <div className="study-overview-grid"><article><Flame size={21} /><span>Study streak</span><strong>{streak} day{streak === 1 ? '' : 's'}</strong></article><article><CalendarDays size={21} /><span>Last 7 days</span><strong>{weekAttempts.length} attempt{weekAttempts.length === 1 ? '' : 's'}</strong></article><article><BarChart3 size={21} /><span>Questions answered</span><strong>{attempts.reduce((total, attempt) => total + attempt.question_count, 0)}</strong></article><article><Trophy size={21} /><span>Average accuracy</span><strong>{attempts.length ? Math.round((attempts.reduce((total, attempt) => total + attempt.correct_count, 0) / attempts.reduce((total, attempt) => total + attempt.question_count, 0)) * 100) : 0}%</strong></article></div>
+      {message && <p className="form-message">{message}</p>}
+      {loading ? <div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Loading your study library…</strong></div> : quizzes.length === 0 ? <section className="study-empty"><GraduationCap size={36} /><h2>Create your first study quiz</h2><p>Add questions yourself or upload a CSV. Every attempt will track progress and turn mistakes into focused practice.</p><button className="primary-button" onClick={() => setScreen('create')} type="button"><Plus size={17} /> Create a study quiz</button></section> : <div className="study-quiz-grid">{quizzes.map((quiz) => { const quizQuestions = questions.filter((question) => question.quiz_id === quiz.id); const quizAttempts = attempts.filter((attempt) => attempt.quiz_id === quiz.id); const latest = quizAttempts[0]; const best = quizAttempts.length ? Math.max(...quizAttempts.map((attempt) => Math.round((attempt.correct_count / attempt.question_count) * 100))) : 0; const mistakes = quizQuestions.filter((question) => latestAnswerByQuestion.get(question.id)?.is_correct === false).length; const mastered = quizQuestions.filter((question) => answerHistory.filter((answer) => answer.question_id === question.id).slice(0, 3).length === 3 && answerHistory.filter((answer) => answer.question_id === question.id).slice(0, 3).every((answer) => answer.is_correct)).length; return <article className="study-quiz-card" key={quiz.id}><div className="study-quiz-heading"><span><GraduationCap size={20} /></span><div><small>{quiz.subject}</small><h2>{quiz.title}</h2></div><button className="icon-button neutral" onClick={() => void deleteQuiz(quiz)} type="button" aria-label={`Delete ${quiz.title}`}><Trash2 size={16} /></button></div><p>{quiz.description || 'A private study quiz.'}</p><div className="study-quiz-meta"><div><span>Questions</span><strong>{quizQuestions.length}</strong></div><div><span>Best</span><strong>{quizAttempts.length ? `${best}%` : '—'}</strong></div><div><span>Mastered</span><strong>{mastered}/{quizQuestions.length}</strong></div></div><div className="study-last-taken"><span>{latest ? `Last taken ${new Date(latest.completed_at).toLocaleDateString()}` : 'Not taken yet'}</span>{mistakes > 0 && <strong>{mistakes} to review</strong>}</div><div className="study-card-actions"><button className="primary-button" onClick={() => beginQuiz(quiz, 'full')} type="button"><Play size={17} /> {latest ? 'Retake quiz' : 'Start quiz'}</button>{mistakes > 0 && <button className="ghost-button table-button" onClick={() => beginQuiz(quiz, 'mistakes')} type="button"><RefreshCw size={16} /> Mistakes</button>}</div></article>; })}</div>}
+    </section>
   );
 }
 
