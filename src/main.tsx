@@ -2591,9 +2591,8 @@ function StudyQuizView({ session }: { session: Session }) {
 
     return (
       <section className="study-shell">
-        <div className="study-page-header">
-          <button className="ghost-button table-button" onClick={() => { resetCreate(); setScreen('library'); }} type="button"><ArrowLeft size={17} /> Library</button>
-          <div><p className="eyebrow">Study quiz</p><h1>Create a quiz</h1><p>Add questions manually or import a CSV, then review everything before saving.</p></div>
+        <div className="study-page-header study-create-header">
+          <div><button className="ghost-button table-button study-inline-back" onClick={() => { resetCreate(); setScreen('library'); }} type="button"><ArrowLeft size={17} /> Library</button><p className="eyebrow">Study quiz</p><h1>Create a quiz</h1><p>Add questions manually or import a CSV, then review everything before saving.</p></div>
           <button className="primary-button" disabled={busy} onClick={() => void createQuiz()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : <Save size={17} />} Save quiz</button>
         </div>
         <div className="study-create-layout">
