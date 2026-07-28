@@ -828,8 +828,7 @@ function Dashboard({ session }: { session: Session }) {
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const activeView = pathname.startsWith('/study') ? 'study'
     : pathname.startsWith('/profile') ? 'profile'
-      : pathname.startsWith('/play') ? 'play'
-        : pathname.startsWith('/games') ? 'games'
+      : pathname.startsWith('/play') || pathname.startsWith('/games') ? 'play'
           : pathname.startsWith('/packs') ? 'packs'
             : pathname.startsWith('/daily') ? 'daily'
               : 'dashboard';
@@ -871,6 +870,10 @@ function Dashboard({ session }: { session: Session }) {
 
   useEffect(() => {
     if (window.location.pathname === '/') window.history.replaceState({}, '', '/dashboard');
+    if (window.location.pathname.startsWith('/games')) {
+      window.history.replaceState({}, '', '/play');
+      setPathname('/play');
+    }
     const handlePopState = () => setPathname(window.location.pathname);
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -881,7 +884,6 @@ function Dashboard({ session }: { session: Session }) {
       dashboard: 'Overview',
       study: 'Study',
       play: 'Play',
-      games: 'Games',
       packs: 'Question Packs',
       daily: 'Daily Challenge',
       profile: 'Profile',
@@ -1808,6 +1810,18 @@ function Dashboard({ session }: { session: Session }) {
           </div>
           <span>Quizo</span>
         </div>
+        <nav className="app-section-nav" aria-label="Main navigation">
+          {[
+            { path: '/dashboard', label: 'Overview' },
+            { path: '/study', label: 'Study' },
+            { path: '/play', label: 'Play' },
+            { path: '/packs', label: 'Packs' },
+          ].map((item) => (
+            <button className={pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(`${item.path}/`)) ? 'active' : ''} key={item.path} onClick={() => navigate(item.path)} type="button">
+              {item.label}
+            </button>
+          ))}
+        </nav>
         <div className="account-area">
           <span className="plan-badge">{planLabel}</span>
           {currentPlanId !== 'creator' && (
@@ -1871,20 +1885,6 @@ function Dashboard({ session }: { session: Session }) {
         </div>
       </header>
 
-      <nav className="app-section-nav" aria-label="Main navigation">
-        {[
-          { path: '/dashboard', label: 'Overview' },
-          { path: '/study', label: 'Study' },
-          { path: '/play', label: 'Play' },
-          { path: '/games', label: 'Games' },
-          { path: '/packs', label: 'Packs' },
-        ].map((item) => (
-          <button className={pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(`${item.path}/`)) ? 'active' : ''} key={item.path} onClick={() => navigate(item.path)} type="button">
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
       {activeView === 'profile' ? (
         <ProfileView
           accountBusy={accountBusy}
@@ -1911,10 +1911,9 @@ function Dashboard({ session }: { session: Session }) {
       <section className="game-table-shell">
         <div className="table-toolbar">
           <div>
-            <p className="eyebrow">{activeView === 'games' ? 'Multiplayer' : activeView === 'play' ? 'Play' : activeView === 'packs' ? 'Library' : activeView === 'daily' ? 'Daily challenge' : 'Dashboard'}</p>
-            <h1>{activeView === 'games' ? 'Hosted games' : activeView === 'play' ? 'Choose how to play' : activeView === 'packs' ? 'Question packs' : activeView === 'daily' ? 'Today’s challenge' : 'What would you like to do today?'}</h1>
+            <p className="eyebrow">{activeView === 'play' ? 'Play' : activeView === 'packs' ? 'Library' : activeView === 'daily' ? 'Daily challenge' : 'Dashboard'}</p>
+            <h1>{activeView === 'play' ? 'Play quizzes your way' : activeView === 'packs' ? 'Question packs' : activeView === 'daily' ? 'Today’s challenge' : 'What would you like to do today?'}</h1>
           </div>
-          {activeView === 'games' && <button className="primary-button" onClick={openGameWizard} type="button"><Plus size={17} /> Create game</button>}
         </div>
 
         {(notice || memberNotice) && <p className="form-message">{notice || memberNotice}</p>}
@@ -1927,7 +1926,7 @@ function Dashboard({ session }: { session: Session }) {
           studyQuestions={studyQuestions}
           studyQuizzes={studyQuizzes}
           onDaily={() => navigate('/daily')}
-          onHost={() => { navigate('/games'); openGameWizard(); }}
+          onHost={() => { navigate('/play'); openGameWizard(); }}
           onSolo={() => navigate('/play')}
           onStudy={() => navigate('/study')}
         />}
@@ -1942,7 +1941,7 @@ function Dashboard({ session }: { session: Session }) {
             <section className="play-choice-card multiplayer">
               <div className="play-choice-icon"><UserPlus size={22} /></div>
               <div><p className="eyebrow">Multiplayer</p><h2>Host a game</h2><p>Create a live quiz, invite players, and run the game with a leaderboard.</p></div>
-              <button className="primary-button" onClick={() => { navigate('/games'); openGameWizard(); }} type="button"><Plus size={18} /> Create game</button>
+              <button className="primary-button" onClick={openGameWizard} type="button"><Plus size={18} /> Create game</button>
             </section>
           </div>
         )}
@@ -1959,7 +1958,7 @@ function Dashboard({ session }: { session: Session }) {
           onUpgrade={openUpgradeModal}
         />
 
-        {activeView === 'games' && (dashboardLoading ? (
+        {activeView === 'play' && (dashboardLoading ? (
           <DashboardLoadingState />
         ) : (
           <div className="games-table-stack">

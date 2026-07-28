@@ -10761,21 +10761,22 @@ body,
 /* Study quizzes */
 .app-section-nav {
   display: flex;
-  width: min(1180px, calc(100% - 40px));
+  width: auto;
   gap: 5px;
-  margin: 18px auto 0;
-  padding: 5px;
+  margin: 0 auto;
+  padding: 4px;
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: 15px;
-  background: #fafafa;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
   scrollbar-width: none;
 }
 
 .app-section-nav::-webkit-scrollbar { display: none; }
 .app-section-nav button {
   flex: 0 0 auto;
-  padding: 9px 16px;
+  padding: 8px 15px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -10943,7 +10944,9 @@ body,
 .study-review-row em { padding: 9px 11px; border-radius: 9px; background: var(--surface-strong); font-style: normal; }
 
 @media (max-width: 820px) {
-  .app-section-nav { width: calc(100% - 24px); margin-top: 12px; }
+  .dashboard .topbar { flex-wrap: wrap; }
+  .app-section-nav { order: 3; width: 100%; margin-top: 10px; }
+  .app-section-nav button { flex: 1 0 auto; }
   .study-shell { width: min(100% - 24px, 1180px); padding-top: 20px; }
   .study-page-header { grid-template-columns: 1fr auto; gap: 14px; }
   .study-page-header > div { grid-column: 1 / -1; grid-row: 1; }
