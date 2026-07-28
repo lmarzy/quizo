@@ -10846,6 +10846,7 @@ body,
 .study-library-header { grid-template-columns: 1fr auto; }
 .study-create-header { grid-template-columns: 1fr auto; }
 .study-results-header { grid-template-columns: 1fr auto; }
+.study-session-header { grid-template-columns: 1fr auto; }
 .study-inline-back { margin-bottom: 14px; }
 
 .study-overview-grid {
