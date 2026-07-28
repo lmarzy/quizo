@@ -1905,7 +1905,7 @@ function Dashboard({ session }: { session: Session }) {
           onUpgrade={openUpgradeModal}
         />
       ) : activeView === 'study' ? (
-        <StudyQuizView session={session} onBack={() => navigate('/dashboard')} />
+        <StudyQuizView session={session} />
       ) : (
       <section className="game-table-shell">
         <div className="table-toolbar">
@@ -2337,7 +2337,7 @@ function shuffleStudyQuestionOptions(question: StudyQuestion) {
   };
 }
 
-function StudyQuizView({ session, onBack }: { session: Session; onBack: () => void }) {
+function StudyQuizView({ session }: { session: Session }) {
   const [quizzes, setQuizzes] = useState<StudyQuiz[]>([]);
   const [questions, setQuestions] = useState<StudyQuestion[]>([]);
   const [attempts, setAttempts] = useState<StudyAttempt[]>([]);
@@ -2621,7 +2621,7 @@ function StudyQuizView({ session, onBack }: { session: Session; onBack: () => vo
 
   return (
     <section className="study-shell">
-      <div className="study-page-header"><button className="ghost-button table-button" onClick={onBack} type="button"><ArrowLeft size={17} /> Dashboard</button><div><p className="eyebrow">Study</p><h1>Your study quizzes</h1><p>Create, practise, review mistakes, and build lasting mastery.</p></div><button className="primary-button" onClick={() => { resetCreate(); setScreen('create'); }} type="button"><Plus size={17} /> Create quiz</button></div>
+      <div className="study-page-header study-library-header"><div><p className="eyebrow">Study</p><h1>Your study quizzes</h1><p>Create, practise, review mistakes, and build lasting mastery.</p></div><button className="primary-button" onClick={() => { resetCreate(); setScreen('create'); }} type="button"><Plus size={17} /> Create quiz</button></div>
       <div className="study-overview-grid"><article><Flame size={21} /><span>Study streak</span><strong>{streak} day{streak === 1 ? '' : 's'}</strong></article><article><CalendarDays size={21} /><span>Last 7 days</span><strong>{weekAttempts.length} attempt{weekAttempts.length === 1 ? '' : 's'}</strong></article><article><BarChart3 size={21} /><span>Questions answered</span><strong>{attempts.reduce((total, attempt) => total + attempt.question_count, 0)}</strong></article><article><Trophy size={21} /><span>Average accuracy</span><strong>{attempts.length ? Math.round((attempts.reduce((total, attempt) => total + attempt.correct_count, 0) / attempts.reduce((total, attempt) => total + attempt.question_count, 0)) * 100) : 0}%</strong></article></div>
       {message && <p className="form-message">{message}</p>}
       {loading ? <div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Loading your study library…</strong></div> : quizzes.length === 0 ? <section className="study-empty"><GraduationCap size={36} /><h2>Create your first study quiz</h2><p>Add questions yourself or upload a CSV. Every attempt will track progress and turn mistakes into focused practice.</p><button className="primary-button" onClick={() => setScreen('create')} type="button"><Plus size={17} /> Create a study quiz</button></section> : <div className="study-quiz-grid">{quizzes.map((quiz) => { const quizQuestions = questions.filter((question) => question.quiz_id === quiz.id); const quizAttempts = attempts.filter((attempt) => attempt.quiz_id === quiz.id); const latest = quizAttempts[0]; const best = quizAttempts.length ? Math.max(...quizAttempts.map((attempt) => Math.round((attempt.correct_count / attempt.question_count) * 100))) : 0; const mistakes = quizQuestions.filter((question) => latestAnswerByQuestion.get(question.id)?.is_correct === false).length; const mastered = quizQuestions.filter((question) => answerHistory.filter((answer) => answer.question_id === question.id).slice(0, 3).length === 3 && answerHistory.filter((answer) => answer.question_id === question.id).slice(0, 3).every((answer) => answer.is_correct)).length; return <article className="study-quiz-card" key={quiz.id}><div className="study-quiz-heading"><span><GraduationCap size={20} /></span><div><small>{quiz.subject}</small><h2>{quiz.title}</h2></div><button className="icon-button neutral" onClick={() => void deleteQuiz(quiz)} type="button" aria-label={`Delete ${quiz.title}`}><Trash2 size={16} /></button></div><p>{quiz.description || 'A private study quiz.'}</p><div className="study-quiz-meta"><div><span>Questions</span><strong>{quizQuestions.length}</strong></div><div><span>Best</span><strong>{quizAttempts.length ? `${best}%` : '—'}</strong></div><div><span>Mastered</span><strong>{mastered}/{quizQuestions.length}</strong></div></div><div className="study-last-taken"><span>{latest ? `Last taken ${new Date(latest.completed_at).toLocaleDateString()}` : 'Not taken yet'}</span>{mistakes > 0 && <strong>{mistakes} to review</strong>}</div><div className="study-card-actions"><button className="primary-button" onClick={() => beginQuiz(quiz, 'full')} type="button"><Play size={17} /> {latest ? 'Retake quiz' : 'Start quiz'}</button>{mistakes > 0 && <button className="ghost-button table-button" onClick={() => beginQuiz(quiz, 'mistakes')} type="button"><RefreshCw size={16} /> Mistakes</button>}</div></article>; })}</div>}
