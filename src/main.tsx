@@ -77,12 +77,15 @@ type StudyQuestion = {
   correct_option: 'A' | 'B' | 'C';
   explanation: string | null;
   position: number;
+  mastery_level: number;
+  next_review_at: string;
+  last_reviewed_at: string | null;
 };
 
 type StudyAttempt = {
   id: string;
   quiz_id: string;
-  mode: 'full' | 'mistakes';
+  mode: 'full' | 'mistakes' | 'smart';
   correct_count: number;
   question_count: number;
   duration_seconds: number;
@@ -1046,7 +1049,7 @@ function Dashboard({ session }: { session: Session }) {
           .gte('challenge_date', getLocalDateKey(addLocalDays(new Date(), -120)))
           .order('challenge_date', { ascending: false }),
         supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at').order('updated_at', { ascending: false }),
-        supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position').order('position'),
+        supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position,mastery_level,next_review_at,last_reviewed_at').order('position'),
         supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
         supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
       ]);
@@ -2347,7 +2350,7 @@ function StudyQuizView({ session }: { session: Session }) {
   const [sessionAnswers, setSessionAnswers] = useState<Array<{ question: StudyQuestion; selected: 'A' | 'B' | 'C'; correct: boolean }>>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<'A' | 'B' | 'C' | null>(null);
-  const [sessionMode, setSessionMode] = useState<'full' | 'mistakes'>('full');
+  const [sessionMode, setSessionMode] = useState<'full' | 'mistakes' | 'smart'>('full');
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
@@ -2363,7 +2366,7 @@ function StudyQuizView({ session }: { session: Session }) {
     setLoading(true);
     const [quizResult, questionResult, attemptResult, answerResult] = await Promise.all([
       supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at').order('updated_at', { ascending: false }),
-      supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position').order('position'),
+      supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position,mastery_level,next_review_at,last_reviewed_at').order('position'),
       supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
       supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
     ]);
@@ -2489,13 +2492,19 @@ function StudyQuizView({ session }: { session: Session }) {
     setMessage(`${imported.length} question${imported.length === 1 ? '' : 's'} imported. Review them before saving.`);
   }
 
-  function beginQuiz(quiz: StudyQuiz, mode: 'full' | 'mistakes') {
+  function beginQuiz(quiz: StudyQuiz, mode: 'full' | 'mistakes' | 'smart') {
     const quizQuestions = questions.filter((question) => question.quiz_id === quiz.id);
+    const dueNow = new Date().getTime();
     const chosen = mode === 'mistakes'
       ? quizQuestions.filter((question) => latestAnswerByQuestion.get(question.id)?.is_correct === false)
-      : quizQuestions;
+      : mode === 'smart'
+        ? quizQuestions
+          .filter((question) => new Date(question.next_review_at).getTime() <= dueNow || latestAnswerByQuestion.get(question.id)?.is_correct === false)
+          .sort((left, right) => left.mastery_level - right.mastery_level || new Date(left.next_review_at).getTime() - new Date(right.next_review_at).getTime())
+          .slice(0, 15)
+        : quizQuestions;
     if (!chosen.length) {
-      setMessage(mode === 'mistakes' ? 'No mistakes are waiting for review—try the full quiz.' : 'Add questions before starting this quiz.');
+      setMessage(mode === 'mistakes' ? 'No mistakes are waiting for review—try the full quiz.' : mode === 'smart' ? 'You are all caught up. No questions are due yet.' : 'Add questions before starting this quiz.');
       return;
     }
     setSelectedQuiz(quiz);
@@ -2546,12 +2555,24 @@ function StudyQuizView({ session }: { session: Session }) {
       selected_option: answer.selected,
       is_correct: answer.correct,
     })));
-    setBusy(false);
     if (answerError) {
+      setBusy(false);
       setMessage(answerError.message);
       return;
     }
+    const reviewIntervals = [1, 1, 3, 7, 14, 30];
+    const reviewedAt = new Date();
+    await Promise.all(finalAnswers.map((answer) => {
+      const nextLevel = answer.correct ? Math.min(5, answer.question.mastery_level + 1) : Math.max(0, answer.question.mastery_level - 2);
+      const nextReview = addLocalDays(reviewedAt, answer.correct ? reviewIntervals[nextLevel] : 1);
+      return supabase.from('study_questions').update({
+        mastery_level: nextLevel,
+        last_reviewed_at: reviewedAt.toISOString(),
+        next_review_at: nextReview.toISOString(),
+      }).eq('id', answer.question.id);
+    }));
     await loadStudyData();
+    setBusy(false);
     setScreen('results');
   }
 
@@ -2645,7 +2666,7 @@ function StudyQuizView({ session }: { session: Session }) {
     const answer = sessionAnswers.find((item) => item.question.id === question?.id);
     return (
       <section className="study-shell study-session-shell">
-        <div className="study-page-header"><button className="ghost-button table-button" onClick={() => setScreen('library')} type="button"><X size={17} /> Exit</button><div><p className="eyebrow">{sessionMode === 'mistakes' ? 'Mistake practice' : selectedQuiz.subject}</p><h1>{selectedQuiz.title}</h1></div><strong>{currentIndex + 1} / {sessionQuestions.length}</strong></div>
+        <div className="study-page-header"><button className="ghost-button table-button" onClick={() => setScreen('library')} type="button"><X size={17} /> Exit</button><div><p className="eyebrow">{sessionMode === 'smart' ? 'Smart review' : sessionMode === 'mistakes' ? 'Mistake practice' : selectedQuiz.subject}</p><h1>{selectedQuiz.title}</h1></div><strong>{currentIndex + 1} / {sessionQuestions.length}</strong></div>
         <div className="daily-progress-track"><span style={{ width: `${((currentIndex + 1) / sessionQuestions.length) * 100}%` }} /></div>
         {question && <section className="study-play-card"><h2>{question.prompt}</h2><div className="practice-answer-grid">{(['A', 'B', 'C'] as const).map((option) => { const isCorrect = selectedOption && option === question.correct_option; const state = selectedOption ? (isCorrect ? 'correct' : option === selectedOption ? 'wrong' : 'muted') : ''; return <button className={`practice-answer-button ${state}`} disabled={Boolean(selectedOption)} key={option} onClick={() => void chooseAnswer(option)} type="button"><span>{option}</span>{optionText(question, option)}</button>; })}</div>{answer && <div className={`daily-answer-note ${answer.correct ? 'correct' : 'wrong'}`}><strong>{answer.correct ? 'Correct' : `Correct answer: ${optionText(question, question.correct_option)}`}</strong>{question.explanation && <span>{question.explanation}</span>}<button className="primary-button compact-button" disabled={busy} onClick={() => void nextQuestion()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : null}{currentIndex + 1 === sessionQuestions.length ? 'See results' : 'Next question'}</button></div>}{message && <p className="form-message">{message}</p>}</section>}
       </section>
@@ -2658,7 +2679,7 @@ function StudyQuizView({ session }: { session: Session }) {
     const missed = sessionAnswers.filter((answer) => !answer.correct);
     return (
       <section className="study-shell">
-        <div className="study-page-header"><button className="ghost-button table-button" onClick={() => setScreen('library')} type="button"><ArrowLeft size={17} /> Library</button><div><p className="eyebrow">Attempt complete</p><h1>{selectedQuiz.title}</h1><p>{sessionMode === 'mistakes' ? 'Mistake practice' : 'Full quiz'} results</p></div><button className="primary-button" onClick={() => beginQuiz(selectedQuiz, missed.length ? 'mistakes' : 'full')} type="button"><RefreshCw size={17} />{missed.length ? 'Practise mistakes' : 'Retake quiz'}</button></div>
+        <div className="study-page-header"><button className="ghost-button table-button" onClick={() => setScreen('library')} type="button"><ArrowLeft size={17} /> Library</button><div><p className="eyebrow">Attempt complete</p><h1>{selectedQuiz.title}</h1><p>{sessionMode === 'smart' ? 'Smart review' : sessionMode === 'mistakes' ? 'Mistake practice' : 'Full quiz'} results</p></div><button className="primary-button" onClick={() => beginQuiz(selectedQuiz, missed.length ? 'smart' : 'full')} type="button"><RefreshCw size={17} />{missed.length ? 'Continue smart review' : 'Retake quiz'}</button></div>
         <div className="study-result-summary"><div><span>Score</span><strong>{correct} / {sessionAnswers.length}</strong></div><div><span>Accuracy</span><strong>{percent}%</strong></div><div><span>To review</span><strong>{missed.length}</strong></div></div>
         <section className="study-review-card"><div className="study-section-title"><div><p className="eyebrow">Answer review</p><h2>Learn from this attempt</h2></div></div>{sessionAnswers.map((answer, index) => <article className={`study-review-row ${answer.correct ? 'correct' : 'wrong'}`} key={answer.question.id}><span>{answer.correct ? <CheckCircle2 size={18} /> : <X size={18} />}</span><div><small>Question {index + 1}</small><strong>{answer.question.prompt}</strong><p>You answered: {optionText(answer.question, answer.selected)} · Correct: {optionText(answer.question, answer.question.correct_option)}</p>{answer.question.explanation && <em>{answer.question.explanation}</em>}</div></article>)}</section>
       </section>
@@ -2670,7 +2691,34 @@ function StudyQuizView({ session }: { session: Session }) {
       <div className="study-page-header study-library-header"><div><p className="eyebrow">Study</p><h1>Your study quizzes</h1><p>Create, practise, review mistakes, and build lasting mastery.</p></div><button className="primary-button" onClick={() => { resetCreate(); setScreen('create'); }} type="button"><Plus size={17} /> Create quiz</button></div>
       <div className="study-overview-grid"><article><Flame size={21} /><span>Study streak</span><strong>{streak} day{streak === 1 ? '' : 's'}</strong></article><article><CalendarDays size={21} /><span>Last 7 days</span><strong>{weekAttempts.length} attempt{weekAttempts.length === 1 ? '' : 's'}</strong></article><article><BarChart3 size={21} /><span>Questions answered</span><strong>{attempts.reduce((total, attempt) => total + attempt.question_count, 0)}</strong></article><article><Trophy size={21} /><span>Average accuracy</span><strong>{attempts.length ? Math.round((attempts.reduce((total, attempt) => total + attempt.correct_count, 0) / attempts.reduce((total, attempt) => total + attempt.question_count, 0)) * 100) : 0}%</strong></article></div>
       {message && <p className="form-message">{message}</p>}
-      {loading ? <div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Loading your study library…</strong></div> : quizzes.length === 0 ? <section className="study-empty"><GraduationCap size={36} /><h2>Create your first study quiz</h2><p>Add questions yourself or upload a CSV. Every attempt will track progress and turn mistakes into focused practice.</p><button className="primary-button" onClick={() => setScreen('create')} type="button"><Plus size={17} /> Create a study quiz</button></section> : <div className="study-quiz-grid">{quizzes.map((quiz) => { const quizQuestions = questions.filter((question) => question.quiz_id === quiz.id); const quizAttempts = attempts.filter((attempt) => attempt.quiz_id === quiz.id); const latest = quizAttempts[0]; const best = quizAttempts.length ? Math.max(...quizAttempts.map((attempt) => Math.round((attempt.correct_count / attempt.question_count) * 100))) : 0; const mistakes = quizQuestions.filter((question) => latestAnswerByQuestion.get(question.id)?.is_correct === false).length; const mastered = quizQuestions.filter((question) => answerHistory.filter((answer) => answer.question_id === question.id).slice(0, 3).length === 3 && answerHistory.filter((answer) => answer.question_id === question.id).slice(0, 3).every((answer) => answer.is_correct)).length; return <article className="study-quiz-card" key={quiz.id}><div className="study-quiz-heading"><span><GraduationCap size={20} /></span><div><small>{quiz.subject}</small><h2>{quiz.title}</h2></div><button className="icon-button neutral" onClick={() => void deleteQuiz(quiz)} type="button" aria-label={`Delete ${quiz.title}`}><Trash2 size={16} /></button></div><p>{quiz.description || 'A private study quiz.'}</p><div className="study-quiz-meta"><div><span>Questions</span><strong>{quizQuestions.length}</strong></div><div><span>Best</span><strong>{quizAttempts.length ? `${best}%` : '—'}</strong></div><div><span>Mastered</span><strong>{mastered}/{quizQuestions.length}</strong></div></div><div className="study-last-taken"><span>{latest ? `Last taken ${new Date(latest.completed_at).toLocaleDateString()}` : 'Not taken yet'}</span>{mistakes > 0 && <strong>{mistakes} to review</strong>}</div><div className="study-card-actions"><button className="primary-button" onClick={() => beginQuiz(quiz, 'full')} type="button"><Play size={17} /> {latest ? 'Retake quiz' : 'Start quiz'}</button>{mistakes > 0 && <button className="ghost-button table-button" onClick={() => beginQuiz(quiz, 'mistakes')} type="button"><RefreshCw size={16} /> Mistakes</button>}</div></article>; })}</div>}
+      {loading ? (
+        <div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Loading your study library…</strong></div>
+      ) : quizzes.length === 0 ? (
+        <section className="study-empty"><GraduationCap size={36} /><h2>Create your first study quiz</h2><p>Add questions yourself or upload a CSV. Every attempt will track progress and turn mistakes into focused practice.</p><button className="primary-button" onClick={() => setScreen('create')} type="button"><Plus size={17} /> Create a study quiz</button></section>
+      ) : (
+        <div className="study-quiz-grid">
+          {quizzes.map((quiz) => {
+            const quizQuestions = questions.filter((question) => question.quiz_id === quiz.id);
+            const quizAttempts = attempts.filter((attempt) => attempt.quiz_id === quiz.id);
+            const latest = quizAttempts[0];
+            const best = quizAttempts.length ? Math.max(...quizAttempts.map((attempt) => Math.round((attempt.correct_count / attempt.question_count) * 100))) : 0;
+            const due = quizQuestions.filter((question) => new Date(question.next_review_at).getTime() <= Date.now() || latestAnswerByQuestion.get(question.id)?.is_correct === false).length;
+            const mastered = quizQuestions.filter((question) => question.mastery_level >= 4).length;
+            return (
+              <article className="study-quiz-card" key={quiz.id}>
+                <div className="study-quiz-heading"><span><GraduationCap size={20} /></span><div><small>{quiz.subject}</small><h2>{quiz.title}</h2></div><button className="icon-button neutral" onClick={() => void deleteQuiz(quiz)} type="button" aria-label={`Delete ${quiz.title}`}><Trash2 size={16} /></button></div>
+                <p>{quiz.description || 'A private study quiz.'}</p>
+                <div className="study-quiz-meta"><div><span>Due today</span><strong>{due}</strong></div><div><span>Best</span><strong>{quizAttempts.length ? `${best}%` : '—'}</strong></div><div><span>Mastered</span><strong>{mastered}/{quizQuestions.length}</strong></div></div>
+                <div className="study-last-taken"><span>{latest ? `Last taken ${new Date(latest.completed_at).toLocaleDateString()}` : `${quizQuestions.length} questions`}</span>{due > 0 && <strong>About {Math.max(1, Math.ceil(Math.min(due, 15) * 0.4))} min</strong>}</div>
+                <div className="study-card-actions">
+                  <button className="primary-button" onClick={() => beginQuiz(quiz, due > 0 && latest ? 'smart' : 'full')} type="button">{due > 0 && latest ? <RefreshCw size={17} /> : <Play size={17} />}{due > 0 && latest ? `Smart review · ${Math.min(due, 15)}` : latest ? 'Retake quiz' : 'Start quiz'}</button>
+                  {latest && <button className="ghost-button table-button" onClick={() => beginQuiz(quiz, 'full')} type="button">Full quiz</button>}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
@@ -2860,7 +2908,7 @@ function DashboardLaunchGrid({
   studyAnswers.forEach((answer) => {
     if (!latestAnswerByQuestion.has(answer.question_id)) latestAnswerByQuestion.set(answer.question_id, answer);
   });
-  const mistakes = studyQuestions.filter((question) => latestAnswerByQuestion.get(question.id)?.is_correct === false);
+  const dueQuestions = studyQuestions.filter((question) => new Date(question.next_review_at).getTime() <= Date.now() || latestAnswerByQuestion.get(question.id)?.is_correct === false);
   const latestStudyAttempt = studyAttempts[0];
   const latestQuiz = studyQuizzes.find((quiz) => quiz.id === latestStudyAttempt?.quiz_id) || studyQuizzes[0];
   const studyDates = new Set(studyAttempts.map((attempt) => getLocalDateKey(new Date(attempt.completed_at))));
@@ -2873,8 +2921,8 @@ function DashboardLaunchGrid({
   }
   const studyPrompt = studyQuizzes.length === 0
     ? 'Create your first private quiz and start tracking your progress.'
-    : mistakes.length > 0
-      ? `${mistakes.length} question${mistakes.length === 1 ? '' : 's'} ready for focused review${latestQuiz ? `, including ${latestQuiz.title}` : ''}.`
+    : dueQuestions.length > 0
+      ? `${dueQuestions.length} question${dueQuestions.length === 1 ? '' : 's'} due for focused review${latestQuiz ? `, including ${latestQuiz.title}` : ''}.`
       : latestQuiz
         ? `Continue ${latestQuiz.title} or create another study quiz.`
         : 'Your study library is ready.';
@@ -2894,11 +2942,11 @@ function DashboardLaunchGrid({
       <section className="dashboard-launch-card study">
         <div className="dashboard-launch-heading">
           <span><GraduationCap size={21} /></span>
-          <div><p className="eyebrow">Study</p><h2>{mistakes.length ? 'Mistakes to practise' : studyQuizzes.length ? 'Keep learning' : 'Build your first quiz'}</h2></div>
+          <div><p className="eyebrow">Study</p><h2>{dueQuestions.length ? 'Review due today' : studyQuizzes.length ? 'Keep learning' : 'Build your first quiz'}</h2></div>
         </div>
         <p>{studyPrompt}</p>
         <div className="dashboard-launch-status"><span><Flame size={15} /> {studyStreak} day streak</span><strong>{studyQuizzes.length} quiz{studyQuizzes.length === 1 ? '' : 'zes'}</strong></div>
-        <button className="primary-button" onClick={onStudy} type="button"><GraduationCap size={17} />{mistakes.length ? `Review ${mistakes.length} mistake${mistakes.length === 1 ? '' : 's'}` : studyQuizzes.length ? 'Continue studying' : 'Create study quiz'}</button>
+        <button className="primary-button" onClick={onStudy} type="button"><GraduationCap size={17} />{dueQuestions.length ? `Review ${dueQuestions.length} due` : studyQuizzes.length ? 'Continue studying' : 'Create study quiz'}</button>
       </section>
 
       <section className="dashboard-launch-card play">
