@@ -1870,10 +1870,6 @@ function Dashboard({ session }: { session: Session }) {
             <h1>What would you like to do today?</h1>
           </div>
           <div className="table-toolbar-actions">
-            <button className="ghost-button table-button" onClick={() => setActiveView('study')} type="button">
-              <GraduationCap size={18} />
-              Study
-            </button>
             <button
               className="ghost-button table-button toolbar-packs-button"
               onClick={() => {
