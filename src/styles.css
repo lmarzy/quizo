@@ -10856,6 +10856,18 @@ body,
   margin-bottom: 28px;
 }
 
+.study-workspace-switcher { margin-bottom: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.study-workspace-tabs { display: flex; gap: 8px; overflow-x: auto; }
+.study-workspace-tabs > button { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 150px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); text-align: left; background: #fafafa; cursor: pointer; }
+.study-workspace-tabs > button span { color: var(--muted); font-size: .65rem; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+.study-workspace-tabs > button.active { color: #fff; border-color: var(--ink); background: var(--ink); }
+.study-workspace-tabs > button.active span { color: #d7d7d7; }
+.study-workspace-tabs > .study-add-workspace { min-width: auto; flex-direction: row; align-items: center; justify-content: center; border-style: dashed; font-weight: 800; }
+.study-workspace-context { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 4px 0; color: var(--muted); font-size: .76rem; }
+.study-workspace-context strong { color: var(--ink); }
+.study-workspace-form { display: grid; grid-template-columns: 1.25fr .7fr 1fr .75fr .8fr auto; gap: 10px; align-items: end; margin-bottom: 16px; padding: 16px; border: 1px solid #e5c99f; border-radius: 18px; background: #fffaf2; }
+.study-workspace-form input, .study-workspace-form select { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; color: inherit; background: #fff; font: inherit; box-sizing: border-box; }
+
 .study-overview-grid article {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -10912,9 +10924,10 @@ body,
 .study-form-card { padding: 20px; position: sticky; top: 20px; }
 .study-form-card label, .study-question-editor > label { display: flex; flex-direction: column; gap: 7px; margin-bottom: 15px; font-weight: 750; }
 .study-form-card input, .study-form-card textarea, .study-question-editor input, .study-question-editor textarea { width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 11px 12px; background: var(--surface); color: inherit; font: inherit; box-sizing: border-box; }
-.study-quiz-details { position: static; display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr) 290px; gap: 16px; align-items: stretch; }
+.study-quiz-details { position: static; display: grid; grid-template-columns: minmax(210px, .8fr) minmax(190px, .7fr) minmax(260px, 1.1fr) 260px; gap: 14px; align-items: stretch; }
 .study-details-fields { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .study-details-fields label { margin: 0; }
+.study-details-fields label small { font-weight: 500; }
 .study-description-field { margin: 0 !important; }
 .study-description-field textarea { flex: 1; min-height: 0; resize: vertical; }
 .study-quiz-details .study-upload-button { height: 100%; margin: 0; box-sizing: border-box; }
@@ -10959,6 +10972,11 @@ body,
 .study-editor-paging > span { display: inline-flex; align-items: center; justify-content: center; gap: 5px; color: var(--muted); font-size: .74rem; font-weight: 750; }
 .study-next-arrow { transform: rotate(180deg); }
 
+@media (max-width: 1100px) {
+  .study-quiz-details { grid-template-columns: 1fr 1fr; }
+  .study-workspace-form { grid-template-columns: repeat(3, 1fr); }
+}
+
 .study-session-shell { max-width: 900px; }
 .study-play-card { margin-top: 18px; padding: 28px; }
 .study-play-card > h2 { margin: 0 0 22px; font-size: clamp(1.35rem, 2.5vw, 2rem); }
@@ -10990,6 +11008,7 @@ body,
   .study-quiz-details { grid-template-columns: 1fr; align-items: stretch; }
   .study-quiz-details > .form-message { grid-column: auto; margin-top: 0; }
   .study-builder-workspace { grid-template-columns: 1fr; }
+  .study-workspace-form { grid-template-columns: 1fr 1fr; }
   .study-question-nav-list { max-height: 250px; }
   .study-form-card { position: static; }
 }
@@ -10999,6 +11018,7 @@ body,
   .study-card-actions { flex-direction: column; }
   .study-quiz-meta, .study-result-summary { grid-template-columns: 1fr; }
   .study-option-editor label { grid-template-columns: auto auto 1fr; }
+  .study-workspace-form { grid-template-columns: 1fr; }
   .study-editor-paging { grid-template-columns: 1fr 1fr; }
   .study-editor-paging > span { grid-column: 1 / -1; grid-row: 1; }
 }

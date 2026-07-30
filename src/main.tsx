@@ -65,6 +65,20 @@ type StudyQuiz = {
   description: string | null;
   created_at: string;
   updated_at: string;
+  workspace_id: string;
+  module_name: string | null;
+  topic_name: string | null;
+};
+
+type StudyWorkspace = {
+  id: string;
+  title: string;
+  study_level: 'gcse' | 'a_level' | 'degree' | 'professional' | 'personal';
+  organisation: string | null;
+  target: string | null;
+  assessment_date: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type StudyQuestion = {
@@ -1048,7 +1062,7 @@ function Dashboard({ session }: { session: Session }) {
           .eq('user_id', session.user.id)
           .gte('challenge_date', getLocalDateKey(addLocalDays(new Date(), -120)))
           .order('challenge_date', { ascending: false }),
-        supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at').order('updated_at', { ascending: false }),
+        supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at,workspace_id,module_name,topic_name').order('updated_at', { ascending: false }),
         supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position,mastery_level,next_review_at,last_reviewed_at').order('position'),
         supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
         supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
@@ -2340,6 +2354,7 @@ function shuffleStudyQuestionOptions(question: StudyQuestion) {
 }
 
 function StudyQuizView({ session }: { session: Session }) {
+  const [workspaces, setWorkspaces] = useState<StudyWorkspace[]>([]);
   const [quizzes, setQuizzes] = useState<StudyQuiz[]>([]);
   const [questions, setQuestions] = useState<StudyQuestion[]>([]);
   const [attempts, setAttempts] = useState<StudyAttempt[]>([]);
@@ -2354,6 +2369,15 @@ function StudyQuizView({ session }: { session: Session }) {
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
+  const [moduleName, setModuleName] = useState('');
+  const [topicName, setTopicName] = useState('');
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('');
+  const [workspaceFormOpen, setWorkspaceFormOpen] = useState(false);
+  const [workspaceTitle, setWorkspaceTitle] = useState('');
+  const [workspaceLevel, setWorkspaceLevel] = useState<StudyWorkspace['study_level']>('gcse');
+  const [workspaceOrganisation, setWorkspaceOrganisation] = useState('');
+  const [workspaceTarget, setWorkspaceTarget] = useState('');
+  const [workspaceDate, setWorkspaceDate] = useState('');
   const [draftQuestions, setDraftQuestions] = useState<StudyQuestionDraft[]>([emptyStudyQuestion()]);
   const [selectedDraftIndex, setSelectedDraftIndex] = useState(0);
   const [questionSearch, setQuestionSearch] = useState('');
@@ -2364,18 +2388,22 @@ function StudyQuizView({ session }: { session: Session }) {
 
   async function loadStudyData() {
     setLoading(true);
-    const [quizResult, questionResult, attemptResult, answerResult] = await Promise.all([
-      supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at').order('updated_at', { ascending: false }),
+    const [workspaceResult, quizResult, questionResult, attemptResult, answerResult] = await Promise.all([
+      supabase.from('study_workspaces').select('id,title,study_level,organisation,target,assessment_date,created_at,updated_at').order('updated_at', { ascending: false }),
+      supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at,workspace_id,module_name,topic_name').order('updated_at', { ascending: false }),
       supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position,mastery_level,next_review_at,last_reviewed_at').order('position'),
       supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
       supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
     ]);
     setLoading(false);
-    const error = quizResult.error || questionResult.error || attemptResult.error || answerResult.error;
+    const error = workspaceResult.error || quizResult.error || questionResult.error || attemptResult.error || answerResult.error;
     if (error) {
       setMessage(error.message);
       return;
     }
+    const nextWorkspaces = (workspaceResult.data || []) as StudyWorkspace[];
+    setWorkspaces(nextWorkspaces);
+    setSelectedWorkspaceId((current) => current && nextWorkspaces.some((workspace) => workspace.id === current) ? current : nextWorkspaces[0]?.id || '');
     setQuizzes((quizResult.data || []) as StudyQuiz[]);
     setQuestions((questionResult.data || []) as StudyQuestion[]);
     setAttempts((attemptResult.data || []) as StudyAttempt[]);
@@ -2400,6 +2428,8 @@ function StudyQuizView({ session }: { session: Session }) {
   answerHistory.forEach((answer) => {
     if (!latestAnswerByQuestion.has(answer.question_id)) latestAnswerByQuestion.set(answer.question_id, answer);
   });
+  const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null;
+  const visibleQuizzes = selectedWorkspaceId ? quizzes.filter((quiz) => quiz.workspace_id === selectedWorkspaceId) : [];
 
   function optionText(question: StudyQuestion, option: 'A' | 'B' | 'C') {
     return option === 'A' ? question.option_a : option === 'B' ? question.option_b : question.option_c;
@@ -2409,6 +2439,8 @@ function StudyQuizView({ session }: { session: Session }) {
     setTitle('');
     setSubject('');
     setDescription('');
+    setModuleName('');
+    setTopicName('');
     setDraftQuestions([emptyStudyQuestion()]);
     setSelectedDraftIndex(0);
     setQuestionSearch('');
@@ -2423,8 +2455,8 @@ function StudyQuizView({ session }: { session: Session }) {
 
   async function createQuiz() {
     const validQuestions = draftQuestions.filter((question) => question.prompt.trim() || question.option_a.trim() || question.option_b.trim() || question.option_c.trim());
-    if (!title.trim() || !subject.trim()) {
-      setMessage('Add a quiz title and subject.');
+    if (!selectedWorkspaceId || !title.trim() || !subject.trim()) {
+      setMessage('Choose a workspace, then add a quiz title and subject.');
       return;
     }
     if (!validQuestions.length || validQuestions.some((question) => !question.prompt.trim() || !question.option_a.trim() || !question.option_b.trim() || !question.option_c.trim())) {
@@ -2435,9 +2467,12 @@ function StudyQuizView({ session }: { session: Session }) {
     setMessage('');
     const { data: quiz, error: quizError } = await supabase.from('study_quizzes').insert({
       owner_user_id: session.user.id,
+      workspace_id: selectedWorkspaceId,
       title: title.trim(),
       subject: subject.trim(),
       description: description.trim() || null,
+      module_name: moduleName.trim() || null,
+      topic_name: topicName.trim() || null,
     }).select('id').single();
     if (quizError || !quiz) {
       setBusy(false);
@@ -2583,6 +2618,34 @@ function StudyQuizView({ session }: { session: Session }) {
     else await loadStudyData();
   }
 
+  async function createWorkspace() {
+    if (!workspaceTitle.trim()) {
+      setMessage('Add a workspace title.');
+      return;
+    }
+    setBusy(true);
+    const { data, error } = await supabase.from('study_workspaces').insert({
+      owner_user_id: session.user.id,
+      title: workspaceTitle.trim(),
+      study_level: workspaceLevel,
+      organisation: workspaceOrganisation.trim() || null,
+      target: workspaceTarget.trim() || null,
+      assessment_date: workspaceDate || null,
+    }).select('id').single();
+    setBusy(false);
+    if (error || !data) {
+      setMessage(error?.message || 'Could not create the workspace.');
+      return;
+    }
+    setWorkspaceTitle('');
+    setWorkspaceOrganisation('');
+    setWorkspaceTarget('');
+    setWorkspaceDate('');
+    setWorkspaceFormOpen(false);
+    await loadStudyData();
+    setSelectedWorkspaceId(data.id);
+  }
+
   if (screen === 'create') {
     const selectedDraft = draftQuestions[selectedDraftIndex] || draftQuestions[0];
     const isComplete = (question: StudyQuestionDraft) => Boolean(question.prompt.trim() && question.option_a.trim() && question.option_b.trim() && question.option_c.trim());
@@ -2612,7 +2675,7 @@ function StudyQuizView({ session }: { session: Session }) {
     return (
       <section className="study-shell">
         <div className="study-page-header study-create-header">
-          <div><button className="ghost-button table-button study-inline-back" onClick={() => { resetCreate(); setScreen('library'); }} type="button"><ArrowLeft size={17} /> Library</button><p className="eyebrow">Study quiz</p><h1>Create a quiz</h1><p>Add questions manually or import a CSV, then review everything before saving.</p></div>
+          <div><button className="ghost-button table-button study-inline-back" onClick={() => { resetCreate(); setScreen('library'); }} type="button"><ArrowLeft size={17} /> Library</button><p className="eyebrow">Study quiz{selectedWorkspace ? ` · ${selectedWorkspace.title}` : ''}</p><h1>Create a quiz</h1><p>Add questions manually or import a CSV, then review everything before saving.</p></div>
           <button className="primary-button" disabled={busy} onClick={() => void createQuiz()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : <Save size={17} />} Save quiz</button>
         </div>
         <div className="study-create-layout">
@@ -2620,6 +2683,10 @@ function StudyQuizView({ session }: { session: Session }) {
             <div className="study-details-fields">
               <label>Quiz title<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Biology: Cell Structure" /></label>
               <label>Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Biology" /></label>
+            </div>
+            <div className="study-details-fields study-placement-fields">
+              <label>Unit or module <small>(optional)</small><input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="Paper 1 or Module 2" /></label>
+              <label>Topic <small>(optional)</small><input value={topicName} onChange={(event) => setTopicName(event.target.value)} placeholder="Cell biology" /></label>
             </div>
             <label className="study-description-field">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional notes about this quiz" rows={4} /></label>
             <label className="study-upload-button"><Upload size={18} /><span><strong>Import questions from CSV</strong><small>question, answer, wrong_answer_1, wrong_answer_2, explanation</small></span><input accept=".csv,text/csv" onChange={(event) => event.target.files?.[0] && void importCsv(event.target.files[0])} type="file" /></label>
@@ -2686,18 +2753,32 @@ function StudyQuizView({ session }: { session: Session }) {
     );
   }
 
+  const levelLabels: Record<StudyWorkspace['study_level'], string> = {
+    gcse: 'GCSE', a_level: 'A-Level', degree: 'Degree', professional: 'Professional', personal: 'Personal',
+  };
+
   return (
     <section className="study-shell">
-      <div className="study-page-header study-library-header"><div><p className="eyebrow">Study</p><h1>Your study quizzes</h1><p>Create, practise, review mistakes, and build lasting mastery.</p></div><button className="primary-button" onClick={() => { resetCreate(); setScreen('create'); }} type="button"><Plus size={17} /> Create quiz</button></div>
+      <div className="study-page-header study-library-header"><div><p className="eyebrow">Study</p><h1>Your study quizzes</h1><p>Create, practise, review mistakes, and build lasting mastery.</p></div><button className="primary-button" onClick={() => { if (workspaces.length === 0) setWorkspaceFormOpen(true); else { resetCreate(); setScreen('create'); } }} type="button"><Plus size={17} /> {workspaces.length === 0 ? 'Create workspace' : 'Create quiz'}</button></div>
+      <section className="study-workspace-switcher">
+        <div className="study-workspace-tabs">
+          {workspaces.map((workspace) => <button className={workspace.id === selectedWorkspaceId ? 'active' : ''} key={workspace.id} onClick={() => setSelectedWorkspaceId(workspace.id)} type="button"><span>{levelLabels[workspace.study_level]}</span><strong>{workspace.title}</strong></button>)}
+          <button className="study-add-workspace" onClick={() => setWorkspaceFormOpen((current) => !current)} type="button"><Plus size={16} /> New workspace</button>
+        </div>
+        {selectedWorkspace && <div className="study-workspace-context"><span>{selectedWorkspace.organisation || levelLabels[selectedWorkspace.study_level]}</span>{selectedWorkspace.target && <strong>Target: {selectedWorkspace.target}</strong>}{selectedWorkspace.assessment_date && <strong>{Math.max(0, Math.ceil((new Date(selectedWorkspace.assessment_date).getTime() - Date.now()) / 86400000))} days to assessment</strong>}</div>}
+      </section>
+      {workspaceFormOpen && <section className="study-workspace-form"><label>Workspace title<input value={workspaceTitle} onChange={(event) => setWorkspaceTitle(event.target.value)} placeholder="GCSE Biology or Contract Law" /></label><label>Level<select value={workspaceLevel} onChange={(event) => setWorkspaceLevel(event.target.value as StudyWorkspace['study_level'])}><option value="gcse">GCSE</option><option value="a_level">A-Level</option><option value="degree">Degree</option><option value="professional">Professional</option><option value="personal">Personal study</option></select></label><label>Exam board or institution<input value={workspaceOrganisation} onChange={(event) => setWorkspaceOrganisation(event.target.value)} placeholder="Optional" /></label><label>Target<input value={workspaceTarget} onChange={(event) => setWorkspaceTarget(event.target.value)} placeholder="Grade 8, First, Pass" /></label><label>Assessment date<input value={workspaceDate} onChange={(event) => setWorkspaceDate(event.target.value)} type="date" /></label><button className="primary-button" disabled={busy} onClick={() => void createWorkspace()} type="button"><Save size={16} /> Create workspace</button></section>}
       <div className="study-overview-grid"><article><Flame size={21} /><span>Study streak</span><strong>{streak} day{streak === 1 ? '' : 's'}</strong></article><article><CalendarDays size={21} /><span>Last 7 days</span><strong>{weekAttempts.length} attempt{weekAttempts.length === 1 ? '' : 's'}</strong></article><article><BarChart3 size={21} /><span>Questions answered</span><strong>{attempts.reduce((total, attempt) => total + attempt.question_count, 0)}</strong></article><article><Trophy size={21} /><span>Average accuracy</span><strong>{attempts.length ? Math.round((attempts.reduce((total, attempt) => total + attempt.correct_count, 0) / attempts.reduce((total, attempt) => total + attempt.question_count, 0)) * 100) : 0}%</strong></article></div>
       {message && <p className="form-message">{message}</p>}
       {loading ? (
         <div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Loading your study library…</strong></div>
-      ) : quizzes.length === 0 ? (
-        <section className="study-empty"><GraduationCap size={36} /><h2>Create your first study quiz</h2><p>Add questions yourself or upload a CSV. Every attempt will track progress and turn mistakes into focused practice.</p><button className="primary-button" onClick={() => setScreen('create')} type="button"><Plus size={17} /> Create a study quiz</button></section>
+      ) : workspaces.length === 0 ? (
+        <section className="study-empty"><GraduationCap size={36} /><h2>Create your first study workspace</h2><p>Organise a qualification, degree course, professional subject, or one focused topic.</p><button className="primary-button" onClick={() => setWorkspaceFormOpen(true)} type="button"><Plus size={17} /> Create workspace</button></section>
+      ) : visibleQuizzes.length === 0 ? (
+        <section className="study-empty"><GraduationCap size={36} /><h2>Add a quiz to {selectedWorkspace?.title}</h2><p>Build questions manually or upload a CSV, then use Smart Review to retain what you learn.</p><button className="primary-button" onClick={() => setScreen('create')} type="button"><Plus size={17} /> Create a study quiz</button></section>
       ) : (
         <div className="study-quiz-grid">
-          {quizzes.map((quiz) => {
+          {visibleQuizzes.map((quiz) => {
             const quizQuestions = questions.filter((question) => question.quiz_id === quiz.id);
             const quizAttempts = attempts.filter((attempt) => attempt.quiz_id === quiz.id);
             const latest = quizAttempts[0];
@@ -2706,7 +2787,7 @@ function StudyQuizView({ session }: { session: Session }) {
             const mastered = quizQuestions.filter((question) => question.mastery_level >= 4).length;
             return (
               <article className="study-quiz-card" key={quiz.id}>
-                <div className="study-quiz-heading"><span><GraduationCap size={20} /></span><div><small>{quiz.subject}</small><h2>{quiz.title}</h2></div><button className="icon-button neutral" onClick={() => void deleteQuiz(quiz)} type="button" aria-label={`Delete ${quiz.title}`}><Trash2 size={16} /></button></div>
+                <div className="study-quiz-heading"><span><GraduationCap size={20} /></span><div><small>{[quiz.subject, quiz.module_name, quiz.topic_name].filter(Boolean).join(' · ')}</small><h2>{quiz.title}</h2></div><button className="icon-button neutral" onClick={() => void deleteQuiz(quiz)} type="button" aria-label={`Delete ${quiz.title}`}><Trash2 size={16} /></button></div>
                 <p>{quiz.description || 'A private study quiz.'}</p>
                 <div className="study-quiz-meta"><div><span>Due today</span><strong>{due}</strong></div><div><span>Best</span><strong>{quizAttempts.length ? `${best}%` : '—'}</strong></div><div><span>Mastered</span><strong>{mastered}/{quizQuestions.length}</strong></div></div>
                 <div className="study-last-taken"><span>{latest ? `Last taken ${new Date(latest.completed_at).toLocaleDateString()}` : `${quizQuestions.length} questions`}</span>{due > 0 && <strong>About {Math.max(1, Math.ceil(Math.min(due, 15) * 0.4))} min</strong>}</div>
