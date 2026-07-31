@@ -8,9 +8,22 @@ max_rows = 1000
 
 [auth]
 enabled = true
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5173"]
+site_url = "https://quizow.netlify.app"
+additional_redirect_urls = ["https://quizow.netlify.app/**", "http://localhost:5173/**", "http://127.0.0.1:5173/**"]
 enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = false
+max_frequency = "1m"
+otp_length = 8
+otp_expiry = 3600
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
 
 [db]
 major_version = 17

@@ -679,6 +679,7 @@ function AuthScreen() {
             password,
             options: {
               data: { display_name: nextDisplayName },
+              emailRedirectTo: `${getPublicAppUrl()}/dashboard`,
             },
           })
         : await supabase.auth.signInWithPassword({ email, password });
