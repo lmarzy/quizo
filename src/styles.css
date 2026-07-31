@@ -10865,7 +10865,7 @@ body,
 .study-workspace-tabs > .study-add-workspace { min-width: auto; flex-direction: row; align-items: center; justify-content: center; border-style: dashed; font-weight: 800; }
 .study-workspace-context { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 4px 0; color: var(--muted); font-size: .76rem; }
 .study-workspace-context strong { color: var(--ink); }
-.study-workspace-form { display: grid; grid-template-columns: 1.25fr .7fr 1fr .75fr .8fr auto; gap: 10px; align-items: end; margin-bottom: 16px; padding: 16px; border: 1px solid #e5c99f; border-radius: 18px; background: #fffaf2; }
+.study-workspace-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: end; margin-bottom: 16px; padding: 16px; border: 1px solid #e5c99f; border-radius: 18px; background: #fffaf2; }
 .study-workspace-form input, .study-workspace-form select { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; color: inherit; background: #fff; font: inherit; box-sizing: border-box; }
 
 .study-overview-grid article {

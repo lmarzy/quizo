@@ -73,8 +73,10 @@ type StudyQuiz = {
 type StudyWorkspace = {
   id: string;
   title: string;
-  study_level: 'gcse' | 'a_level' | 'degree' | 'professional' | 'personal';
+  study_level: 'gcse' | 'a_level' | 'degree' | 'ib' | 'ap' | 'secondary' | 'pre_university' | 'vocational' | 'undergraduate' | 'postgraduate' | 'professional' | 'personal' | 'custom';
   organisation: string | null;
+  curriculum: string | null;
+  country_region: string | null;
   target: string | null;
   assessment_date: string | null;
   created_at: string;
@@ -2374,8 +2376,10 @@ function StudyQuizView({ session }: { session: Session }) {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('');
   const [workspaceFormOpen, setWorkspaceFormOpen] = useState(false);
   const [workspaceTitle, setWorkspaceTitle] = useState('');
-  const [workspaceLevel, setWorkspaceLevel] = useState<StudyWorkspace['study_level']>('gcse');
+  const [workspaceLevel, setWorkspaceLevel] = useState<StudyWorkspace['study_level']>('personal');
   const [workspaceOrganisation, setWorkspaceOrganisation] = useState('');
+  const [workspaceCurriculum, setWorkspaceCurriculum] = useState('');
+  const [workspaceRegion, setWorkspaceRegion] = useState('');
   const [workspaceTarget, setWorkspaceTarget] = useState('');
   const [workspaceDate, setWorkspaceDate] = useState('');
   const [draftQuestions, setDraftQuestions] = useState<StudyQuestionDraft[]>([emptyStudyQuestion()]);
@@ -2389,7 +2393,7 @@ function StudyQuizView({ session }: { session: Session }) {
   async function loadStudyData() {
     setLoading(true);
     const [workspaceResult, quizResult, questionResult, attemptResult, answerResult] = await Promise.all([
-      supabase.from('study_workspaces').select('id,title,study_level,organisation,target,assessment_date,created_at,updated_at').order('updated_at', { ascending: false }),
+      supabase.from('study_workspaces').select('id,title,study_level,organisation,curriculum,country_region,target,assessment_date,created_at,updated_at').order('updated_at', { ascending: false }),
       supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at,workspace_id,module_name,topic_name').order('updated_at', { ascending: false }),
       supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position,mastery_level,next_review_at,last_reviewed_at').order('position'),
       supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
@@ -2629,6 +2633,8 @@ function StudyQuizView({ session }: { session: Session }) {
       title: workspaceTitle.trim(),
       study_level: workspaceLevel,
       organisation: workspaceOrganisation.trim() || null,
+      curriculum: workspaceCurriculum.trim() || null,
+      country_region: workspaceRegion.trim() || null,
       target: workspaceTarget.trim() || null,
       assessment_date: workspaceDate || null,
     }).select('id').single();
@@ -2639,6 +2645,8 @@ function StudyQuizView({ session }: { session: Session }) {
     }
     setWorkspaceTitle('');
     setWorkspaceOrganisation('');
+    setWorkspaceCurriculum('');
+    setWorkspaceRegion('');
     setWorkspaceTarget('');
     setWorkspaceDate('');
     setWorkspaceFormOpen(false);
@@ -2685,7 +2693,7 @@ function StudyQuizView({ session }: { session: Session }) {
               <label>Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Biology" /></label>
             </div>
             <div className="study-details-fields study-placement-fields">
-              <label>Unit or module <small>(optional)</small><input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="Paper 1 or Module 2" /></label>
+              <label>Section, unit or module <small>(optional)</small><input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="Unit 1, Chapter 3 or Module 2" /></label>
               <label>Topic <small>(optional)</small><input value={topicName} onChange={(event) => setTopicName(event.target.value)} placeholder="Cell biology" /></label>
             </div>
             <label className="study-description-field">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional notes about this quiz" rows={4} /></label>
@@ -2754,7 +2762,7 @@ function StudyQuizView({ session }: { session: Session }) {
   }
 
   const levelLabels: Record<StudyWorkspace['study_level'], string> = {
-    gcse: 'GCSE', a_level: 'A-Level', degree: 'Degree', professional: 'Professional', personal: 'Personal',
+    gcse: 'GCSE', a_level: 'A-Level', degree: 'Degree', ib: 'IB', ap: 'AP', secondary: 'Secondary', pre_university: 'Pre-university', vocational: 'Vocational', undergraduate: 'Undergraduate', postgraduate: 'Postgraduate', professional: 'Professional', personal: 'Personal', custom: 'Custom',
   };
 
   return (
@@ -2765,9 +2773,9 @@ function StudyQuizView({ session }: { session: Session }) {
           {workspaces.map((workspace) => <button className={workspace.id === selectedWorkspaceId ? 'active' : ''} key={workspace.id} onClick={() => setSelectedWorkspaceId(workspace.id)} type="button"><span>{levelLabels[workspace.study_level]}</span><strong>{workspace.title}</strong></button>)}
           <button className="study-add-workspace" onClick={() => setWorkspaceFormOpen((current) => !current)} type="button"><Plus size={16} /> New workspace</button>
         </div>
-        {selectedWorkspace && <div className="study-workspace-context"><span>{selectedWorkspace.organisation || levelLabels[selectedWorkspace.study_level]}</span>{selectedWorkspace.target && <strong>Target: {selectedWorkspace.target}</strong>}{selectedWorkspace.assessment_date && <strong>{Math.max(0, Math.ceil((new Date(selectedWorkspace.assessment_date).getTime() - Date.now()) / 86400000))} days to assessment</strong>}</div>}
+        {selectedWorkspace && <div className="study-workspace-context"><span>{[selectedWorkspace.organisation, selectedWorkspace.curriculum, selectedWorkspace.country_region].filter(Boolean).join(' · ') || levelLabels[selectedWorkspace.study_level]}</span>{selectedWorkspace.target && <strong>Goal: {selectedWorkspace.target}</strong>}{selectedWorkspace.assessment_date && <strong>{Math.max(0, Math.ceil((new Date(selectedWorkspace.assessment_date).getTime() - Date.now()) / 86400000))} days to assessment</strong>}</div>}
       </section>
-      {workspaceFormOpen && <section className="study-workspace-form"><label>Workspace title<input value={workspaceTitle} onChange={(event) => setWorkspaceTitle(event.target.value)} placeholder="GCSE Biology or Contract Law" /></label><label>Level<select value={workspaceLevel} onChange={(event) => setWorkspaceLevel(event.target.value as StudyWorkspace['study_level'])}><option value="gcse">GCSE</option><option value="a_level">A-Level</option><option value="degree">Degree</option><option value="professional">Professional</option><option value="personal">Personal study</option></select></label><label>Exam board or institution<input value={workspaceOrganisation} onChange={(event) => setWorkspaceOrganisation(event.target.value)} placeholder="Optional" /></label><label>Target<input value={workspaceTarget} onChange={(event) => setWorkspaceTarget(event.target.value)} placeholder="Grade 8, First, Pass" /></label><label>Assessment date<input value={workspaceDate} onChange={(event) => setWorkspaceDate(event.target.value)} type="date" /></label><button className="primary-button" disabled={busy} onClick={() => void createWorkspace()} type="button"><Save size={16} /> Create workspace</button></section>}
+      {workspaceFormOpen && <section className="study-workspace-form"><label>Workspace title<input value={workspaceTitle} onChange={(event) => setWorkspaceTitle(event.target.value)} placeholder="Organic Chemistry or Data Structures" /></label><label>Study type<select value={workspaceLevel} onChange={(event) => setWorkspaceLevel(event.target.value as StudyWorkspace['study_level'])}><optgroup label="General"><option value="secondary">Secondary school</option><option value="pre_university">Upper secondary / pre-university</option><option value="vocational">Vocational or technical</option><option value="undergraduate">Undergraduate</option><option value="postgraduate">Postgraduate</option><option value="professional">Professional qualification</option><option value="personal">Personal study</option><option value="custom">Custom</option></optgroup><optgroup label="Common presets"><option value="gcse">GCSE</option><option value="a_level">A-Level</option><option value="ib">International Baccalaureate</option><option value="ap">Advanced Placement</option></optgroup></select></label><label>Institution or awarding body<input value={workspaceOrganisation} onChange={(event) => setWorkspaceOrganisation(event.target.value)} placeholder="Optional" /></label><label>Curriculum or programme<input value={workspaceCurriculum} onChange={(event) => setWorkspaceCurriculum(event.target.value)} placeholder="Optional" /></label><label>Country or region<input value={workspaceRegion} onChange={(event) => setWorkspaceRegion(event.target.value)} placeholder="Optional" /></label><label>Target or goal<input value={workspaceTarget} onChange={(event) => setWorkspaceTarget(event.target.value)} placeholder="Grade, classification or goal" /></label><label>Assessment date<input value={workspaceDate} onChange={(event) => setWorkspaceDate(event.target.value)} type="date" /></label><button className="primary-button" disabled={busy} onClick={() => void createWorkspace()} type="button"><Save size={16} /> Create workspace</button></section>}
       <div className="study-overview-grid"><article><Flame size={21} /><span>Study streak</span><strong>{streak} day{streak === 1 ? '' : 's'}</strong></article><article><CalendarDays size={21} /><span>Last 7 days</span><strong>{weekAttempts.length} attempt{weekAttempts.length === 1 ? '' : 's'}</strong></article><article><BarChart3 size={21} /><span>Questions answered</span><strong>{attempts.reduce((total, attempt) => total + attempt.question_count, 0)}</strong></article><article><Trophy size={21} /><span>Average accuracy</span><strong>{attempts.length ? Math.round((attempts.reduce((total, attempt) => total + attempt.correct_count, 0) / attempts.reduce((total, attempt) => total + attempt.question_count, 0)) * 100) : 0}%</strong></article></div>
       {message && <p className="form-message">{message}</p>}
       {loading ? (
