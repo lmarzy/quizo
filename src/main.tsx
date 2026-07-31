@@ -5734,26 +5734,12 @@ function GameRoom({
   const isEliminationLadder = room.game.game_mode === 'elimination_ladder';
   const isSharedQuestionMode = isSpeedRound || isEliminationLadder;
   const mySpeedAnswers = playerIdentity?.memberId ? room.speed_round?.answers.filter((answer) => answer.member_id === playerIdentity.memberId) || [] : [];
-  const myLatestSpeedAnswer = mySpeedAnswers[mySpeedAnswers.length - 1] || null;
-  const hasAnsweredSharedQuestion = Boolean(isEliminationLadder && mySpeedAnswers.length > 0);
-  const inferredSpeedLockMemberId =
-    isSpeedRound &&
-    room.game.current_turn_attempt === 2 &&
-    room.latest_answer &&
-    !room.latest_answer.is_correct &&
-    room.latest_answer.selected_option !== 'TIMEOUT'
-      ? room.latest_answer.member_id || room.members.find((member) => member.display_name === room.latest_answer?.member_name)?.id || null
-      : null;
-  const speedLockedMemberId = isSpeedRound ? room.game.current_member_id || inferredSpeedLockMemberId : null;
-  const speedLockedMember = speedLockedMemberId ? room.members.find((member) => member.id === speedLockedMemberId) || null : null;
-  const speedIsSecondChance = isSpeedRound && Boolean(speedLockedMember);
-  const hasSpeedSecondChance = Boolean(speedIsSecondChance && playerIdentity?.memberId === speedLockedMemberId);
+  const hasAnsweredSharedQuestion = Boolean(isSharedQuestionMode && mySpeedAnswers.length > 0);
   const isMyTurn = isSharedQuestionMode
     ? Boolean(
         playerIdentity?.memberId &&
           myMemberIsActive(room.members, playerIdentity.memberId) &&
-          (!isSpeedRound || !speedLockedMemberId || speedLockedMemberId === playerIdentity.memberId) &&
-          (!isEliminationLadder || !hasAnsweredSharedQuestion),
+          !hasAnsweredSharedQuestion,
       )
     : Boolean(playerIdentity?.memberId && playerIdentity.memberId === room.game.current_member_id);
   const myMember = playerIdentity ? room.members.find((member) => member.id === playerIdentity.memberId) || null : null;
@@ -5786,7 +5772,7 @@ function GameRoom({
   const currentAttempt = room.game.current_turn_attempt || 1;
   const maxAttempts = room.game.max_consecutive_questions || 2;
   const isRecoveryQuestion = !isSpeedRound && currentAttempt > 1;
-  const toastAnswer = isEliminationLadder ? privateAnswer : room.latest_answer;
+  const toastAnswer = isSharedQuestionMode ? privateAnswer : room.latest_answer;
   const latestAnswerIsTimeout = toastAnswer?.selected_option === 'TIMEOUT';
   const resultToastVisible = Boolean(toastAnswer && !latestAnswerIsTimeout && visibleAnswerId === toastAnswer.id);
   const timeoutToastVisible = Boolean(latestTimeoutEvent && visibleTimeoutId === latestTimeoutEvent.id);
@@ -5802,8 +5788,6 @@ function GameRoom({
           : isRecoveryQuestion
             ? 'Second chance next'
             : 'Up next'
-        : isSpeedRound && speedLockedMember
-          ? 'Second chance'
         : isEliminationLadder || isSpeedRound
           ? 'Everyone answers'
           : isRecoveryQuestion
@@ -5820,9 +5804,7 @@ function GameRoom({
       : isEliminationLadder
         ? `${room.speed_round?.answers.length || 0} answered`
         : isSpeedRound
-          ? speedLockedMember
-            ? speedLockedMember.display_name
-            : 'Open to everyone'
+          ? `${room.speed_round?.answers.length || 0} answered`
           : room.active_member?.display_name || 'Waiting';
   const turnHelperText = delayingFinalReveal
     ? 'Revealing the winner next'
@@ -5836,9 +5818,7 @@ function GameRoom({
         ? isEliminationLadder
           ? 'Get ready for the next ladder question'
           : isSpeedRound
-            ? speedLockedMember
-              ? `${speedLockedMember.display_name} gets one more go`
-              : 'Get ready for the next shared question'
+            ? 'Get ready for the next shared question'
             : isRecoveryQuestion
               ? 'Get it right to recover the points'
               : 'Get ready'
@@ -5847,11 +5827,9 @@ function GameRoom({
             ? 'Answer locked. Waiting for everyone else.'
             : `You are ${myMember ? myMember.display_name : 'watching'}`
           : isSpeedRound
-            ? hasSpeedSecondChance
-              ? 'Second chance: pick again to recover'
-              : speedLockedMember
-                ? `Waiting for ${speedLockedMember.display_name}`
-                : `You are ${myMember ? myMember.display_name : 'watching'}`
+            ? hasAnsweredSharedQuestion
+              ? 'Answer locked. Waiting for everyone else.'
+              : `You are ${myMember ? myMember.display_name : 'watching'}`
             : isRecoveryQuestion
               ? 'Get it right to win the points back'
               : isMyTurn
@@ -6097,7 +6075,7 @@ function GameRoom({
       return;
     }
 
-    if (isEliminationLadder) {
+    if (isSharedQuestionMode) {
       const privateResult = (data as GameRoomPayload | null)?.submitted_answer || null;
       if (privateResult) {
         setPrivateAnswer(privateResult);
@@ -6109,7 +6087,7 @@ function GameRoom({
 
   return (
     <div className="game-room">
-      {toastAnswer && resultToastVisible && <AnswerResultToast key={toastAnswer.id} answer={toastAnswer} />}
+      {toastAnswer && resultToastVisible && <AnswerResultToast key={toastAnswer.id} answer={toastAnswer} showSecondChance={!isSharedQuestionMode} />}
       {latestTimeoutEvent && timeoutToastVisible && <TimeoutResultToast key={latestTimeoutEvent.id} event={latestTimeoutEvent} />}
       <div className="game-room-header">
         <div className="game-room-header-spacer" aria-hidden="true" />
@@ -6184,6 +6162,8 @@ function GameRoom({
                 <p>
                   {isEliminationLadder
                     ? `Question ${currentAttempt} of ${room.game.questions_per_round || 3} is coming up.`
+                    : isSpeedRound
+                    ? 'Everyone will answer the next question together.'
                     : isRecoveryQuestion
                     ? `${room.active_member?.display_name || 'This player'} can win the points back.`
                     : `${room.active_member?.display_name || 'The next player'} is up next.`}
@@ -6191,9 +6171,8 @@ function GameRoom({
               </div>
             ) : (
               <>
-                {isMyTurn && <p className={`player-context ${isRecoveryQuestion || hasSpeedSecondChance ? 'recovery' : ''}`}>{isRecoveryQuestion || hasSpeedSecondChance ? 'Second chance: recover the points' : 'Choose an answer'}</p>}
-                {isSpeedRound && !isMyTurn && speedLockedMember && <p className="player-context">{speedLockedMember.display_name}'s second chance</p>}
-                {isEliminationLadder && hasAnsweredSharedQuestion && <p className="player-context">Answer locked</p>}
+                {isMyTurn && <p className={`player-context ${isRecoveryQuestion ? 'recovery' : ''}`}>{isRecoveryQuestion ? 'Second chance: recover the points' : 'Choose an answer'}</p>}
+                {isSharedQuestionMode && hasAnsweredSharedQuestion && <p className="player-context">Answer locked</p>}
                 <h2>{room.question?.prompt || 'No question loaded'}</h2>
                 <div className="answer-grid">
                   {room.question &&
@@ -6217,9 +6196,9 @@ function GameRoom({
                 {isSharedQuestionMode && room.speed_round && room.speed_round.answers.length > 0 && (
                   <div className="speed-answer-strip">
                     {room.speed_round.answers.map((answer, index) => (
-                      <span className={isEliminationLadder ? 'locked' : answer.is_correct ? 'correct' : 'wrong'} key={answer.id}>
+                      <span className="locked" key={answer.id}>
                         {index + 1}. {answer.member_name}
-                        {isEliminationLadder ? ' · locked in' : answer.attempt && answer.attempt > 1 ? ` · chance ${answer.attempt}` : ''}
+                        {' · locked in'}
                       </span>
                     ))}
                   </div>
@@ -6235,9 +6214,9 @@ function GameRoom({
                         : 'This browser has not claimed a player.'
                       : isSpeedRound
                       ? myMember
-                        ? speedLockedMember
-                          ? `Waiting for ${speedLockedMember.display_name} to take their second chance.`
-                          : 'Get ready to buzz in.'
+                        ? hasAnsweredSharedQuestion
+                          ? 'Waiting for the rest of the speed round answers.'
+                          : 'Get ready for the next speed round question.'
                         : 'This browser has not claimed a player.'
                       : myMember
                         ? `Waiting for ${room.active_member?.display_name || 'the active player'} to answer.`
@@ -6248,7 +6227,7 @@ function GameRoom({
             )}
           </section>
 
-          <LiveLeaderboard members={room.members} activeMemberId={isSpeedRound ? speedLockedMemberId : room.game.current_member_id} myMemberId={playerIdentity?.memberId || null} />
+          <LiveLeaderboard members={room.members} activeMemberId={isSharedQuestionMode ? null : room.game.current_member_id} myMemberId={playerIdentity?.memberId || null} />
         </div>
       )}
 
@@ -6499,14 +6478,14 @@ function TimeoutResultToast({ event }: { event: GameRoomPayload['events'][number
   );
 }
 
-function AnswerResultToast({ answer }: { answer: NonNullable<GameRoomPayload['latest_answer']> }) {
+function AnswerResultToast({ answer, showSecondChance }: { answer: NonNullable<GameRoomPayload['latest_answer']>; showSecondChance: boolean }) {
   const isRecoveryAttempt = (answer.attempt || 1) > 1;
   const result = answer.is_correct ? (isRecoveryAttempt ? 'Recovered' : 'Correct') : 'Wrong';
   const pointText = answer.points_delta !== 0 ? `${answer.points_delta > 0 ? '+' : ''}${answer.points_delta} points` : 'No points change';
   const answerText = answer.is_correct
     ? `You chose ${answer.correct_answer}`
     : `Correct answer: ${answer.correct_answer}`;
-  const followUpText = !answer.is_correct && answer.points_delta < 0 && !isRecoveryAttempt ? 'Second chance next' : '';
+  const followUpText = showSecondChance && !answer.is_correct && answer.points_delta < 0 && !isRecoveryAttempt ? 'Second chance next' : '';
   const detailParts = [answerText, pointText, followUpText].filter(Boolean);
 
   return (
