@@ -2694,8 +2694,8 @@ function StudyQuizView({ session }: { session: Session }) {
               <label>Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Biology" /></label>
             </div>
             <div className="study-details-fields study-placement-fields">
-              <label>Section, unit or module <small>(optional)</small><input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="Unit 1, Chapter 3 or Module 2" /></label>
-              <label>Topic <small>(optional)</small><input value={topicName} onChange={(event) => setTopicName(event.target.value)} placeholder="Cell biology" /></label>
+              <label><span className="study-field-label">Section, unit or module <small>(optional)</small></span><input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="Unit 1, Chapter 3 or Module 2" /></label>
+              <label><span className="study-field-label">Topic <small>(optional)</small></span><input value={topicName} onChange={(event) => setTopicName(event.target.value)} placeholder="Cell biology" /></label>
             </div>
             <label className="study-description-field">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional notes about this quiz" rows={4} /></label>
             <label className="study-upload-button"><Upload size={18} /><span><strong>Import questions from CSV</strong><small>question, answer, wrong_answer_1, wrong_answer_2, explanation</small></span><input accept=".csv,text/csv" onChange={(event) => event.target.files?.[0] && void importCsv(event.target.files[0])} type="file" /></label>
@@ -2726,7 +2726,7 @@ function StudyQuizView({ session }: { session: Session }) {
                     <label className={selectedDraft.correct_option === option ? 'correct-option' : ''} key={option}><input checked={selectedDraft.correct_option === option} onChange={() => updateDraftQuestion(selectedDraftIndex, 'correct_option', option)} type="radio" name={`correct-${selectedDraftIndex}`} /><span>{option}</span><input value={selectedDraft[`option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c']} onChange={(event) => updateDraftQuestion(selectedDraftIndex, `option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c', event.target.value)} placeholder={option === 'A' ? 'Correct or incorrect answer' : 'Answer choice'} /></label>
                   ))}
                 </div>
-                <label>Explanation <small>(optional)</small><textarea value={selectedDraft.explanation} onChange={(event) => updateDraftQuestion(selectedDraftIndex, 'explanation', event.target.value)} placeholder="Help the student understand the answer" rows={3} /></label>
+                <label><span className="study-field-label">Explanation <small>(optional)</small></span><textarea value={selectedDraft.explanation} onChange={(event) => updateDraftQuestion(selectedDraftIndex, 'explanation', event.target.value)} placeholder="Help the student understand the answer" rows={3} /></label>
                 <div className="study-editor-paging"><button className="ghost-button table-button" disabled={selectedDraftIndex === 0} onClick={() => setSelectedDraftIndex((current) => current - 1)} type="button"><ArrowLeft size={15} /> Previous</button><span>{isComplete(selectedDraft) ? <><CheckCircle2 size={15} /> Question complete</> : <><AlertTriangle size={15} /> Complete all fields</>}</span><button className="ghost-button table-button" disabled={selectedDraftIndex === draftQuestions.length - 1} onClick={() => setSelectedDraftIndex((current) => current + 1)} type="button">Next <ArrowLeft className="study-next-arrow" size={15} /></button></div>
               </article>
               }

@@ -10934,6 +10934,8 @@ body,
 .study-details-fields { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .study-details-fields label { margin: 0; }
 .study-details-fields label small { font-weight: 500; }
+.study-field-label { display: inline-flex; align-items: baseline; gap: 5px; }
+.study-field-label small { color: var(--muted); font-weight: 500; }
 .study-description-field { margin: 0 !important; }
 .study-description-field textarea { min-height: 112px; resize: vertical; }
 .study-quiz-details .study-upload-button { min-height: 92px; margin: 0; box-sizing: border-box; }
