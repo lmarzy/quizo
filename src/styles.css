@@ -178,7 +178,12 @@
 }
 
 .daily-play-card {
+  position: relative;
   padding: 24px;
+}
+
+.daily-result-popup {
+  z-index: 6;
 }
 
 .daily-progress-row {

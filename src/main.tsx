@@ -3220,15 +3220,14 @@ function DailyChallengeModal({
                 })}
               </div>
               {selectedAnswer !== null && (
-                <div className={`daily-answer-note ${selectedAnswer === currentPuzzle.correctOption ? 'correct' : 'wrong'}`}>
-                  <strong>{selectedAnswer === currentPuzzle.correctOption ? 'Puzzle solved · +200 points' : 'Not quite this time'}</strong>
-                  <span>{currentPuzzle.explanation}</span>
-                  {puzzleIndex === puzzles.length - 1 ? (
-                    <button className="primary-button compact-button" disabled={saving} onClick={() => void finishDailyChallenge()} type="button">{saving ? <RefreshCw className="spin" size={17} /> : <Trophy size={17} />} Finish challenge</button>
-                  ) : (
-                    <button className="primary-button compact-button" onClick={goToNextDailyStep} type="button">Next puzzle</button>
-                  )}
-                </div>
+                <DailyAnswerPopup
+                  correct={selectedAnswer === currentPuzzle.correctOption}
+                  detail={currentPuzzle.explanation}
+                  points={selectedAnswer === currentPuzzle.correctOption ? 200 : 0}
+                  actionLabel={puzzleIndex === puzzles.length - 1 ? 'Finish challenge' : 'Next puzzle'}
+                  busy={saving}
+                  onNext={puzzleIndex === puzzles.length - 1 ? () => void finishDailyChallenge() : goToNextDailyStep}
+                />
               )}
             </div>
           </section>
@@ -3247,15 +3246,48 @@ function DailyChallengeModal({
                 })}
               </div>
               {selectedAnswer !== null && (
-                <div className={`daily-answer-note ${currentQuestion.correct_option === selectedAnswer ? 'correct' : 'wrong'}`}>
-                  <strong>{currentQuestion.correct_option === selectedAnswer ? 'Correct · +100 points' : `Correct answer: ${getQuestionOption(currentQuestion, currentQuestion.correct_option)}`}</strong>
-                  <button className="primary-button compact-button" onClick={goToNextDailyStep} type="button">{currentIndex === questions.length - 1 ? 'Start logic puzzles' : 'Next question'}</button>
-                </div>
+                <DailyAnswerPopup
+                  correct={currentQuestion.correct_option === selectedAnswer}
+                  detail={`Correct answer: ${getQuestionOption(currentQuestion, currentQuestion.correct_option)}`}
+                  points={currentQuestion.correct_option === selectedAnswer ? 100 : 0}
+                  actionLabel={currentIndex === questions.length - 1 ? 'Start logic puzzles' : 'Next question'}
+                  onNext={goToNextDailyStep}
+                />
               )}
             </div>
           </section>
         ) : null}
       </section>
+    </div>
+  );
+}
+
+function DailyAnswerPopup({
+  correct,
+  detail,
+  points,
+  actionLabel,
+  busy = false,
+  onNext,
+}: {
+  correct: boolean;
+  detail: string;
+  points: number;
+  actionLabel: string;
+  busy?: boolean;
+  onNext: () => void;
+}) {
+  return (
+    <div className={`practice-result-popup daily-result-popup ${correct ? 'correct' : 'wrong'}`} role="status" aria-live="polite">
+      <div className="answer-result-icon">{correct ? <CheckCircle2 size={24} /> : <X size={24} />}</div>
+      <div>
+        <strong>{correct ? 'Correct' : 'Wrong'}</strong>
+        <span>{detail}{correct && points > 0 ? ` · +${points} points` : ''}</span>
+      </div>
+      <button className="primary-button compact-button" disabled={busy} onClick={onNext} type="button">
+        {busy ? <RefreshCw className="spin" size={17} /> : null}
+        {actionLabel}
+      </button>
     </div>
   );
 }
