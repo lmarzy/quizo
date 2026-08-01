@@ -4562,8 +4562,8 @@ function GameWizardModal({
     speed_round: {
       title: 'Speed Round',
       badge: 'Pro',
-      description: 'Everyone sees the same question at once.',
-      helper: 'The first player to answer takes control. If they miss, they get one locked-in second chance before everyone rejoins.',
+      description: 'Buzz in first with the correct answer.',
+      helper: 'Everyone sees the same question. A correct answer wins the points and moves the room on; a wrong answer locks only that player out until the next question.',
     },
     elimination_ladder: {
       title: 'Elimination Ladder',
@@ -5816,12 +5816,16 @@ function GameRoom({
       ? `Round ${latestLadderResultEvent?.metadata?.ladder_round || ladderRoundNumber} complete`
       : preparingNextQuestion
         ? isSpeedRound
-          ? 'Next round'
+          ? room.latest_answer?.is_correct
+            ? 'Question won'
+            : 'Next round'
           : isRecoveryQuestion
             ? 'Second chance next'
             : 'Up next'
-        : isEliminationLadder || isSpeedRound
+        : isEliminationLadder
           ? 'Everyone answers'
+          : isSpeedRound
+            ? 'Buzz in'
           : isRecoveryQuestion
             ? 'Second chance'
             : isMyTurn
@@ -5833,10 +5837,14 @@ function GameRoom({
       ? isLadderTieResult
         ? 'Scores tied'
         : `${roundLoser?.display_name || 'Lowest score'} is out`
+      : preparingNextQuestion && isSpeedRound && room.latest_answer?.is_correct
+        ? `${room.latest_answer.member_name} was fastest`
       : isEliminationLadder
         ? `${room.speed_round?.answers.length || 0} answered`
         : isSpeedRound
-          ? `${room.speed_round?.answers.length || 0} answered`
+          ? room.speed_round?.answers.length
+            ? `${room.speed_round.answers.length} locked out`
+            : 'First correct wins'
           : room.active_member?.display_name || 'Waiting';
   const turnHelperText = delayingFinalReveal
     ? 'Revealing the winner next'
@@ -5850,7 +5858,9 @@ function GameRoom({
         ? isEliminationLadder
           ? 'Get ready for the next ladder question'
           : isSpeedRound
-            ? 'Get ready for the next shared question'
+            ? room.latest_answer?.is_correct
+              ? 'Correct answer. Everyone moves on together.'
+              : 'Get ready to buzz in'
             : isRecoveryQuestion
               ? 'Get it right to recover the points'
               : 'Get ready'
@@ -5860,8 +5870,10 @@ function GameRoom({
             : `You are ${myMember ? myMember.display_name : 'watching'}`
           : isSpeedRound
             ? hasAnsweredSharedQuestion
-              ? 'Answer locked. Waiting for everyone else.'
-              : `You are ${myMember ? myMember.display_name : 'watching'}`
+              ? 'Wrong answer. You are out for this question.'
+              : myMember
+                ? 'Answer first and get it right to score'
+                : 'Watching the speed round'
             : isRecoveryQuestion
               ? 'Get it right to win the points back'
               : isMyTurn
@@ -6092,12 +6104,14 @@ function GameRoom({
     setAnswerMessage('');
 
     const answerRpc = isEliminationLadder ? 'submit_elimination_ladder_answer' : isSpeedRound ? 'submit_speed_round_answer' : 'submit_game_answer';
-    const { data, error } = await supabase.rpc(answerRpc, {
+    const answerParams = {
       p_join_code: joinCode,
       p_member_id: playerIdentity.memberId,
       p_session_token: playerIdentity.token || '',
       p_selected_option: option,
-    });
+      ...(isSpeedRound ? { p_question_id: room.game.current_question_id } : {}),
+    };
+    const { data, error } = await supabase.rpc(answerRpc, answerParams);
 
     setAnswerBusy(false);
 
@@ -6195,7 +6209,7 @@ function GameRoom({
                   {isEliminationLadder
                     ? `Question ${currentAttempt} of ${room.game.questions_per_round || 3} is coming up.`
                     : isSpeedRound
-                    ? 'Everyone will answer the next question together.'
+                    ? 'The first correct answer takes the points.'
                     : isRecoveryQuestion
                     ? `${room.active_member?.display_name || 'This player'} can win the points back.`
                     : `${room.active_member?.display_name || 'The next player'} is up next.`}
@@ -6204,7 +6218,8 @@ function GameRoom({
             ) : (
               <>
                 {isMyTurn && <p className={`player-context ${isRecoveryQuestion ? 'recovery' : ''}`}>{isRecoveryQuestion ? 'Second chance: recover the points' : 'Choose an answer'}</p>}
-                {isSharedQuestionMode && hasAnsweredSharedQuestion && <p className="player-context">Answer locked</p>}
+                {isEliminationLadder && hasAnsweredSharedQuestion && <p className="player-context">Answer locked</p>}
+                {isSpeedRound && hasAnsweredSharedQuestion && <p className="player-context">You are out for this question</p>}
                 <h2>{room.question?.prompt || 'No question loaded'}</h2>
                 <div className="answer-grid">
                   {room.question &&
@@ -6230,7 +6245,7 @@ function GameRoom({
                     {room.speed_round.answers.map((answer, index) => (
                       <span className="locked" key={answer.id}>
                         {index + 1}. {answer.member_name}
-                        {' · locked in'}
+                        {isSpeedRound ? ' · buzzed · out' : ' · locked in'}
                       </span>
                     ))}
                   </div>
@@ -6247,8 +6262,8 @@ function GameRoom({
                       : isSpeedRound
                       ? myMember
                         ? hasAnsweredSharedQuestion
-                          ? 'Waiting for the rest of the speed round answers.'
-                          : 'Get ready for the next speed round question.'
+                          ? 'Waiting for another contestant to answer correctly.'
+                          : 'Get ready to buzz in.'
                         : 'This browser has not claimed a player.'
                       : myMember
                         ? `Waiting for ${room.active_member?.display_name || 'the active player'} to answer.`
