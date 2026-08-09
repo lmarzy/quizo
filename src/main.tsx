@@ -808,6 +808,7 @@ function Dashboard({ session }: { session: Session }) {
   const [memberNames, setMemberNames] = useState('');
   const [form, setForm] = useState(defaultForm);
   const [busy, setBusy] = useState(false);
+  const [rematchBusy, setRematchBusy] = useState(false);
   const [memberBusy, setMemberBusy] = useState(false);
   const [startBusy, setStartBusy] = useState(false);
   const [gameActionBusy, setGameActionBusy] = useState('');
@@ -1373,6 +1374,25 @@ function Dashboard({ session }: { session: Session }) {
     showToast('Game created.');
     if (data?.id) setSelectedGameId(data.id);
     await loadDashboard();
+  }
+
+  async function createRematch(game: Game) {
+    setRematchBusy(true);
+    const { data, error } = await supabase.rpc('create_game_rematch', { p_game_id: game.id });
+    setRematchBusy(false);
+
+    if (error || !data) {
+      showToast(error?.message || 'Could not create the rematch.', 'error');
+      return;
+    }
+
+    const rematch = data as Game;
+    setControlRoomGame(null);
+    setSelectedGameId(rematch.id);
+    setMemberNotice('');
+    await Promise.all([loadDashboard(), loadMembers(rematch.id)]);
+    setManageDrawerOpen(true);
+    showToast(`Rematch created · code ${rematch.join_code}`);
   }
 
   async function addMembers(event: React.FormEvent<HTMLFormElement>) {
@@ -2191,7 +2211,7 @@ function Dashboard({ session }: { session: Session }) {
           onComplete={recordDailyChallenge}
         />
 
-        <ControlRoomModal game={controlRoomGame} hostMember={hostMember} onClose={() => setControlRoomGame(null)} />
+        <ControlRoomModal game={controlRoomGame} hostMember={hostMember} rematchBusy={rematchBusy} onClose={() => setControlRoomGame(null)} onPlayAgain={(game) => void createRematch(game)} />
         <GameSummaryModal
           answers={summaryAnswers}
           busy={summaryBusy}
@@ -4935,7 +4955,19 @@ function GameWizardModal({
   );
 }
 
-function ControlRoomModal({ game, hostMember, onClose }: { game: Game | null; hostMember: GameMember | null; onClose: () => void }) {
+function ControlRoomModal({
+  game,
+  hostMember,
+  rematchBusy,
+  onClose,
+  onPlayAgain,
+}: {
+  game: Game | null;
+  hostMember: GameMember | null;
+  rematchBusy: boolean;
+  onClose: () => void;
+  onPlayAgain: (game: Game) => void;
+}) {
   if (!game) return null;
 
   return (
@@ -4944,7 +4976,7 @@ function ControlRoomModal({ game, hostMember, onClose }: { game: Game | null; ho
         <button className="control-room-close" onClick={onClose} type="button" aria-label="Close control room" title="Close control room">
           <X size={18} />
         </button>
-        <HostGameRoom joinCode={game.join_code} hostMember={hostMember} />
+        <HostGameRoom joinCode={game.join_code} hostMember={hostMember} rematchBusy={rematchBusy} onPlayAgain={() => onPlayAgain(game)} />
       </section>
     </div>
   );
@@ -5807,7 +5839,7 @@ function myMemberIsActive(members: GameRoomPayload['members'], memberId: string)
   return members.some((member) => member.id === memberId && member.status === 'active');
 }
 
-function HostGameRoom({ joinCode, hostMember }: { joinCode: string; hostMember: GameMember | null }) {
+function HostGameRoom({ joinCode, hostMember, rematchBusy, onPlayAgain }: { joinCode: string; hostMember: GameMember | null; rematchBusy: boolean; onPlayAgain: () => void }) {
   const [room, setRoom] = useState<GameRoomPayload | null>(null);
   const [message, setMessage] = useState('');
 
@@ -5855,6 +5887,8 @@ function HostGameRoom({ joinCode, hostMember }: { joinCode: string; hostMember: 
           joinCode={joinCode}
           playerIdentity={hostMember ? { memberId: hostMember.id, kind: 'authenticated' } : null}
           onRefresh={loadRoom}
+          onPlayAgain={onPlayAgain}
+          rematchBusy={rematchBusy}
         />
       ) : (
         <p className="empty-state">Loading live game...</p>
@@ -5871,6 +5905,8 @@ function GameRoom({
   showAccountPrompt = false,
   onAccountSignIn,
   onAccountSignUp,
+  onPlayAgain,
+  rematchBusy = false,
 }: {
   room: GameRoomPayload;
   joinCode: string;
@@ -5879,6 +5915,8 @@ function GameRoom({
   showAccountPrompt?: boolean;
   onAccountSignIn?: () => void;
   onAccountSignUp?: () => void;
+  onPlayAgain?: () => void;
+  rematchBusy?: boolean;
 }) {
   const [answerBusy, setAnswerBusy] = useState(false);
   const [answerMessage, setAnswerMessage] = useState('');
@@ -6290,6 +6328,8 @@ function GameRoom({
             showAccountPrompt={showAccountPrompt}
             onAccountSignIn={onAccountSignIn}
             onAccountSignUp={onAccountSignUp}
+            onPlayAgain={onPlayAgain}
+            rematchBusy={rematchBusy}
           />
         </div>
       ) : (
@@ -6487,6 +6527,8 @@ function FinalResultCard({
   showAccountPrompt,
   onAccountSignIn,
   onAccountSignUp,
+  onPlayAgain,
+  rematchBusy,
 }: {
   joinCode: string;
   members: GameRoomPayload['members'];
@@ -6497,6 +6539,8 @@ function FinalResultCard({
   showAccountPrompt: boolean;
   onAccountSignIn?: () => void;
   onAccountSignUp?: () => void;
+  onPlayAgain?: () => void;
+  rematchBusy: boolean;
 }) {
   const [shareMessage, setShareMessage] = useState('');
   const [accountPromptDismissed, setAccountPromptDismissed] = useState(false);
@@ -6584,10 +6628,10 @@ function FinalResultCard({
       )}
 
       <div className="final-result-actions">
-        <button className="primary-button result-share-button" onClick={() => void shareResults()} type="button">
-          <Send size={18} />
-          Share results
-        </button>
+        <div>
+          {onPlayAgain && <button className="primary-button result-rematch-button" disabled={rematchBusy} onClick={onPlayAgain} type="button">{rematchBusy ? <RefreshCw className="spin" size={18} /> : <Play size={18} />} Play again</button>}
+          <button className="ghost-button result-share-button" onClick={() => void shareResults()} type="button"><Send size={18} /> Share results</button>
+        </div>
         {shareMessage && <span>{shareMessage}</span>}
       </div>
     </section>

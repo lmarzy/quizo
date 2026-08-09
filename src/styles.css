@@ -6093,6 +6093,13 @@ textarea:focus {
   padding-top: 4px;
 }
 
+.final-result-actions > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.result-rematch-button,
 .result-share-button {
   width: max-content;
 }
@@ -6101,6 +6108,21 @@ textarea:focus {
   color: #777;
   font-size: 13px;
   font-weight: 850;
+}
+
+@media (max-width: 560px) {
+  .final-result-actions,
+  .final-result-actions > div {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .result-rematch-button,
+  .result-share-button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .final-result-card .final-leaderboard-panel {
