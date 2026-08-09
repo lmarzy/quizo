@@ -4903,57 +4903,6 @@ textarea:focus {
   margin: 0;
 }
 
-.join-account-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-  padding: 14px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 12px;
-  color: white;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.join-account-card > div,
-.join-account-card > div > span,
-.join-account-card > div:last-child {
-  display: flex;
-}
-
-.join-account-card > div:first-child {
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-}
-
-.join-account-card > div:first-child > svg {
-  flex: 0 0 auto;
-}
-
-.join-account-card > div > span {
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.join-account-card strong,
-.join-account-card small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.join-account-card small {
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 12px;
-}
-
-.join-account-card > div:last-child {
-  flex: 0 0 auto;
-  gap: 8px;
-}
-
 .join-auth-backdrop {
   z-index: 100;
 }
@@ -5000,24 +4949,6 @@ textarea:focus {
   gap: 14px;
   color: white;
   text-align: center;
-}
-
-@media (max-width: 640px) {
-  .join-account-card {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .join-account-card > div:last-child,
-  .join-account-card > button {
-    width: 100%;
-  }
-
-  .join-account-card > div:last-child > button,
-  .join-account-card > button {
-    flex: 1;
-    justify-content: center;
-  }
 }
 
 .join-state > div:not(.brand-mark):not(.loading-dots) {
@@ -6062,6 +5993,77 @@ textarea:focus {
   font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.post-game-account-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #e2b96f;
+  border-radius: 18px;
+  background: #fff6e5;
+}
+
+.post-game-account-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: white;
+  background: #050505;
+}
+
+.post-game-account-card span,
+.post-game-account-card strong {
+  display: block;
+}
+
+.post-game-account-card span {
+  color: #8d5108;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.post-game-account-card strong {
+  margin-top: 3px;
+  font-size: 17px;
+}
+
+.post-game-account-card p {
+  margin: 3px 0 0;
+  color: #6f6658;
+  font-size: 12px;
+}
+
+.post-game-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.post-game-skip {
+  padding: 8px;
+  border: 0;
+  color: #6f6658;
+  background: transparent;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .post-game-account-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .post-game-account-actions {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+  }
 }
 
 .final-result-actions {

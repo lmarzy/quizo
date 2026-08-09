@@ -5410,6 +5410,7 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState('');
   const refreshInFlightRef = useRef(false);
+  const linkingAccountRef = useRef(false);
 
   useEffect(() => {
     void loadJoinGame();
@@ -5422,6 +5423,11 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
     }
     void loadAuthenticatedMember();
   }, [joinCode, session?.user.id]);
+
+  useEffect(() => {
+    if (!session?.user.id || !guestSession || room?.game.status !== 'finished' || linkingAccountRef.current) return;
+    void linkGuestResultToAccount();
+  }, [guestSession?.memberId, joinCode, room?.game.status, session?.user.id]);
 
   useEffect(() => {
     const gameId = room?.game.id || payload?.game.id;
@@ -5524,6 +5530,27 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
     setClaimedName(member.display_name);
   }
 
+  async function linkGuestResultToAccount() {
+    if (!guestSession || linkingAccountRef.current) return false;
+    linkingAccountRef.current = true;
+    const { data, error } = await supabase.rpc('link_guest_game_member_to_account', {
+      p_join_code: joinCode,
+      p_member_id: guestSession.memberId,
+      p_session_token: guestSession.token,
+    });
+    linkingAccountRef.current = false;
+    if (error || !data) {
+      setAuthMessage(error?.message || 'Could not save this result to your account.');
+      return false;
+    }
+    const member = data as { id: string; display_name: string };
+    setAuthenticatedMember(member);
+    localStorage.removeItem(`quiz_guest_${joinCode}`);
+    setGuestSession(null);
+    setMessage('Result saved to your Quizo account.');
+    return true;
+  }
+
   async function submitJoinAuth(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextDisplayName = authDisplayName.trim();
@@ -5551,18 +5578,14 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
       return;
     }
     if (response.data.session) {
+      if (guestSession && room?.game.status === 'finished') {
+        await linkGuestResultToAccount();
+      }
       setAuthOpen(false);
-      setMessage(authMode === 'sign-up' ? 'Account created. Choose your invited name to join.' : 'Signed in. Choose your invited name to join.');
+      setMessage(authMode === 'sign-up' ? 'Account created and result saved.' : 'Signed in and result saved.');
       return;
     }
     setAuthMessage('Account created. Check your email, then return using the verification link to join this game.');
-  }
-
-  async function signOutFromJoin() {
-    await supabase.auth.signOut();
-    setAuthenticatedMember(null);
-    setClaimedName('');
-    setMessage('Signed out. You can continue as a guest.');
   }
 
   async function claimMember(event: React.FormEvent<HTMLFormElement>) {
@@ -5642,6 +5665,9 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
             joinCode={joinCode}
             playerIdentity={playerIdentity}
             onRefresh={() => loadJoinGame(false)}
+            showAccountPrompt={room.game.status === 'finished' && Boolean(guestSession) && !session}
+            onAccountSignIn={() => { setAuthMode('sign-in'); setAuthMessage(''); setAuthOpen(true); }}
+            onAccountSignUp={() => { setAuthMode('sign-up'); setAuthMessage(''); setAuthOpen(true); }}
           />
         ) : payload ? (
           <>
@@ -5652,24 +5678,6 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
                 {payload.game.status} · {getGameModeLabel(payload.game.game_mode)} · {payload.game.game_mode === 'elimination_ladder' ? `${payload.game.elimination_rounds || 3} rounds · ${payload.game.questions_per_round || 3} questions/round` : payload.game.game_mode === 'race_to_points' || payload.game.game_mode === 'speed_round' ? `Race to ${payload.game.target_points || 100}` : `${payload.game.starting_points} start · ${payload.game.target_points || 150} to win`} · {payload.game.question_time_limit_seconds}s per question
               </p>
             </div>
-
-            {!claimedName && <div className="join-account-card">
-              <div>
-                <User size={20} />
-                <span>
-                  <strong>{session ? 'Playing with your Quizo account' : 'Have a Quizo account?'}</strong>
-                  <small>{session ? session.user.email : 'Sign in to connect this game to your account, or continue as a guest.'}</small>
-                </span>
-              </div>
-              {session ? (
-                <button className="ghost-button table-button" onClick={() => void signOutFromJoin()} type="button"><LogOut size={16} /> Sign out</button>
-              ) : (
-                <div>
-                  <button className="ghost-button table-button" onClick={() => { setAuthMode('sign-in'); setAuthMessage(''); setAuthOpen(true); }} type="button"><Lock size={16} /> Sign in</button>
-                  <button className="primary-button compact-button" onClick={() => { setAuthMode('sign-up'); setAuthMessage(''); setAuthOpen(true); }} type="button"><UserPlus size={16} /> Create account</button>
-                </div>
-              )}
-            </div>}
 
             {claimedName ? (
               <div className="claimed-box">
@@ -5749,7 +5757,7 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
         <div className="modal-backdrop join-auth-backdrop" role="dialog" aria-modal="true" aria-label={authMode === 'sign-up' ? 'Create a Quizo account' : 'Sign in to Quizo'}>
           <section className="join-auth-modal">
             <div className="practice-modal-header">
-              <div><p className="eyebrow">Game code {joinCode}</p><h2>{authMode === 'sign-up' ? 'Create your account' : 'Sign in to join'}</h2><span>You’ll return to this game after signing in.</span></div>
+              <div><p className="eyebrow">Save your result</p><h2>{authMode === 'sign-up' ? 'Create your account' : 'Sign in to Quizo'}</h2><span>Your score and player result will be connected to your account.</span></div>
               <button className="icon-button neutral" onClick={() => setAuthOpen(false)} type="button" aria-label="Close"><X size={18} /></button>
             </div>
             <div className="mode-switch" aria-label="Authentication mode">
@@ -5858,11 +5866,17 @@ function GameRoom({
   joinCode,
   playerIdentity,
   onRefresh,
+  showAccountPrompt = false,
+  onAccountSignIn,
+  onAccountSignUp,
 }: {
   room: GameRoomPayload;
   joinCode: string;
   playerIdentity: { memberId: string; token?: string; kind: 'guest' | 'authenticated' } | null;
   onRefresh: () => Promise<void>;
+  showAccountPrompt?: boolean;
+  onAccountSignIn?: () => void;
+  onAccountSignUp?: () => void;
 }) {
   const [answerBusy, setAnswerBusy] = useState(false);
   const [answerMessage, setAnswerMessage] = useState('');
@@ -6271,6 +6285,9 @@ function GameRoom({
             packName={room.game.question_pack_name || null}
             gameName={room.game.name}
             winner={winner}
+            showAccountPrompt={showAccountPrompt}
+            onAccountSignIn={onAccountSignIn}
+            onAccountSignUp={onAccountSignUp}
           />
         </div>
       ) : (
@@ -6465,6 +6482,9 @@ function FinalResultCard({
   packName,
   gameName,
   winner,
+  showAccountPrompt,
+  onAccountSignIn,
+  onAccountSignUp,
 }: {
   joinCode: string;
   members: GameRoomPayload['members'];
@@ -6472,8 +6492,12 @@ function FinalResultCard({
   packName: string | null;
   gameName: string;
   winner: GameRoomPayload['members'][number] | null;
+  showAccountPrompt: boolean;
+  onAccountSignIn?: () => void;
+  onAccountSignUp?: () => void;
 }) {
   const [shareMessage, setShareMessage] = useState('');
+  const [accountPromptDismissed, setAccountPromptDismissed] = useState(false);
   const rankedMembers = [...members].sort((a, b) => b.points - a.points || a.turn_order - b.turn_order);
   const winnerScore = winner ? `${winner.points} pts` : `${rankedMembers.length} players`;
   const resultUrl = getJoinUrl(joinCode);
@@ -6540,6 +6564,22 @@ function FinalResultCard({
       </div>
 
       <FinalLeaderboard members={members} winnerId={winner?.id || null} />
+
+      {showAccountPrompt && !accountPromptDismissed && (
+        <section className="post-game-account-card">
+          <div className="post-game-account-icon"><UserPlus size={22} /></div>
+          <div>
+            <span>Keep your result</span>
+            <strong>Save this game to your Quizo account</strong>
+            <p>Track results, wins and progress from future games.</p>
+          </div>
+          <div className="post-game-account-actions">
+            <button className="ghost-button table-button" onClick={onAccountSignIn} type="button"><Lock size={16} /> Sign in</button>
+            <button className="primary-button compact-button" onClick={onAccountSignUp} type="button"><UserPlus size={16} /> Create account</button>
+            <button className="post-game-skip" onClick={() => setAccountPromptDismissed(true)} type="button">Not now</button>
+          </div>
+        </section>
+      )}
 
       <div className="final-result-actions">
         <button className="primary-button result-share-button" onClick={() => void shareResults()} type="button">
