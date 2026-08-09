@@ -4812,6 +4812,25 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.member-logo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.member-logo-link:hover span {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.member-logo-link:focus-visible {
+  border-radius: 8px;
+  outline: 3px solid rgba(255, 255, 255, 0.72);
+  outline-offset: 4px;
+}
+
 .member-corner-logo strong {
   min-width: 0;
   text-transform: none;

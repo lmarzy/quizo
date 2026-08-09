@@ -5639,10 +5639,12 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
   return (
     <main className="join-layout game-stage">
       <div className="member-corner-logo">
-        <div className="brand-mark small">
-          <LogoMark size={26} />
-        </div>
-        <span>Quizo</span>
+        <a className="member-logo-link" href="/" aria-label="Back to Quizo sign in">
+          <div className="brand-mark small">
+            <LogoMark size={26} />
+          </div>
+          <span>Quizo</span>
+        </a>
         <i aria-hidden="true" />
         <strong className="member-game-name">{headerGameName}</strong>
         <b>{room?.game.status === 'finished' ? 'Game finished' : room ? 'Live game' : 'Lobby'}</b>
