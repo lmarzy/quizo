@@ -591,7 +591,7 @@ function App() {
   }
 
   if (joinCode) {
-    return <JoinGame joinCode={joinCode} />;
+    return <JoinGame joinCode={joinCode} session={session} />;
   }
 
   return session ? <Dashboard session={session} /> : <AuthScreen />;
@@ -5392,7 +5392,7 @@ function getGameModeLabel(mode?: string | null) {
   return 'Classic';
 }
 
-function JoinGame({ joinCode }: { joinCode: string }) {
+function JoinGame({ joinCode, session }: { joinCode: string; session: Session | null }) {
   const [payload, setPayload] = useState<JoinGamePayload | null>(null);
   const [room, setRoom] = useState<GameRoomPayload | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState('');
@@ -5401,11 +5401,27 @@ function JoinGame({ joinCode }: { joinCode: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [authenticatedMember, setAuthenticatedMember] = useState<{ id: string; display_name: string } | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('sign-in');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authDisplayName, setAuthDisplayName] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState('');
   const refreshInFlightRef = useRef(false);
 
   useEffect(() => {
     void loadJoinGame();
   }, [joinCode]);
+
+  useEffect(() => {
+    if (!session?.user.id) {
+      setAuthenticatedMember(null);
+      return;
+    }
+    void loadAuthenticatedMember();
+  }, [joinCode, session?.user.id]);
 
   useEffect(() => {
     const gameId = room?.game.id || payload?.game.id;
@@ -5480,6 +5496,8 @@ function JoinGame({ joinCode }: { joinCode: string }) {
       const nextPayload = data as JoinGamePayload;
       setPayload(nextPayload);
       setSelectedMemberId((current) => current || nextPayload.members.find((member) => member.status === 'invited')?.id || '');
+      const claimedGuestMember = guestSession ? nextPayload.members.find((member) => member.id === guestSession.memberId && ['joined', 'active'].includes(member.status)) : null;
+      if (claimedGuestMember) setClaimedName(claimedGuestMember.display_name);
 
       if (nextPayload.game.status === 'active' || nextPayload.game.status === 'finished') {
         const roomResult = await supabase.rpc('get_game_room', { p_join_code: joinCode });
@@ -5493,6 +5511,58 @@ function JoinGame({ joinCode }: { joinCode: string }) {
       if (showLoading) setLoading(false);
       refreshInFlightRef.current = false;
     }
+  }
+
+  async function loadAuthenticatedMember() {
+    const { data, error } = await supabase.rpc('get_my_game_member', { p_join_code: joinCode });
+    if (error || !data) {
+      setAuthenticatedMember(null);
+      return;
+    }
+    const member = data as { id: string; display_name: string };
+    setAuthenticatedMember(member);
+    setClaimedName(member.display_name);
+  }
+
+  async function submitJoinAuth(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextDisplayName = authDisplayName.trim();
+    if (authMode === 'sign-up' && nextDisplayName.length < 2) {
+      setAuthMessage('Add a display name with at least 2 characters.');
+      return;
+    }
+
+    setAuthBusy(true);
+    setAuthMessage('');
+    const response = authMode === 'sign-up'
+      ? await supabase.auth.signUp({
+          email: authEmail,
+          password: authPassword,
+          options: {
+            data: { display_name: nextDisplayName },
+            emailRedirectTo: `${getPublicAppUrl()}/join/${joinCode}`,
+          },
+        })
+      : await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
+    setAuthBusy(false);
+
+    if (response.error) {
+      setAuthMessage(response.error.message);
+      return;
+    }
+    if (response.data.session) {
+      setAuthOpen(false);
+      setMessage(authMode === 'sign-up' ? 'Account created. Choose your invited name to join.' : 'Signed in. Choose your invited name to join.');
+      return;
+    }
+    setAuthMessage('Account created. Check your email, then return using the verification link to join this game.');
+  }
+
+  async function signOutFromJoin() {
+    await supabase.auth.signOut();
+    setAuthenticatedMember(null);
+    setClaimedName('');
+    setMessage('Signed out. You can continue as a guest.');
   }
 
   async function claimMember(event: React.FormEvent<HTMLFormElement>) {
@@ -5519,10 +5589,16 @@ function JoinGame({ joinCode }: { joinCode: string }) {
       return;
     }
 
-    const claim = data as { session_token: string; member: { id: string; display_name: string } };
-    const nextSession = { memberId: claim.member.id, token: claim.session_token };
-    localStorage.setItem(`quiz_guest_${joinCode}`, JSON.stringify(nextSession));
-    setGuestSession(nextSession);
+    const claim = data as { session_token: string | null; member: { id: string; display_name: string; account_join?: boolean } };
+    if (session) {
+      setAuthenticatedMember({ id: claim.member.id, display_name: claim.member.display_name });
+      localStorage.removeItem(`quiz_guest_${joinCode}`);
+      setGuestSession(null);
+    } else if (claim.session_token) {
+      const nextSession = { memberId: claim.member.id, token: claim.session_token };
+      localStorage.setItem(`quiz_guest_${joinCode}`, JSON.stringify(nextSession));
+      setGuestSession(nextSession);
+    }
     setClaimedName(claim.member.display_name);
     setMessage('You are in the lobby.');
     await loadJoinGame();
@@ -5531,6 +5607,11 @@ function JoinGame({ joinCode }: { joinCode: string }) {
   const invitedMembers = payload?.members.filter((member) => member.status === 'invited') || [];
   const joinedMembers = payload?.members.filter((member) => member.status === 'joined') || [];
   const headerGameName = room?.game.name || payload?.game.name || 'Game';
+  const playerIdentity = authenticatedMember
+    ? { memberId: authenticatedMember.id, kind: 'authenticated' as const }
+    : guestSession
+      ? { memberId: guestSession.memberId, token: guestSession.token, kind: 'guest' as const }
+      : null;
 
   return (
     <main className="join-layout game-stage">
@@ -5559,7 +5640,7 @@ function JoinGame({ joinCode }: { joinCode: string }) {
           <GameRoom
             room={room}
             joinCode={joinCode}
-            playerIdentity={guestSession ? { memberId: guestSession.memberId, token: guestSession.token, kind: 'guest' } : null}
+            playerIdentity={playerIdentity}
             onRefresh={() => loadJoinGame(false)}
           />
         ) : payload ? (
@@ -5571,6 +5652,24 @@ function JoinGame({ joinCode }: { joinCode: string }) {
                 {payload.game.status} · {getGameModeLabel(payload.game.game_mode)} · {payload.game.game_mode === 'elimination_ladder' ? `${payload.game.elimination_rounds || 3} rounds · ${payload.game.questions_per_round || 3} questions/round` : payload.game.game_mode === 'race_to_points' || payload.game.game_mode === 'speed_round' ? `Race to ${payload.game.target_points || 100}` : `${payload.game.starting_points} start · ${payload.game.target_points || 150} to win`} · {payload.game.question_time_limit_seconds}s per question
               </p>
             </div>
+
+            {!claimedName && <div className="join-account-card">
+              <div>
+                <User size={20} />
+                <span>
+                  <strong>{session ? 'Playing with your Quizo account' : 'Have a Quizo account?'}</strong>
+                  <small>{session ? session.user.email : 'Sign in to connect this game to your account, or continue as a guest.'}</small>
+                </span>
+              </div>
+              {session ? (
+                <button className="ghost-button table-button" onClick={() => void signOutFromJoin()} type="button"><LogOut size={16} /> Sign out</button>
+              ) : (
+                <div>
+                  <button className="ghost-button table-button" onClick={() => { setAuthMode('sign-in'); setAuthMessage(''); setAuthOpen(true); }} type="button"><Lock size={16} /> Sign in</button>
+                  <button className="primary-button compact-button" onClick={() => { setAuthMode('sign-up'); setAuthMessage(''); setAuthOpen(true); }} type="button"><UserPlus size={16} /> Create account</button>
+                </div>
+              )}
+            </div>}
 
             {claimedName ? (
               <div className="claimed-box">
@@ -5646,6 +5745,27 @@ function JoinGame({ joinCode }: { joinCode: string }) {
           </div>
         )}
       </section>
+      {authOpen && (
+        <div className="modal-backdrop join-auth-backdrop" role="dialog" aria-modal="true" aria-label={authMode === 'sign-up' ? 'Create a Quizo account' : 'Sign in to Quizo'}>
+          <section className="join-auth-modal">
+            <div className="practice-modal-header">
+              <div><p className="eyebrow">Game code {joinCode}</p><h2>{authMode === 'sign-up' ? 'Create your account' : 'Sign in to join'}</h2><span>You’ll return to this game after signing in.</span></div>
+              <button className="icon-button neutral" onClick={() => setAuthOpen(false)} type="button" aria-label="Close"><X size={18} /></button>
+            </div>
+            <div className="mode-switch" aria-label="Authentication mode">
+              <button className={authMode === 'sign-in' ? 'active' : ''} onClick={() => { setAuthMode('sign-in'); setAuthMessage(''); }} type="button">Sign in</button>
+              <button className={authMode === 'sign-up' ? 'active' : ''} onClick={() => { setAuthMode('sign-up'); setAuthMessage(''); }} type="button">Sign up</button>
+            </div>
+            <form className="stack" onSubmit={submitJoinAuth}>
+              {authMode === 'sign-up' && <label>Display name<input value={authDisplayName} onChange={(event) => setAuthDisplayName(event.target.value)} minLength={2} required /></label>}
+              <label>Email<input value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} type="email" autoComplete="email" required /></label>
+              <label>Password<input value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} type="password" minLength={6} autoComplete={authMode === 'sign-up' ? 'new-password' : 'current-password'} required /></label>
+              <button className="primary-button" disabled={authBusy} type="submit">{authBusy ? <RefreshCw className="spin" size={18} /> : authMode === 'sign-up' ? <UserPlus size={18} /> : <Lock size={18} />}{authMode === 'sign-up' ? 'Create account' : 'Sign in'}</button>
+              {authMessage && <p className="form-message">{authMessage}</p>}
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

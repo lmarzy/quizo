@@ -4903,6 +4903,94 @@ textarea:focus {
   margin: 0;
 }
 
+.join-account-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 12px;
+  color: white;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.join-account-card > div,
+.join-account-card > div > span,
+.join-account-card > div:last-child {
+  display: flex;
+}
+
+.join-account-card > div:first-child {
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.join-account-card > div:first-child > svg {
+  flex: 0 0 auto;
+}
+
+.join-account-card > div > span {
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.join-account-card strong,
+.join-account-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.join-account-card small {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+}
+
+.join-account-card > div:last-child {
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.join-auth-backdrop {
+  z-index: 100;
+}
+
+.join-auth-modal {
+  width: min(480px, calc(100vw - 28px));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  color: var(--ink);
+  background: white;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.24);
+}
+
+.join-auth-modal .practice-modal-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.join-auth-modal .practice-modal-header h2 {
+  margin: 3px 0 4px;
+  font-size: 28px;
+}
+
+.join-auth-modal .practice-modal-header span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.join-auth-modal .mode-switch {
+  margin: 18px 20px 0;
+}
+
+.join-auth-modal form {
+  padding: 18px 20px 22px;
+}
+
 .join-state {
   min-height: 260px;
   display: flex;
@@ -4912,6 +5000,24 @@ textarea:focus {
   gap: 14px;
   color: white;
   text-align: center;
+}
+
+@media (max-width: 640px) {
+  .join-account-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .join-account-card > div:last-child,
+  .join-account-card > button {
+    width: 100%;
+  }
+
+  .join-account-card > div:last-child > button,
+  .join-account-card > button {
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 .join-state > div:not(.brand-mark):not(.loading-dots) {
