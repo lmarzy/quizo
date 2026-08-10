@@ -182,6 +182,142 @@
   padding: 24px;
 }
 
+.daily-stage-intro {
+  display: grid;
+  gap: 22px;
+  padding: clamp(22px, 4vw, 38px);
+}
+
+.daily-intro-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.daily-intro-heading > span {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 17px;
+  color: #8d5108;
+  background: #fff0d9;
+}
+
+.daily-intro-heading h2 {
+  margin: 3px 0 5px;
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1;
+}
+
+.daily-intro-heading p {
+  max-width: 610px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.daily-stage-tracker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(32px, .25fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.daily-stage-tracker > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #dedede;
+  border-radius: 14px;
+  color: #777;
+  background: #fafafa;
+}
+
+.daily-stage-tracker > div.active {
+  color: #050505;
+  border-color: #050505;
+  background: white;
+  box-shadow: inset 4px 0 0 #050505;
+}
+
+.daily-stage-tracker > div.complete {
+  color: #176343;
+  border-color: #a8d5bc;
+  background: #eef9f3;
+  box-shadow: none;
+}
+
+.daily-stage-tracker > div > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  color: white;
+  background: #8a8a8a;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.daily-stage-tracker > div.active > span { background: #050505; }
+.daily-stage-tracker > div.complete > span { background: #24744f; }
+.daily-stage-tracker small,
+.daily-stage-tracker strong { display: block; }
+.daily-stage-tracker small { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.daily-stage-tracker strong { margin-top: 2px; font-size: 13px; }
+.daily-stage-tracker > i { height: 2px; background: #dedede; }
+
+.daily-stage-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.daily-stage-cards article {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border: 1px solid #dedede;
+  border-radius: 17px;
+  background: #fafafa;
+}
+
+.daily-stage-cards article.active {
+  border-color: #e2b96f;
+  background: #fff7e9;
+}
+
+.daily-stage-cards span { color: #8d5108; font-size: 10px; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; }
+.daily-stage-cards strong { font-size: 20px; }
+.daily-stage-cards p { min-height: 38px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.daily-stage-cards b { font-size: 12px; }
+
+.daily-stage-start {
+  width: min(320px, 100%);
+  justify-self: center;
+}
+
+.daily-stage-score {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 18px;
+  border: 1px solid #dedede;
+  border-radius: 17px;
+  background: #fafafa;
+  text-align: center;
+}
+
+.daily-stage-score span,
+.daily-stage-score small { color: var(--muted); }
+.daily-stage-score span { font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.daily-stage-score strong { font-size: 38px; line-height: 1; }
+.daily-stage-score small { font-size: 11px; }
+
 .daily-result-popup {
   z-index: 6;
 }
@@ -355,6 +491,25 @@
 
   .daily-play-card {
     padding: 18px;
+  }
+
+  .daily-stage-intro {
+    gap: 16px;
+    padding: 18px;
+  }
+
+  .daily-stage-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-stage-tracker {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-stage-tracker > i {
+    width: 2px;
+    height: 12px;
+    margin-left: 27px;
   }
 
   .daily-answer-note {

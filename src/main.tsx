@@ -3095,6 +3095,7 @@ function DailyChallengeModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [stageIntro, setStageIntro] = useState<'overview' | 'logic' | null>('overview');
   const startedAtRef = useRef(Date.now());
 
   useEffect(() => {
@@ -3106,13 +3107,12 @@ function DailyChallengeModal({
     setQuizCorrect(0);
     setPuzzlesCorrect(0);
     setMessage('');
+    setStageIntro('overview');
 
     if (savedAttempt) return undefined;
 
     let cancelled = false;
     setLoading(true);
-    startedAtRef.current = Date.now();
-
     void supabase
       .from('questions')
       .select('id,prompt,option_a,option_b,option_c,correct_option,topic,difficulty')
@@ -3168,6 +3168,17 @@ function DailyChallengeModal({
     setCurrentIndex((current) => current + 1);
   }
 
+  function startDailyChallenge() {
+    startedAtRef.current = Date.now();
+    setStageIntro(null);
+  }
+
+  function openLogicStage() {
+    setSelectedAnswer(null);
+    setCurrentIndex(questions.length);
+    setStageIntro('logic');
+  }
+
   async function finishDailyChallenge() {
     const durationSeconds = Math.min(3600, Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)));
     const score = quizCorrect * 100 + puzzlesCorrect * 200;
@@ -3197,8 +3208,8 @@ function DailyChallengeModal({
         <div className="practice-modal-header">
           <div>
             <p className="eyebrow">Daily challenge #{getDailyChallengeNumber(todayKey)}</p>
-            <h2>{completedAttempt ? 'Today complete' : onPuzzles && currentPuzzle ? currentPuzzle.title : 'Today’s Mix'}</h2>
-            {!completedAttempt && <span>Five progressively harder questions plus three logic puzzles. Your result counts toward this week.</span>}
+            <h2>{completedAttempt ? 'Today complete' : stageIntro === 'overview' ? 'Today’s Challenge' : stageIntro === 'logic' ? 'Logic Lab' : onPuzzles && currentPuzzle ? currentPuzzle.title : 'Quick Quiz'}</h2>
+            {!completedAttempt && <span>{stageIntro === 'overview' ? 'Two short stages. Eight tasks. One daily result.' : stageIntro === 'logic' ? 'Stage 2 of 2 · Three puzzles' : onPuzzles ? 'Stage 2 of 2 · Logic Lab' : 'Stage 1 of 2 · Quick Quiz'}</span>}
           </div>
           <button className="icon-button neutral" onClick={onClose} type="button" aria-label="Close Daily Challenge" title="Close Daily Challenge">
             <X size={18} />
@@ -3214,20 +3225,39 @@ function DailyChallengeModal({
               <p>{completedAttempt.score >= 700 ? 'Daily win secured.' : 'Challenge completed—come back tomorrow to build your streak.'}</p>
             </section>
             <div className="daily-result-stats">
-              <div><span>Quick quiz</span><strong>{completedAttempt.quiz_correct} / 5</strong></div>
-              <div><span>Logic puzzles</span><strong>{completedAttempt.puzzles_correct} / 3</strong></div>
+              <div><span>Quick quiz</span><strong>{completedAttempt.quiz_correct} / 5 · {completedAttempt.quiz_correct * 100} pts</strong></div>
+              <div><span>Logic Lab</span><strong>{completedAttempt.puzzles_correct} / 3 · {completedAttempt.puzzles_correct * 200} pts</strong></div>
               <div><span>Time</span><strong>{Math.max(1, Math.round(completedAttempt.duration_seconds / 60))} min</strong></div>
               <div><span>Status</span><strong>Completed</strong></div>
             </div>
             <button className="primary-button" onClick={onClose} type="button">Back to dashboard</button>
           </div>
+        ) : stageIntro === 'overview' ? (
+          <section className="daily-stage-intro">
+            <div className="daily-intro-heading"><span><CalendarDays size={26} /></span><div><p className="eyebrow">About 5–8 minutes</p><h2>Ready for today’s mix?</h2><p>Build momentum with five questions, then finish with three short logic puzzles.</p></div></div>
+            <DailyStageTracker activeStage="quiz" quizComplete={false} />
+            <div className="daily-stage-cards">
+              <article className="active"><span>Stage 1</span><strong>Quick Quiz</strong><p>5 progressively harder general-knowledge questions.</p><b>100 points each</b></article>
+              <article><span>Stage 2</span><strong>Logic Lab</strong><p>3 pattern, reasoning and problem-solving puzzles.</p><b>200 points each</b></article>
+            </div>
+            {message && <p className="form-message">{message}</p>}
+            <button className="primary-button daily-stage-start" disabled={loading || questions.length !== 5} onClick={startDailyChallenge} type="button">{loading ? <RefreshCw className="spin" size={18} /> : <Play size={18} />}{loading ? 'Preparing today’s challenge' : 'Start Quick Quiz'}</button>
+          </section>
         ) : loading ? (
           <div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Preparing today’s mix…</strong></div>
         ) : message ? (
           <div className="daily-loading"><AlertTriangle size={24} /><p className="form-message">{message}</p></div>
+        ) : stageIntro === 'logic' ? (
+          <section className="daily-stage-intro logic">
+            <DailyStageTracker activeStage="logic" quizComplete />
+            <div className="daily-intro-heading"><span><GraduationCap size={26} /></span><div><p className="eyebrow">Stage 1 complete · {quizCorrect} / 5 correct</p><h2>Now enter the Logic Lab</h2><p>Three puzzles remain. Read carefully—each correct solution is worth 200 points.</p></div></div>
+            <div className="daily-stage-score"><span>Score so far</span><strong>{quizCorrect * 100}</strong><small>Maximum still available: 600 points</small></div>
+            <button className="primary-button daily-stage-start" onClick={() => setStageIntro(null)} type="button"><Play size={18} /> Start Logic Lab</button>
+          </section>
         ) : onPuzzles && currentPuzzle ? (
           <section className="daily-play-card">
-            <div className="daily-progress-row"><span>Logic puzzle {puzzleIndex + 1} of 3 · {progressStep} of 8</span><strong>{currentPuzzle.difficulty}</strong></div>
+            <DailyStageTracker activeStage="logic" quizComplete />
+            <div className="daily-progress-row"><span>Stage 2 · Puzzle {puzzleIndex + 1} of 3</span><strong>{currentPuzzle.difficulty}</strong></div>
             <div className="daily-progress-track"><span style={{ width: `${(progressStep / 8) * 100}%` }} /></div>
             <div className="practice-question">
               <h2>{currentPuzzle.prompt}</h2>
@@ -3253,7 +3283,8 @@ function DailyChallengeModal({
           </section>
         ) : currentQuestion ? (
           <section className="daily-play-card">
-            <div className="daily-progress-row"><span>Quick quiz · {progressStep} of 8</span><strong>{currentQuestion.difficulty || 'mixed'} · {currentQuestion.topic || 'general knowledge'}</strong></div>
+            <DailyStageTracker activeStage="quiz" quizComplete={false} />
+            <div className="daily-progress-row"><span>Stage 1 · Question {currentIndex + 1} of 5</span><strong>{currentQuestion.difficulty || 'mixed'} · {currentQuestion.topic || 'general knowledge'}</strong></div>
             <div className="daily-progress-track"><span style={{ width: `${(progressStep / 8) * 100}%` }} /></div>
             <div className="practice-question">
               <h2>{currentQuestion.prompt}</h2>
@@ -3271,7 +3302,7 @@ function DailyChallengeModal({
                   detail={`Correct answer: ${getQuestionOption(currentQuestion, currentQuestion.correct_option)}`}
                   points={currentQuestion.correct_option === selectedAnswer ? 100 : 0}
                   actionLabel={currentIndex === questions.length - 1 ? 'Start logic puzzles' : 'Next question'}
-                  onNext={goToNextDailyStep}
+                  onNext={currentIndex === questions.length - 1 ? openLogicStage : goToNextDailyStep}
                 />
               )}
             </div>
@@ -3308,6 +3339,22 @@ function DailyAnswerPopup({
         {busy ? <RefreshCw className="spin" size={17} /> : null}
         {actionLabel}
       </button>
+    </div>
+  );
+}
+
+function DailyStageTracker({ activeStage, quizComplete }: { activeStage: 'quiz' | 'logic'; quizComplete: boolean }) {
+  return (
+    <div className="daily-stage-tracker" aria-label={`Current stage: ${activeStage === 'quiz' ? 'Quick Quiz' : 'Logic Lab'}`}>
+      <div className={`${activeStage === 'quiz' ? 'active' : ''} ${quizComplete ? 'complete' : ''}`}>
+        <span>{quizComplete ? <CheckCircle2 size={16} /> : '1'}</span>
+        <div><small>Stage 1</small><strong>Quick Quiz</strong></div>
+      </div>
+      <i aria-hidden="true" />
+      <div className={activeStage === 'logic' ? 'active' : ''}>
+        <span>2</span>
+        <div><small>Stage 2</small><strong>Logic Lab</strong></div>
+      </div>
     </div>
   );
 }
