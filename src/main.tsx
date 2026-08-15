@@ -5471,6 +5471,39 @@ function getGameModeLabel(mode?: string | null) {
   return 'Classic';
 }
 
+function getGameModeBriefing(mode?: string | null) {
+  if (mode === 'speed_round') {
+    return {
+      title: 'Speed Round',
+      objective: 'Buzz in before everyone else—but make sure you are right.',
+      rules: ['Everyone sees the same question.', 'The first correct answer wins the points.', 'A wrong answer locks you out until the next question.'],
+      tip: 'Be quick. Be accurate.',
+    };
+  }
+  if (mode === 'elimination_ladder') {
+    return {
+      title: 'Elimination Ladder',
+      objective: 'Score well enough to survive every round.',
+      rules: ['Everyone answers each question.', 'Scores are compared at the end of the round.', 'The lowest-scoring contestant is eliminated.'],
+      tip: 'Every answer can keep you in the game.',
+    };
+  }
+  if (mode === 'race_to_points') {
+    return {
+      title: 'Race to Points',
+      objective: 'Take turns and be the first player to reach the target score.',
+      rules: ['Only the active player answers.', 'Correct answers move you towards the target.', 'Wrong answers cost points before play moves on.'],
+      tip: 'Keep scoring and stay ahead.',
+    };
+  }
+  return {
+    title: 'Classic',
+    objective: 'Take turns answering and race towards the winning score.',
+    rules: ['Only the active player can answer.', 'Correct answers add points.', 'A wrong answer may give you a recovery question.'],
+    tip: 'Choose carefully and make your turn count.',
+  };
+}
+
 function JoinGame({ joinCode, session }: { joinCode: string; session: Session | null }) {
   const [payload, setPayload] = useState<JoinGamePayload | null>(null);
   const [room, setRoom] = useState<GameRoomPayload | null>(null);
@@ -5488,6 +5521,7 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
   const [authDisplayName, setAuthDisplayName] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState('');
+  const [briefingOpen, setBriefingOpen] = useState(false);
   const refreshInFlightRef = useRef(false);
   const linkingAccountRef = useRef(false);
 
@@ -5507,6 +5541,13 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
     if (!session?.user.id || !guestSession || room?.game.status !== 'finished' || linkingAccountRef.current) return;
     void linkGuestResultToAccount();
   }, [guestSession?.memberId, joinCode, room?.game.status, session?.user.id]);
+
+  useEffect(() => {
+    const gameId = payload?.game.id || room?.game.id;
+    const gameStatus = room?.game.status || payload?.game.status;
+    if (!claimedName || !gameId || gameStatus === 'finished') return;
+    if (localStorage.getItem(`quiz_game_briefing_${gameId}`) !== 'seen') setBriefingOpen(true);
+  }, [claimedName, payload?.game.id, payload?.game.status, room?.game.id, room?.game.status]);
 
   useEffect(() => {
     const gameId = room?.game.id || payload?.game.id;
@@ -5709,6 +5750,7 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
   const invitedMembers = payload?.members.filter((member) => member.status === 'invited') || [];
   const joinedMembers = payload?.members.filter((member) => member.status === 'joined') || [];
   const headerGameName = room?.game.name || payload?.game.name || 'Game';
+  const briefingGame = room?.game || payload?.game || null;
   const playerIdentity = authenticatedMember
     ? { memberId: authenticatedMember.id, kind: 'authenticated' as const }
     : guestSession
@@ -5749,6 +5791,7 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
             showAccountPrompt={room.game.status === 'finished' && Boolean(guestSession) && !session}
             onAccountSignIn={() => { setAuthMode('sign-in'); setAuthMessage(''); setAuthOpen(true); }}
             onAccountSignUp={() => { setAuthMode('sign-up'); setAuthMessage(''); setAuthOpen(true); }}
+            onViewRules={() => setBriefingOpen(true)}
           />
         ) : payload ? (
           <>
@@ -5767,6 +5810,7 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
                   <strong>{claimedName}</strong>
                   <span>Waiting for the host to start.</span>
                 </div>
+                <button className="ghost-button table-button claimed-rules-button" onClick={() => setBriefingOpen(true)} type="button"><BookOpen size={16} /> View rules</button>
               </div>
             ) : (
               <form className="stack" onSubmit={claimMember}>
@@ -5855,7 +5899,38 @@ function JoinGame({ joinCode, session }: { joinCode: string; session: Session | 
           </section>
         </div>
       )}
+      {briefingOpen && briefingGame && (
+        <GameBriefingModal
+          gameName={briefingGame.name}
+          mode={briefingGame.game_mode}
+          onClose={() => {
+            localStorage.setItem(`quiz_game_briefing_${briefingGame.id}`, 'seen');
+            setBriefingOpen(false);
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+function GameBriefingModal({ gameName, mode, onClose }: { gameName: string; mode?: string | null; onClose: () => void }) {
+  const briefing = getGameModeBriefing(mode);
+
+  return (
+    <div className="modal-backdrop game-briefing-backdrop" role="dialog" aria-modal="true" aria-label={`${briefing.title} rules`}>
+      <section className="game-briefing-modal">
+        <button className="icon-button neutral game-briefing-close" onClick={onClose} type="button" aria-label="Dismiss game rules"><X size={18} /></button>
+        <div className="game-briefing-icon"><BookOpen size={26} /></div>
+        <p className="eyebrow">{gameName} · How to play</p>
+        <h2>{briefing.title}</h2>
+        <p className="game-briefing-objective">{briefing.objective}</p>
+        <ol>
+          {briefing.rules.map((rule, index) => <li key={rule}><span>{index + 1}</span><strong>{rule}</strong></li>)}
+        </ol>
+        <p className="game-briefing-tip">{briefing.tip}</p>
+        <button className="primary-button" onClick={onClose} type="button"><CheckCircle2 size={18} /> Got it — enter lobby</button>
+      </section>
+    </div>
   );
 }
 
@@ -5952,6 +6027,7 @@ function GameRoom({
   showAccountPrompt = false,
   onAccountSignIn,
   onAccountSignUp,
+  onViewRules,
   onPlayAgain,
   rematchBusy = false,
 }: {
@@ -5962,6 +6038,7 @@ function GameRoom({
   showAccountPrompt?: boolean;
   onAccountSignIn?: () => void;
   onAccountSignUp?: () => void;
+  onViewRules?: () => void;
   onPlayAgain?: () => void;
   rematchBusy?: boolean;
 }) {
@@ -6409,6 +6486,7 @@ function GameRoom({
             </div>
           </div>
           <section className="question-panel">
+            {onViewRules && <button className="question-rules-toggle" onClick={onViewRules} type="button"><BookOpen size={15} /> Rules</button>}
             <button className={`sound-toggle question-sound-toggle ${soundEnabled ? 'enabled' : ''}`} onClick={toggleSound} type="button" aria-label={soundEnabled ? 'Turn sound off' : 'Turn sound on'} title={soundEnabled ? 'Sound on' : 'Sound off'}>
               {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
             </button>

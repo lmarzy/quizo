@@ -5177,6 +5177,110 @@ textarea:focus {
   margin-top: 3px;
 }
 
+.claimed-rules-button {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.game-briefing-backdrop {
+  z-index: 110;
+  padding: 20px;
+}
+
+.game-briefing-modal {
+  position: relative;
+  width: min(520px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: clamp(24px, 5vw, 38px);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  color: #050505;
+  background: white;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+
+.game-briefing-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+
+.game-briefing-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  color: #8d5108;
+  background: #fff0d9;
+}
+
+.game-briefing-modal h2 {
+  margin: -5px 0 0;
+  font-size: clamp(34px, 7vw, 52px);
+  line-height: 1;
+}
+
+.game-briefing-objective {
+  max-width: 410px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.game-briefing-modal ol {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.game-briefing-modal li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 11px 12px;
+  border: 1px solid #e2e2e2;
+  border-radius: 13px;
+  background: #fafafa;
+}
+
+.game-briefing-modal li span {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 9px;
+  color: white;
+  background: #050505;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.game-briefing-modal li strong {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.game-briefing-tip {
+  margin: 0;
+  color: #8d5108;
+  font-weight: 900;
+}
+
+.game-briefing-modal > .primary-button {
+  width: 100%;
+  justify-content: center;
+}
+
 .lobby-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5330,6 +5434,30 @@ textarea:focus {
   width: 38px;
   height: 38px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.question-rules-toggle {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 14px;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: #050505;
+  background: white;
+  font-weight: 850;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.question-rules-toggle:hover {
+  border-color: #050505;
+  transform: translateY(-1px);
 }
 
 .timer-pill {
