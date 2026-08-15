@@ -11132,6 +11132,14 @@ body,
   padding: 16px 20px 20px;
 }
 
+.daily-challenge-modal .daily-play-card > .daily-stage-tracker {
+  margin-bottom: 18px;
+}
+
+.daily-challenge-modal .daily-progress-row {
+  margin-bottom: 8px;
+}
+
 .daily-challenge-modal .daily-progress-track {
   margin-bottom: 16px;
 }

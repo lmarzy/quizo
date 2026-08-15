@@ -3208,8 +3208,8 @@ function DailyChallengeModal({
         <div className="practice-modal-header">
           <div>
             <p className="eyebrow">Daily challenge #{getDailyChallengeNumber(todayKey)}</p>
-            <h2>{completedAttempt ? 'Today complete' : stageIntro === 'overview' ? 'Today’s Challenge' : stageIntro === 'logic' ? 'Logic Lab' : onPuzzles && currentPuzzle ? currentPuzzle.title : 'Quick Quiz'}</h2>
-            {!completedAttempt && <span>{stageIntro === 'overview' ? 'Two short stages. Eight tasks. One daily result.' : stageIntro === 'logic' ? 'Stage 2 of 2 · Three puzzles' : onPuzzles ? 'Stage 2 of 2 · Logic Lab' : 'Stage 1 of 2 · Quick Quiz'}</span>}
+            <h2>{completedAttempt ? 'Today complete' : stageIntro === 'overview' ? 'Today’s Challenge' : onPuzzles ? 'Logic Lab' : 'Quick Quiz'}</h2>
+            {!completedAttempt && <span>{stageIntro === 'overview' ? 'Two short stages. Eight tasks. One daily result.' : stageIntro === 'logic' ? 'Three puzzles remain' : onPuzzles && currentPuzzle ? `Puzzle ${puzzleIndex + 1} of 3 · ${currentPuzzle.title}` : `Question ${currentIndex + 1} of 5`}</span>}
           </div>
           <button className="icon-button neutral" onClick={onClose} type="button" aria-label="Close Daily Challenge" title="Close Daily Challenge">
             <X size={18} />
@@ -3257,7 +3257,7 @@ function DailyChallengeModal({
         ) : onPuzzles && currentPuzzle ? (
           <section className="daily-play-card">
             <DailyStageTracker activeStage="logic" quizComplete />
-            <div className="daily-progress-row"><span>Stage 2 · Puzzle {puzzleIndex + 1} of 3</span><strong>{currentPuzzle.difficulty}</strong></div>
+            <div className="daily-progress-row"><span>Overall progress · {progressStep} of 8</span><strong>{currentPuzzle.difficulty}</strong></div>
             <div className="daily-progress-track"><span style={{ width: `${(progressStep / 8) * 100}%` }} /></div>
             <div className="practice-question">
               <h2>{currentPuzzle.prompt}</h2>
@@ -3284,7 +3284,7 @@ function DailyChallengeModal({
         ) : currentQuestion ? (
           <section className="daily-play-card">
             <DailyStageTracker activeStage="quiz" quizComplete={false} />
-            <div className="daily-progress-row"><span>Stage 1 · Question {currentIndex + 1} of 5</span><strong>{currentQuestion.difficulty || 'mixed'} · {currentQuestion.topic || 'general knowledge'}</strong></div>
+            <div className="daily-progress-row"><span>Overall progress · {progressStep} of 8</span><strong>{currentQuestion.difficulty || 'mixed'} · {currentQuestion.topic || 'general knowledge'}</strong></div>
             <div className="daily-progress-track"><span style={{ width: `${(progressStep / 8) * 100}%` }} /></div>
             <div className="practice-question">
               <h2>{currentQuestion.prompt}</h2>
