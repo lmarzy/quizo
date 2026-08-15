@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { AlertTriangle, ArrowLeft, BarChart3, BookOpen, CalendarDays, CheckCircle2, Clipboard, Flame, GraduationCap, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Timer, Trash2, Trophy, Upload, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BarChart3, BookOpen, Brain, CalendarDays, CheckCircle2, Clipboard, Flame, GraduationCap, Lightbulb, Lock, LogOut, PartyPopper, Pencil, Play, Plus, RefreshCw, Save, Search, Send, Target, Timer, Trash2, Trophy, Upload, User, UserPlus, Volume2, VolumeX, X } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import './styles.css';
@@ -115,6 +115,24 @@ type StudyAnswer = {
   selected_option: 'A' | 'B' | 'C';
   is_correct: boolean;
   created_at: string;
+};
+
+type LearningAttempt = {
+  id: string;
+  correct_count: number;
+  question_count: number;
+  duration_seconds: number;
+  completed_at: string;
+};
+
+type LearningProgress = {
+  question_id: string;
+  attempts: number;
+  correct_attempts: number;
+  mastery_level: number;
+  next_review_at: string;
+  last_answered_at: string | null;
+  last_was_correct: boolean | null;
 };
 
 const dailyBonusChallenges: DailyBonusChallenge[] = [
@@ -834,6 +852,8 @@ function Dashboard({ session }: { session: Session }) {
   const [studyQuestions, setStudyQuestions] = useState<StudyQuestion[]>([]);
   const [studyAttempts, setStudyAttempts] = useState<StudyAttempt[]>([]);
   const [studyAnswers, setStudyAnswers] = useState<StudyAnswer[]>([]);
+  const [learningAttempts, setLearningAttempts] = useState<LearningAttempt[]>([]);
+  const [learningProgress, setLearningProgress] = useState<LearningProgress[]>([]);
   const [manageDrawerOpen, setManageDrawerOpen] = useState(false);
   const [controlRoomGame, setControlRoomGame] = useState<Game | null>(null);
   const [summaryGame, setSummaryGame] = useState<Game | null>(null);
@@ -847,7 +867,8 @@ function Dashboard({ session }: { session: Session }) {
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
-  const activeView = pathname.startsWith('/study') ? 'study'
+  const activeView = pathname.startsWith('/learn') ? 'learn'
+    : pathname.startsWith('/study') ? 'study'
     : pathname.startsWith('/profile') ? 'profile'
       : pathname.startsWith('/play') || pathname.startsWith('/games') ? 'play'
           : pathname.startsWith('/packs') ? 'packs'
@@ -904,6 +925,7 @@ function Dashboard({ session }: { session: Session }) {
     const titles: Record<string, string> = {
       dashboard: 'Overview',
       study: 'Study',
+      learn: 'Learn',
       play: 'Play',
       packs: 'Question Packs',
       daily: 'Daily Challenge',
@@ -1051,7 +1073,7 @@ function Dashboard({ session }: { session: Session }) {
 
   async function loadDashboard() {
     try {
-      const [profileResult, subscriptionResult, gamesResult, dailyAttemptsResult, studyQuizzesResult, studyQuestionsResult, studyAttemptsResult, studyAnswersResult] = await Promise.all([
+      const [profileResult, subscriptionResult, gamesResult, dailyAttemptsResult, studyQuizzesResult, studyQuestionsResult, studyAttemptsResult, studyAnswersResult, learningAttemptsResult, learningProgressResult] = await Promise.all([
         supabase.from('profiles').select('id,email,display_name').eq('id', session.user.id).single(),
         supabase.from('subscriptions').select('plan_id,status,current_period_end,cancel_at_period_end,billing_interval,billing_amount_cents,currency').eq('user_id', session.user.id).single(),
         supabase
@@ -1070,6 +1092,8 @@ function Dashboard({ session }: { session: Session }) {
         supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position,mastery_level,next_review_at,last_reviewed_at').order('position'),
         supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
         supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
+        supabase.from('learning_attempts').select('id,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
+        supabase.from('learning_question_progress').select('question_id,attempts,correct_attempts,mastery_level,next_review_at,last_answered_at,last_was_correct'),
       ]);
 
       if (profileResult.data) setProfile(profileResult.data);
@@ -1079,6 +1103,8 @@ function Dashboard({ session }: { session: Session }) {
       if (studyQuestionsResult.data) setStudyQuestions(studyQuestionsResult.data as StudyQuestion[]);
       if (studyAttemptsResult.data) setStudyAttempts(studyAttemptsResult.data as StudyAttempt[]);
       if (studyAnswersResult.data) setStudyAnswers(studyAnswersResult.data as StudyAnswer[]);
+      if (learningAttemptsResult.data) setLearningAttempts(learningAttemptsResult.data as LearningAttempt[]);
+      if (learningProgressResult.data) setLearningProgress(learningProgressResult.data as LearningProgress[]);
       if (gamesResult.data) {
         setGames(gamesResult.data);
         setSelectedGameId((current) => current || gamesResult.data[0]?.id || '');
@@ -1853,6 +1879,7 @@ function Dashboard({ session }: { session: Session }) {
         <nav className="app-section-nav" aria-label="Main navigation">
           {[
             { path: '/dashboard', label: 'Overview' },
+            { path: '/learn', label: 'Learn' },
             { path: '/study', label: 'Study' },
             { path: '/play', label: 'Play' },
           ].map((item) => (
@@ -1946,6 +1973,8 @@ function Dashboard({ session }: { session: Session }) {
         />
       ) : activeView === 'study' ? (
         <StudyQuizView session={session} />
+      ) : activeView === 'learn' ? (
+        <LearnView session={session} onProgressChanged={() => void loadDashboard()} />
       ) : (
       <section className="game-table-shell">
         <div className="table-toolbar">
@@ -1970,7 +1999,10 @@ function Dashboard({ session }: { session: Session }) {
           studyAttempts={studyAttempts}
           studyQuestions={studyQuestions}
           studyQuizzes={studyQuizzes}
+          learningAttempts={learningAttempts}
+          learningProgress={learningProgress}
           onDaily={() => navigate('/daily')}
+          onLearn={() => navigate('/learn')}
           onPlay={() => navigate('/play')}
           onStudy={() => navigate('/study')}
         />}
@@ -2833,6 +2865,223 @@ function StudyQuizView({ session }: { session: Session }) {
   );
 }
 
+function learningOptionText(question: PracticeQuestion, option: string) {
+  if (option === 'A') return question.option_a;
+  if (option === 'B') return question.option_b;
+  return question.option_c;
+}
+
+function getLearningNote(question: PracticeQuestion) {
+  const answer = learningOptionText(question, question.correct_option);
+  const prompt = question.prompt.replace(/\?$/, '');
+  const patterns: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
+    [/^What is the capital city of (.+)$/i, (match) => `${answer} is the capital city of ${match[1]}.`],
+    [/^Which city is the national capital of (.+)$/i, (match) => `${answer} is the national capital of ${match[1]}.`],
+    [/^What is the chemical symbol for (.+)$/i, (match) => `${answer} is the chemical symbol for ${match[1]}.`],
+    [/^On the periodic table, which symbol represents (.+)$/i, (match) => `${answer} represents ${match[1]} on the periodic table.`],
+    [/^In which country would you find (.+)$/i, (match) => `${match[1]} is in ${answer}.`],
+    [/^(.+) is located in which country$/i, (match) => `${match[1]} is located in ${answer}.`],
+    [/^Who wrote (.+)$/i, (match) => `${match[1]} was written by ${answer}.`],
+    [/^(.+) was written by which author$/i, (match) => `${answer} wrote ${match[1]}.`],
+    [/^In which year did (.+) happen$/i, (match) => `${match[1]} happened in ${answer}.`],
+    [/^What year is associated with (.+)$/i, (match) => `${answer} is the year associated with ${match[1]}.`],
+    [/^Which river flows through (.+)$/i, (match) => `The ${answer} flows through ${match[1]}.`],
+    [/^(.+) is associated with which river$/i, (match) => `${match[1]} is associated with the ${answer}.`],
+    [/^In which sport is the term (.+) used$/i, (match) => `${match[1]} is a term used in ${answer}.`],
+    [/^The term (.+) belongs mainly to which sport$/i, (match) => `${match[1]} belongs mainly to ${answer}.`],
+    [/^Which country or region is most associated with (.+)$/i, (match) => `${match[1]} is most associated with ${answer}.`],
+    [/^(.+) is most commonly linked with which place$/i, (match) => `${match[1]} is most commonly linked with ${answer}.`],
+    [/^In computing, what does (.+) stand for or refer to$/i, (match) => `In computing, ${match[1]} means ${answer}.`],
+    [/^Which phrase best matches the computing term (.+)$/i, (match) => `${match[1]} refers to ${answer}.`],
+    [/^Which animal is known for (.+)$/i, (match) => `The ${answer} is known for ${match[1]}.`],
+    [/^What animal best fits this clue: (.+)$/i, (match) => `The ${answer} best fits the clue: ${match[1]}.`],
+  ];
+  for (const [pattern, format] of patterns) {
+    const match = prompt.match(pattern);
+    if (match) return format(match);
+  }
+  return `Remember the connection: ${answer} is the correct answer to this ${question.topic || 'general knowledge'} question.`;
+}
+
+function LearnView({ session, onProgressChanged }: { session: Session; onProgressChanged: () => void }) {
+  const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
+  const [progress, setProgress] = useState<LearningProgress[]>([]);
+  const [attempts, setAttempts] = useState<LearningAttempt[]>([]);
+  const [sessionQuestions, setSessionQuestions] = useState<PracticeQuestion[]>([]);
+  const [answers, setAnswers] = useState<PracticeAnswer[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState('');
+  const [screen, setScreen] = useState<'overview' | 'session' | 'results'>('overview');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [startedAt, setStartedAt] = useState(Date.now());
+  const [message, setMessage] = useState('');
+
+  async function loadLearning() {
+    setLoading(true);
+    const [questionsResult, progressResult, attemptsResult] = await Promise.all([
+      supabase.from('questions').select('id,prompt,option_a,option_b,option_c,correct_option,topic,difficulty').eq('pack_id', '00000000-0000-0000-0000-000000000101'),
+      supabase.from('learning_question_progress').select('question_id,attempts,correct_attempts,mastery_level,next_review_at,last_answered_at,last_was_correct'),
+      supabase.from('learning_attempts').select('id,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
+    ]);
+    if (questionsResult.error || progressResult.error || attemptsResult.error) {
+      setMessage(questionsResult.error?.message || progressResult.error?.message || attemptsResult.error?.message || 'Could not load learning progress.');
+    } else {
+      setQuestions((questionsResult.data || []) as PracticeQuestion[]);
+      setProgress((progressResult.data || []) as LearningProgress[]);
+      setAttempts((attemptsResult.data || []) as LearningAttempt[]);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => { void loadLearning(); }, []);
+
+  const progressByQuestion = useMemo(() => new Map(progress.map((item) => [item.question_id, item])), [progress]);
+  const topicStats = useMemo(() => {
+    const stats = new Map<string, { total: number; started: number; mastery: number }>();
+    questions.forEach((question) => {
+      const topic = question.topic || 'general knowledge';
+      const item = stats.get(topic) || { total: 0, started: 0, mastery: 0 };
+      const questionProgress = progressByQuestion.get(question.id);
+      item.total += 1;
+      if (questionProgress) {
+        item.started += 1;
+        item.mastery += questionProgress.mastery_level;
+      }
+      stats.set(topic, item);
+    });
+    return [...stats.entries()].map(([topic, stat]) => ({ topic, percent: stat.started ? Math.round((stat.mastery / (stat.started * 5)) * 100) : 0, started: stat.started })).sort((a, b) => a.percent - b.percent);
+  }, [progressByQuestion, questions]);
+
+  function beginSession() {
+    const now = Date.now();
+    const ranked = shuffleItems(questions).sort((left, right) => {
+      const a = progressByQuestion.get(left.id);
+      const b = progressByQuestion.get(right.id);
+      const priority = (item?: LearningProgress) => !item ? 2 : item.last_was_correct === false ? 0 : new Date(item.next_review_at).getTime() <= now ? 1 : 3 + item.mastery_level;
+      return priority(a) - priority(b);
+    });
+    const selected: PracticeQuestion[] = [];
+    const usedTopics = new Set<string>();
+    const usedAnswers = new Set<string>();
+    for (const question of ranked) {
+      const topic = question.topic || 'general knowledge';
+      const answerKey = `${topic}:${learningOptionText(question, question.correct_option).toLowerCase()}`;
+      if (usedTopics.has(topic) || usedAnswers.has(answerKey)) continue;
+      selected.push(question);
+      usedTopics.add(topic);
+      usedAnswers.add(answerKey);
+      if (selected.length === 8) break;
+    }
+    if (selected.length < 8) {
+      for (const question of ranked) {
+        if (selected.some((item) => item.id === question.id)) continue;
+        const answerKey = `${question.topic}:${learningOptionText(question, question.correct_option).toLowerCase()}`;
+        if (usedAnswers.has(answerKey)) continue;
+        selected.push(question);
+        usedAnswers.add(answerKey);
+        if (selected.length === 8) break;
+      }
+    }
+    setSessionQuestions(selected);
+    setAnswers([]);
+    setCurrentIndex(0);
+    setSelectedOption('');
+    setStartedAt(Date.now());
+    setMessage('');
+    setScreen('session');
+  }
+
+  async function chooseAnswer(option: string) {
+    const question = sessionQuestions[currentIndex];
+    if (!question || selectedOption) return;
+    setSelectedOption(option);
+    const isCorrect = option === question.correct_option;
+    const existing = progressByQuestion.get(question.id);
+    const mastery = Math.max(0, Math.min(5, (existing?.mastery_level || 0) + (isCorrect ? 1 : -1)));
+    const reviewDays = isCorrect ? [1, 2, 4, 7, 14, 30][mastery] : 0;
+    const nextReview = new Date(Date.now() + reviewDays * 86400000).toISOString();
+    const updated: LearningProgress = {
+      question_id: question.id,
+      attempts: (existing?.attempts || 0) + 1,
+      correct_attempts: (existing?.correct_attempts || 0) + (isCorrect ? 1 : 0),
+      mastery_level: mastery,
+      next_review_at: nextReview,
+      last_answered_at: new Date().toISOString(),
+      last_was_correct: isCorrect,
+    };
+    setAnswers((current) => [...current, { question, selectedOption: option, isCorrect }]);
+    setProgress((current) => [...current.filter((item) => item.question_id !== question.id), updated]);
+    const { error } = await supabase.from('learning_question_progress').upsert({ user_id: session.user.id, ...updated }, { onConflict: 'user_id,question_id' });
+    if (error) setMessage(error.message);
+  }
+
+  async function nextQuestion() {
+    if (!selectedOption) return;
+    if (currentIndex + 1 < sessionQuestions.length) {
+      setCurrentIndex((current) => current + 1);
+      setSelectedOption('');
+      return;
+    }
+    setBusy(true);
+    const correctCount = answers.filter((answer) => answer.isCorrect).length;
+    const duration = Math.min(3600, Math.max(0, Math.round((Date.now() - startedAt) / 1000)));
+    const { data: attempt, error: attemptError } = await supabase.from('learning_attempts').insert({ user_id: session.user.id, correct_count: correctCount, question_count: answers.length, duration_seconds: duration }).select('id,correct_count,question_count,duration_seconds,completed_at').single();
+    if (attemptError || !attempt) {
+      setMessage(attemptError?.message || 'Could not save this learning session.');
+      setBusy(false);
+      return;
+    }
+    const { error: answersError } = await supabase.from('learning_answers').insert(answers.map((answer) => ({ attempt_id: attempt.id, question_id: answer.question.id, selected_option: answer.selectedOption, is_correct: answer.isCorrect })));
+    if (answersError) setMessage(answersError.message);
+    setAttempts((current) => [attempt as LearningAttempt, ...current]);
+    setScreen('results');
+    setBusy(false);
+    onProgressChanged();
+  }
+
+  const dates = new Set(attempts.map((attempt) => getLocalDateKey(new Date(attempt.completed_at))));
+  let streak = 0;
+  let cursor = new Date();
+  if (!dates.has(getLocalDateKey(cursor))) cursor = addLocalDays(cursor, -1);
+  while (dates.has(getLocalDateKey(cursor))) { streak += 1; cursor = addLocalDays(cursor, -1); }
+  const weekAttempts = attempts.filter((attempt) => Date.now() - new Date(attempt.completed_at).getTime() < 7 * 86400000);
+  const mastered = progress.filter((item) => item.mastery_level >= 4).length;
+  const due = progress.filter((item) => item.last_was_correct === false || new Date(item.next_review_at).getTime() <= Date.now()).length;
+  const currentQuestion = sessionQuestions[currentIndex];
+  const currentAnswer = answers.find((answer) => answer.question.id === currentQuestion?.id);
+
+  if (loading) return <section className="learn-shell"><div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Preparing your learning journey…</strong></div></section>;
+
+  if (screen === 'session' && currentQuestion) return (
+    <section className="learn-shell learn-session-shell">
+      <div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('overview')} type="button"><X size={17} /> Exit</button><p className="eyebrow">{currentQuestion.topic || 'General knowledge'}</p><h1>Knowledge session</h1></div><strong>{currentIndex + 1} / {sessionQuestions.length}</strong></div>
+      <div className="learn-session-progress"><span style={{ width: `${((currentIndex + 1) / sessionQuestions.length) * 100}%` }} /></div>
+      <section className="study-play-card learn-play-card">
+        <small>{currentQuestion.difficulty || 'mixed'} · Learn, answer, remember</small>
+        <h2>{currentQuestion.prompt}</h2>
+        <div className="practice-answer-grid">{(['A', 'B', 'C'] as const).map((option) => { const state = selectedOption ? (option === currentQuestion.correct_option ? 'correct' : option === selectedOption ? 'wrong' : 'muted') : ''; return <button className={`practice-answer-button ${state}`} disabled={Boolean(selectedOption)} key={option} onClick={() => void chooseAnswer(option)} type="button"><span>{option}</span>{learningOptionText(currentQuestion, option)}</button>; })}</div>
+        {currentAnswer && <div className={`learn-explanation ${currentAnswer.isCorrect ? 'correct' : 'wrong'}`}><span><Lightbulb size={21} /></span><div><small>{currentAnswer.isCorrect ? 'You knew it' : 'Add this to memory'}</small><strong>{getLearningNote(currentQuestion)}</strong><p>{currentAnswer.isCorrect ? 'This fact will return later as it moves towards mastery.' : 'We’ll bring this fact back sooner so you can strengthen it.'}</p></div><button className="primary-button compact-button" disabled={busy} onClick={() => void nextQuestion()} type="button">{currentIndex + 1 === sessionQuestions.length ? 'See progress' : 'Next fact'}</button></div>}
+        {message && <p className="form-message">{message}</p>}
+      </section>
+    </section>
+  );
+
+  if (screen === 'results') {
+    const correct = answers.filter((answer) => answer.isCorrect).length;
+    return <section className="learn-shell"><div className="learn-result-hero"><span><Trophy size={28} /></span><p className="eyebrow">Session complete</p><h1>{correct === answers.length ? 'Excellent recall' : 'Knowledge strengthened'}</h1><p>You answered {correct} of {answers.length} correctly. Missed facts are already scheduled for an earlier review.</p><button className="primary-button" onClick={beginSession} type="button"><RefreshCw size={17} /> Learn another 8 facts</button><button className="ghost-button" onClick={() => setScreen('overview')} type="button">View progress</button></div><section className="study-review-card"><div className="study-section-title"><div><p className="eyebrow">What you learned</p><h2>Your session recap</h2></div></div>{answers.map((answer) => <article className={`study-review-row ${answer.isCorrect ? 'correct' : 'wrong'}`} key={answer.question.id}><span>{answer.isCorrect ? <CheckCircle2 size={18} /> : <X size={18} />}</span><div><small>{answer.question.topic}</small><strong>{getLearningNote(answer.question)}</strong><p>{answer.isCorrect ? 'Correctly recalled' : `You chose ${learningOptionText(answer.question, answer.selectedOption)}`}</p></div></article>)}</section></section>;
+  }
+
+  return (
+    <section className="learn-shell">
+      <div className="learn-hero"><div><p className="eyebrow">Learn · General Knowledge</p><h1>Build knowledge that sticks</h1><p>Short adaptive sessions mix new facts with the things you most need to revisit.</p><button className="primary-button" disabled={questions.length < 8} onClick={beginSession} type="button"><Brain size={18} /> {due ? `Review ${Math.min(due, 8)} due facts` : attempts.length ? 'Continue learning' : 'Start first session'}</button></div><div className="learn-hero-focus"><Target size={24} /><span>Next goal</span><strong>{mastered < 25 ? `${25 - mastered} facts to your first checkpoint` : 'Keep expanding your mastery'}</strong><small>About five minutes</small></div></div>
+      <div className="study-overview-grid learn-overview-grid"><article><Flame size={21} /><span>Learning streak</span><strong>{streak} day{streak === 1 ? '' : 's'}</strong></article><article><CalendarDays size={21} /><span>Last 7 days</span><strong>{weekAttempts.length} session{weekAttempts.length === 1 ? '' : 's'}</strong></article><article><Brain size={21} /><span>Facts started</span><strong>{progress.length}</strong></article><article><Trophy size={21} /><span>Facts mastered</span><strong>{mastered}</strong></article></div>
+      <section className="learn-topics"><div className="study-section-title"><div><p className="eyebrow">Topic mastery</p><h2>See where your knowledge is growing</h2></div><span>{due} ready to review</span></div><div className="learn-topic-grid">{topicStats.map((topic) => <article key={topic.topic}><div><strong>{topic.topic}</strong><span>{topic.started ? `${topic.percent}%` : 'Not started'}</span></div><div><span style={{ width: `${topic.percent}%` }} /></div><small>{topic.started} of 50 facts explored</small></article>)}</div></section>
+      {message && <p className="form-message">{message}</p>}
+    </section>
+  );
+}
+
 function ProfileView({
   accountBusy,
   accountEmail,
@@ -2997,7 +3246,10 @@ function DashboardLaunchGrid({
   studyAttempts,
   studyQuestions,
   studyQuizzes,
+  learningAttempts,
+  learningProgress,
   onDaily,
+  onLearn,
   onPlay,
   onStudy,
 }: {
@@ -3007,7 +3259,10 @@ function DashboardLaunchGrid({
   studyAttempts: StudyAttempt[];
   studyQuestions: StudyQuestion[];
   studyQuizzes: StudyQuiz[];
+  learningAttempts: LearningAttempt[];
+  learningProgress: LearningProgress[];
   onDaily: () => void;
+  onLearn: () => void;
   onPlay: () => void;
   onStudy: () => void;
 }) {
@@ -3036,6 +3291,16 @@ function DashboardLaunchGrid({
       : latestQuiz
         ? `Continue ${latestQuiz.title} or create another study quiz.`
         : 'Your study library is ready.';
+  const learningDates = new Set(learningAttempts.map((attempt) => getLocalDateKey(new Date(attempt.completed_at))));
+  let learningStreak = 0;
+  let learningCursor = new Date();
+  if (!learningDates.has(getLocalDateKey(learningCursor))) learningCursor = addLocalDays(learningCursor, -1);
+  while (learningDates.has(getLocalDateKey(learningCursor))) {
+    learningStreak += 1;
+    learningCursor = addLocalDays(learningCursor, -1);
+  }
+  const masteredFacts = learningProgress.filter((item) => item.mastery_level >= 4).length;
+  const dueFacts = learningProgress.filter((item) => item.last_was_correct === false || new Date(item.next_review_at).getTime() <= Date.now()).length;
 
   return (
     <div className="dashboard-launch-grid" aria-label="Choose an activity">
@@ -3057,6 +3322,16 @@ function DashboardLaunchGrid({
         <p>{studyPrompt}</p>
         <div className="dashboard-launch-status"><span><Flame size={15} /> {studyStreak} day streak</span><strong>{studyQuizzes.length} quiz{studyQuizzes.length === 1 ? '' : 'zes'}</strong></div>
         <button className="primary-button" onClick={onStudy} type="button"><GraduationCap size={17} />{dueQuestions.length ? `Review ${dueQuestions.length} due` : studyQuizzes.length ? 'Continue studying' : 'Create study quiz'}</button>
+      </section>
+
+      <section className="dashboard-launch-card learn">
+        <div className="dashboard-launch-heading">
+          <span><Brain size={21} /></span>
+          <div><p className="eyebrow">Learn</p><h2>{dueFacts ? 'Strengthen weak areas' : learningAttempts.length ? 'Keep building knowledge' : 'Start your knowledge journey'}</h2></div>
+        </div>
+        <p>{dueFacts ? `${dueFacts} fact${dueFacts === 1 ? '' : 's'} ready for review in a guided five-minute session.` : 'Build lasting general knowledge with explanations, smart review, and topic mastery.'}</p>
+        <div className="dashboard-launch-status"><span><Flame size={15} /> {learningStreak} day streak</span><strong>{masteredFacts} mastered</strong></div>
+        <button className="primary-button" onClick={onLearn} type="button"><Brain size={17} /> {dueFacts ? 'Start smart review' : 'Continue learning'}</button>
       </section>
 
       <section className="dashboard-launch-card play">
