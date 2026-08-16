@@ -133,6 +133,9 @@ type LearningProgress = {
   next_review_at: string;
   last_answered_at: string | null;
   last_was_correct: boolean | null;
+  exposure_count: number;
+  last_exposed_at: string | null;
+  self_reported_familiar: boolean | null;
 };
 
 const dailyBonusChallenges: DailyBonusChallenge[] = [
@@ -1093,7 +1096,7 @@ function Dashboard({ session }: { session: Session }) {
         supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
         supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
         supabase.from('learning_attempts').select('id,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
-        supabase.from('learning_question_progress').select('question_id,attempts,correct_attempts,mastery_level,next_review_at,last_answered_at,last_was_correct'),
+        supabase.from('learning_question_progress').select('question_id,attempts,correct_attempts,mastery_level,next_review_at,last_answered_at,last_was_correct,exposure_count,last_exposed_at,self_reported_familiar'),
       ]);
 
       if (profileResult.data) setProfile(profileResult.data);
@@ -2916,12 +2919,16 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
   const [busy, setBusy] = useState(false);
   const [startedAt, setStartedAt] = useState(Date.now());
   const [message, setMessage] = useState('');
+  const [phaseIntro, setPhaseIntro] = useState<'learn' | 'practice' | 'recall' | null>(null);
+  const [familiarFacts, setFamiliarFacts] = useState(0);
+  const [recallRevealed, setRecallRevealed] = useState(false);
+  const [recallRatings, setRecallRatings] = useState<Record<string, 'got' | 'almost' | 'review'>>({});
 
   async function loadLearning() {
     setLoading(true);
     const [questionsResult, progressResult, attemptsResult] = await Promise.all([
       supabase.from('questions').select('id,prompt,option_a,option_b,option_c,correct_option,topic,difficulty').eq('pack_id', '00000000-0000-0000-0000-000000000101'),
-      supabase.from('learning_question_progress').select('question_id,attempts,correct_attempts,mastery_level,next_review_at,last_answered_at,last_was_correct'),
+      supabase.from('learning_question_progress').select('question_id,attempts,correct_attempts,mastery_level,next_review_at,last_answered_at,last_was_correct,exposure_count,last_exposed_at,self_reported_familiar'),
       supabase.from('learning_attempts').select('id,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
     ]);
     if (questionsResult.error || progressResult.error || attemptsResult.error) {
@@ -2989,7 +2996,34 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
     setSelectedOption('');
     setStartedAt(Date.now());
     setMessage('');
+    setPhaseIntro('learn');
+    setFamiliarFacts(0);
+    setRecallRevealed(false);
+    setRecallRatings({});
     setScreen('session');
+  }
+
+  async function advanceLearningCard(familiar: boolean) {
+    const question = sessionQuestions[currentIndex];
+    const existing = progressByQuestion.get(question.id);
+    const updated: LearningProgress = {
+      question_id: question.id,
+      attempts: existing?.attempts || 0,
+      correct_attempts: existing?.correct_attempts || 0,
+      mastery_level: existing?.mastery_level || 0,
+      next_review_at: existing?.next_review_at || new Date().toISOString(),
+      last_answered_at: existing?.last_answered_at || null,
+      last_was_correct: existing?.last_was_correct ?? null,
+      exposure_count: (existing?.exposure_count || 0) + 1,
+      last_exposed_at: new Date().toISOString(),
+      self_reported_familiar: familiar,
+    };
+    setProgress((current) => [...current.filter((item) => item.question_id !== question.id), updated]);
+    const { error } = await supabase.from('learning_question_progress').upsert({ user_id: session.user.id, ...updated }, { onConflict: 'user_id,question_id' });
+    if (error) setMessage(error.message);
+    if (familiar) setFamiliarFacts((current) => current + 1);
+    if (currentIndex === 2) setPhaseIntro('practice');
+    setCurrentIndex((current) => current + 1);
   }
 
   async function chooseAnswer(option: string) {
@@ -3009,6 +3043,9 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
       next_review_at: nextReview,
       last_answered_at: new Date().toISOString(),
       last_was_correct: isCorrect,
+      exposure_count: existing?.exposure_count || 0,
+      last_exposed_at: existing?.last_exposed_at || null,
+      self_reported_familiar: existing?.self_reported_familiar ?? null,
     };
     setAnswers((current) => [...current, { question, selectedOption: option, isCorrect }]);
     setProgress((current) => [...current.filter((item) => item.question_id !== question.id), updated]);
@@ -3019,8 +3056,10 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
   async function nextQuestion() {
     if (!selectedOption) return;
     if (currentIndex + 1 < sessionQuestions.length) {
+      if (currentIndex === 5) setPhaseIntro('recall');
       setCurrentIndex((current) => current + 1);
       setSelectedOption('');
+      setRecallRevealed(false);
       return;
     }
     setBusy(true);
@@ -3050,18 +3089,34 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
   const due = progress.filter((item) => item.last_was_correct === false || new Date(item.next_review_at).getTime() <= Date.now()).length;
   const currentQuestion = sessionQuestions[currentIndex];
   const currentAnswer = answers.find((answer) => answer.question.id === currentQuestion?.id);
+  const sessionPhase = currentIndex < 3 ? 'learn' : currentIndex < 6 ? 'practice' : 'recall';
+
+  function rateRecall(rating: 'got' | 'almost' | 'review') {
+    if (!currentQuestion || selectedOption) return;
+    setRecallRatings((current) => ({ ...current, [currentQuestion.id]: rating }));
+    const wrongOption = (['A', 'B', 'C'] as const).find((option) => option !== currentQuestion.correct_option) || 'A';
+    void chooseAnswer(rating === 'got' ? currentQuestion.correct_option : wrongOption);
+  }
 
   if (loading) return <section className="learn-shell"><div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Preparing your learning journey…</strong></div></section>;
 
+  if (screen === 'session' && currentQuestion && phaseIntro) {
+    const phaseDetails = {
+      learn: { number: '1', title: 'Learn three new facts', detail: 'Take your time. Read each fact and its memory prompt before moving on.', icon: <BookOpen size={28} />, action: 'Start learning' },
+      practice: { number: '2', title: 'Practise the connections', detail: 'Now use what you have learned alongside a few related facts. Explanations follow every answer.', icon: <Target size={28} />, action: 'Start practice' },
+      recall: { number: '3', title: 'Recall without choices', detail: 'Bring the answer to mind before revealing it, then rate your recall honestly.', icon: <Brain size={28} />, action: 'Start recall' },
+    }[phaseIntro];
+    return <section className="learn-shell learn-session-shell"><div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('overview')} type="button"><X size={17} /> Exit</button><p className="eyebrow">Knowledge session</p><h1>Learn, practise, recall</h1></div><strong>{phaseDetails.number} / 3</strong></div><div className="learn-phase-tracker"><span className={phaseIntro === 'learn' ? 'active' : 'complete'}>Learn</span><span className={phaseIntro === 'practice' ? 'active' : phaseIntro === 'recall' ? 'complete' : ''}>Practise</span><span className={phaseIntro === 'recall' ? 'active' : ''}>Recall</span></div><section className="learn-phase-intro"><span>{phaseDetails.icon}</span><p className="eyebrow">Stage {phaseDetails.number} of 3</p><h2>{phaseDetails.title}</h2><p>{phaseDetails.detail}</p><button className="primary-button" onClick={() => setPhaseIntro(null)} type="button"><Play size={17} /> {phaseDetails.action}</button></section></section>;
+  }
+
   if (screen === 'session' && currentQuestion) return (
     <section className="learn-shell learn-session-shell">
-      <div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('overview')} type="button"><X size={17} /> Exit</button><p className="eyebrow">{currentQuestion.topic || 'General knowledge'}</p><h1>Knowledge session</h1></div><strong>{currentIndex + 1} / {sessionQuestions.length}</strong></div>
+      <div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('overview')} type="button"><X size={17} /> Exit</button><p className="eyebrow">{sessionPhase} · {currentQuestion.topic || 'General knowledge'}</p><h1>{sessionPhase === 'learn' ? 'Explore the fact' : sessionPhase === 'practice' ? 'Practise the connection' : 'Recall from memory'}</h1></div><strong>{currentIndex + 1} / {sessionQuestions.length}</strong></div>
+      <div className="learn-phase-tracker compact"><span className={sessionPhase === 'learn' ? 'active' : 'complete'}>Learn</span><span className={sessionPhase === 'practice' ? 'active' : sessionPhase === 'recall' ? 'complete' : ''}>Practise</span><span className={sessionPhase === 'recall' ? 'active' : ''}>Recall</span></div>
       <div className="learn-session-progress"><span style={{ width: `${((currentIndex + 1) / sessionQuestions.length) * 100}%` }} /></div>
       <section className="study-play-card learn-play-card">
-        <small>{currentQuestion.difficulty || 'mixed'} · Learn, answer, remember</small>
-        <h2>{currentQuestion.prompt}</h2>
-        <div className="practice-answer-grid">{(['A', 'B', 'C'] as const).map((option) => { const state = selectedOption ? (option === currentQuestion.correct_option ? 'correct' : option === selectedOption ? 'wrong' : 'muted') : ''; return <button className={`practice-answer-button ${state}`} disabled={Boolean(selectedOption)} key={option} onClick={() => void chooseAnswer(option)} type="button"><span>{option}</span>{learningOptionText(currentQuestion, option)}</button>; })}</div>
-        {currentAnswer && <div className="learn-answer-modal-backdrop"><div className={`practice-result-popup learn-answer-modal ${currentAnswer.isCorrect ? 'correct' : 'wrong'}`} role="dialog" aria-modal="true" aria-labelledby="learn-answer-result-title"><div className="answer-result-icon">{currentAnswer.isCorrect ? <CheckCircle2 size={25} /> : <X size={25} />}</div><div className="learn-answer-modal-heading"><small>{currentAnswer.isCorrect ? 'You knew it' : 'Add this to memory'}</small><strong id="learn-answer-result-title">{currentAnswer.isCorrect ? 'Correct' : 'Not quite'}</strong><span>{currentQuestion.topic || 'General knowledge'} · {currentQuestion.difficulty || 'mixed'}</span></div><div className="learn-answer-detail"><div><span>Your answer</span><strong>{learningOptionText(currentQuestion, currentAnswer.selectedOption)}</strong></div>{!currentAnswer.isCorrect && <div><span>Correct answer</span><strong>{learningOptionText(currentQuestion, currentQuestion.correct_option)}</strong></div>}</div><div className="learn-answer-note"><Lightbulb size={20} /><div><span>Remember this</span><strong>{getLearningNote(currentQuestion)}</strong><p>{currentAnswer.isCorrect ? 'This fact will return later as it moves towards mastery.' : 'We’ll bring this fact back sooner so you can strengthen it.'}</p></div></div><button className="primary-button" disabled={busy} onClick={() => void nextQuestion()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : null}{currentIndex + 1 === sessionQuestions.length ? 'See progress' : 'Next fact'}</button></div></div>}
+        {sessionPhase === 'learn' ? <div className="learn-fact-card"><small>{currentQuestion.topic || 'General knowledge'} · New fact</small><strong>{learningOptionText(currentQuestion, currentQuestion.correct_option)}</strong><h2>{getLearningNote(currentQuestion)}</h2><div><Lightbulb size={20} /><p><span>Memory prompt</span>Read it once, look away, then say the connection back in your own words.</p></div><div className="learn-fact-actions"><button className="ghost-button" onClick={() => void advanceLearningCard(false)} type="button">New to me</button><button className="primary-button" onClick={() => void advanceLearningCard(true)} type="button"><CheckCircle2 size={17} /> I knew this</button></div></div> : sessionPhase === 'recall' ? <div className="learn-recall-card"><small>{currentQuestion.difficulty || 'mixed'} · No answer choices</small><h2>{currentQuestion.prompt}</h2>{!recallRevealed ? <div className="learn-recall-pause"><Brain size={27} /><strong>Bring the answer to mind</strong><p>Say it aloud or write it down before revealing it.</p><button className="primary-button" onClick={() => setRecallRevealed(true)} type="button">Reveal answer</button></div> : <div className="learn-recall-reveal"><span>Answer</span><strong>{learningOptionText(currentQuestion, currentQuestion.correct_option)}</strong><p>{getLearningNote(currentQuestion)}</p><div><button onClick={() => rateRecall('review')} type="button">Need to review</button><button onClick={() => rateRecall('almost')} type="button">Almost</button><button onClick={() => rateRecall('got')} type="button">Got it</button></div></div>}</div> : <><small>{currentQuestion.difficulty || 'mixed'} · Guided practice</small><h2>{currentQuestion.prompt}</h2><div className="practice-answer-grid">{(['A', 'B', 'C'] as const).map((option) => { const state = selectedOption ? (option === currentQuestion.correct_option ? 'correct' : option === selectedOption ? 'wrong' : 'muted') : ''; return <button className={`practice-answer-button ${state}`} disabled={Boolean(selectedOption)} key={option} onClick={() => void chooseAnswer(option)} type="button"><span>{option}</span>{learningOptionText(currentQuestion, option)}</button>; })}</div></>}
+        {currentAnswer && <div className="learn-answer-modal-backdrop"><div className={`practice-result-popup learn-answer-modal ${currentAnswer.isCorrect ? 'correct' : 'wrong'}`} role="dialog" aria-modal="true" aria-labelledby="learn-answer-result-title"><div className="answer-result-icon">{currentAnswer.isCorrect ? <CheckCircle2 size={25} /> : <Lightbulb size={25} />}</div><div className="learn-answer-modal-heading"><small>{sessionPhase === 'recall' ? 'Recall recorded' : currentAnswer.isCorrect ? 'You knew it' : 'Add this to memory'}</small><strong id="learn-answer-result-title">{sessionPhase === 'recall' ? recallRatings[currentQuestion.id] === 'got' ? 'Got it' : recallRatings[currentQuestion.id] === 'almost' ? 'Almost there' : 'Review soon' : currentAnswer.isCorrect ? 'Correct' : 'Not quite'}</strong><span>{currentQuestion.topic || 'General knowledge'} · {currentQuestion.difficulty || 'mixed'}</span></div><div className="learn-answer-detail">{sessionPhase === 'recall' ? <div><span>Your confidence</span><strong>{recallRatings[currentQuestion.id] === 'got' ? 'Recalled confidently' : recallRatings[currentQuestion.id] === 'almost' ? 'Nearly recalled' : 'Needs another review'}</strong></div> : <div><span>Your answer</span><strong>{learningOptionText(currentQuestion, currentAnswer.selectedOption)}</strong></div>}{(!currentAnswer.isCorrect || sessionPhase === 'recall') && <div><span>Correct answer</span><strong>{learningOptionText(currentQuestion, currentQuestion.correct_option)}</strong></div>}</div><div className="learn-answer-note"><Lightbulb size={20} /><div><span>Remember this</span><strong>{getLearningNote(currentQuestion)}</strong><p>{currentAnswer.isCorrect ? 'This fact will return later as it moves towards mastery.' : 'We’ll bring this fact back sooner so you can strengthen it.'}</p></div></div><button className="primary-button" disabled={busy} onClick={() => void nextQuestion()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : null}{currentIndex + 1 === sessionQuestions.length ? 'See progress' : sessionPhase === 'practice' && currentIndex === 5 ? 'Start recall' : 'Next fact'}</button></div></div>}
         {message && <p className="form-message">{message}</p>}
       </section>
     </section>
@@ -3069,7 +3124,7 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
 
   if (screen === 'results') {
     const correct = answers.filter((answer) => answer.isCorrect).length;
-    return <section className="learn-shell"><div className="learn-result-hero"><span><Trophy size={28} /></span><p className="eyebrow">Session complete</p><h1>{correct === answers.length ? 'Excellent recall' : 'Knowledge strengthened'}</h1><p>You answered {correct} of {answers.length} correctly. Missed facts are already scheduled for an earlier review.</p><button className="primary-button" onClick={beginSession} type="button"><RefreshCw size={17} /> Learn another 8 facts</button><button className="ghost-button" onClick={() => setScreen('overview')} type="button">View progress</button></div><section className="study-review-card"><div className="study-section-title"><div><p className="eyebrow">What you learned</p><h2>Your session recap</h2></div></div>{answers.map((answer) => <article className={`study-review-row ${answer.isCorrect ? 'correct' : 'wrong'}`} key={answer.question.id}><span>{answer.isCorrect ? <CheckCircle2 size={18} /> : <X size={18} />}</span><div><small>{answer.question.topic}</small><strong>{getLearningNote(answer.question)}</strong><p>{answer.isCorrect ? 'Correctly recalled' : `You chose ${learningOptionText(answer.question, answer.selectedOption)}`}</p></div></article>)}</section></section>;
+    return <section className="learn-shell"><div className="learn-result-hero"><span><Trophy size={28} /></span><p className="eyebrow">Session complete</p><h1>{correct === answers.length ? 'Excellent recall' : 'Knowledge strengthened'}</h1><p>You explored 3 facts and successfully practised or recalled {correct} of 5. Anything uncertain is already scheduled for an earlier review.</p><div className="learn-result-stats"><div><span>Facts explored</span><strong>3</strong></div><div><span>Already familiar</span><strong>{familiarFacts}</strong></div><div><span>Practised & recalled</span><strong>{correct} / 5</strong></div></div><button className="primary-button" onClick={beginSession} type="button"><RefreshCw size={17} /> Start another lesson</button><button className="ghost-button" onClick={() => setScreen('overview')} type="button">View progress</button></div><section className="study-review-card"><div className="study-section-title"><div><p className="eyebrow">What you learned</p><h2>Your lesson recap</h2></div></div>{sessionQuestions.slice(0, 3).map((question) => <article className="study-review-row learned" key={question.id}><span><BookOpen size={18} /></span><div><small>{question.topic} · Introduced</small><strong>{getLearningNote(question)}</strong><p>A new connection from today’s learning stage.</p></div></article>)}{answers.map((answer) => <article className={`study-review-row ${answer.isCorrect ? 'correct' : 'wrong'}`} key={answer.question.id}><span>{answer.isCorrect ? <CheckCircle2 size={18} /> : <RefreshCw size={18} />}</span><div><small>{answer.question.topic} · {sessionQuestions.indexOf(answer.question) >= 6 ? 'Recall' : 'Practice'}</small><strong>{getLearningNote(answer.question)}</strong><p>{answer.isCorrect ? 'Successfully remembered' : 'Scheduled for an earlier review'}</p></div></article>)}</section></section>;
   }
 
   return (
