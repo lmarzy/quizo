@@ -52,6 +52,8 @@ type DailyChallengeAttempt = {
   quiz_correct: number;
   bonus_correct: boolean;
   puzzles_correct: number;
+  connections_correct: number;
+  final_correct: boolean;
   score: number;
   duration_seconds: number;
   completed_at: string;
@@ -267,6 +269,18 @@ const dailyBonusChallenges: DailyBonusChallenge[] = [
   },
 ];
 
+const dailyConnectionChallenges: DailyBonusChallenge[] = [
+  { title: 'Common link', kind: 'Connections', prompt: 'What connects Mercury, Venus, Earth, and Mars?', options: ['They have rings', 'They are rocky planets', 'They have two moons'], correctOption: 1, explanation: 'They are the four rocky inner planets of our solar system.', difficulty: 'easy' },
+  { title: 'Shared word', kind: 'Connections', prompt: 'Which word links rain, long, and violin?', options: ['Bow', 'Fall', 'String'], correctOption: 0, explanation: 'Rainbow, longbow, and violin bow all use the word bow.', difficulty: 'easy' },
+  { title: 'Category finder', kind: 'Connections', prompt: 'What connects ruby, sapphire, and emerald?', options: ['They are metals', 'They are gemstones', 'They are planets'], correctOption: 1, explanation: 'Ruby, sapphire, and emerald are all gemstones.', difficulty: 'easy' },
+  { title: 'Hidden connection', kind: 'Connections', prompt: 'What connects Java, Python, and Ruby?', options: ['Programming languages', 'Coffee-growing countries', 'Mountain ranges'], correctOption: 0, explanation: 'All three are names of widely used programming languages.', difficulty: 'medium' },
+  { title: 'Place connection', kind: 'Connections', prompt: 'What connects Vienna, Budapest, and Belgrade?', options: ['The Rhine', 'The Danube', 'The Seine'], correctOption: 1, explanation: 'The River Danube flows through all three capital cities.', difficulty: 'medium' },
+  { title: 'Creative connection', kind: 'Connections', prompt: 'What connects Hamlet, Macbeth, and Othello?', options: ['Greek myths', 'Shakespeare tragedies', 'Dickens novels'], correctOption: 1, explanation: 'All three are tragedies written by William Shakespeare.', difficulty: 'medium' },
+  { title: 'Scientific link', kind: 'Connections', prompt: 'What connects joule, watt, and volt?', options: ['Scientific units', 'Chemical elements', 'Space telescopes'], correctOption: 0, explanation: 'Each is a named unit used in physics and electricity.', difficulty: 'hard' },
+  { title: 'Namesake link', kind: 'Connections', prompt: 'What connects Darwin, Lincoln, and Wellington?', options: ['Only people', 'Capital cities and surnames', 'European rivers'], correctOption: 1, explanation: 'Each is both a notable surname and the name of a capital city.', difficulty: 'hard' },
+  { title: 'Language link', kind: 'Connections', prompt: 'What connects kindergarten, zeitgeist, and wanderlust?', options: ['French loanwords', 'German loanwords', 'Latin legal terms'], correctOption: 1, explanation: 'All three entered English from German.', difficulty: 'hard' },
+];
+
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -340,6 +354,20 @@ function getDailyPuzzles(dateKey: string) {
     const candidates = dailyBonusChallenges.filter((challenge) => challenge.difficulty === difficulty);
     return seededShuffle(candidates, random)[0];
   });
+}
+
+function getDailyConnections(dateKey: string) {
+  const random = createSeededRandom(getDailySeed(`quizo-connections-${dateKey}`));
+  return (['easy', 'medium', 'hard'] as const).map((difficulty) => {
+    const candidates = dailyConnectionChallenges.filter((challenge) => challenge.difficulty === difficulty);
+    return seededShuffle(candidates, random)[0];
+  });
+}
+
+function createDailyFinalQuestion(questions: PracticeQuestion[], dateKey: string, excludedIds: string[]) {
+  const random = createSeededRandom(getDailySeed(`quizo-final-${dateKey}`));
+  const candidates = questions.filter((question) => question.difficulty === 'hard' && !excludedIds.includes(question.id));
+  return seededShuffle(candidates.sort((left, right) => left.id.localeCompare(right.id)), random)[0] || null;
 }
 
 function calculateDailyStreak(attempts: DailyChallengeAttempt[], todayKey: string) {
@@ -1096,7 +1124,7 @@ function Dashboard({ session }: { session: Session }) {
           .order('created_at', { ascending: false }),
         supabase
           .from('daily_challenge_attempts')
-          .select('id,challenge_date,quiz_correct,bonus_correct,puzzles_correct,score,duration_seconds,completed_at')
+          .select('id,challenge_date,quiz_correct,bonus_correct,puzzles_correct,connections_correct,final_correct,score,duration_seconds,completed_at')
           .eq('user_id', session.user.id)
           .gte('challenge_date', getLocalDateKey(addLocalDays(new Date(), -120)))
           .order('challenge_date', { ascending: false }),
@@ -1159,7 +1187,7 @@ function Dashboard({ session }: { session: Session }) {
         },
         { onConflict: 'user_id,challenge_date' },
       )
-      .select('id,challenge_date,quiz_correct,bonus_correct,puzzles_correct,score,duration_seconds,completed_at')
+      .select('id,challenge_date,quiz_correct,bonus_correct,puzzles_correct,connections_correct,final_correct,score,duration_seconds,completed_at')
       .single();
 
     if (error) {
@@ -3439,17 +3467,23 @@ function DailyChallengeModal({
 }) {
   const todayKey = getLocalDateKey();
   const savedAttempt = attempts.find((attempt) => attempt.challenge_date === todayKey) || null;
+  const connections = getDailyConnections(todayKey);
   const puzzles = getDailyPuzzles(todayKey);
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
+  const [finalQuestion, setFinalQuestion] = useState<PracticeQuestion | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | number | null>(null);
   const [quizCorrect, setQuizCorrect] = useState(0);
+  const [connectionsCorrect, setConnectionsCorrect] = useState(0);
   const [puzzlesCorrect, setPuzzlesCorrect] = useState(0);
+  const [finalAnswer, setFinalAnswer] = useState('');
+  const [finalSubmitted, setFinalSubmitted] = useState(false);
+  const [finalCorrect, setFinalCorrect] = useState(false);
   const [completedAttempt, setCompletedAttempt] = useState<DailyChallengeAttempt | null>(savedAttempt);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [stageIntro, setStageIntro] = useState<'overview' | 'logic' | null>('overview');
+  const [stageIntro, setStageIntro] = useState<'overview' | 'connections' | 'logic' | 'final' | null>('overview');
   const startedAtRef = useRef(Date.now());
 
   useEffect(() => {
@@ -3459,7 +3493,11 @@ function DailyChallengeModal({
     setCurrentIndex(0);
     setSelectedAnswer(null);
     setQuizCorrect(0);
+    setConnectionsCorrect(0);
     setPuzzlesCorrect(0);
+    setFinalAnswer('');
+    setFinalSubmitted(false);
+    setFinalCorrect(false);
     setMessage('');
     setStageIntro('overview');
 
@@ -3478,12 +3516,14 @@ function DailyChallengeModal({
           setMessage(error.message);
           return;
         }
-        const dailyQuestions = createDailyQuiz((data || []) as PracticeQuestion[], todayKey);
+        const allQuestions = (data || []) as PracticeQuestion[];
+        const dailyQuestions = createDailyQuiz(allQuestions, todayKey);
         if (dailyQuestions.length !== 5) {
           setMessage('Today’s challenge could not be prepared. Please try again.');
           return;
         }
         setQuestions(dailyQuestions);
+        setFinalQuestion(createDailyFinalQuestion(allQuestions, todayKey, dailyQuestions.map((question) => question.id)));
       });
 
     return () => {
@@ -3493,11 +3533,13 @@ function DailyChallengeModal({
 
   if (!open) return null;
 
-  const onPuzzles = currentIndex >= questions.length;
-  const puzzleIndex = Math.max(0, currentIndex - questions.length);
+  const activeStage: 'quiz' | 'connections' | 'logic' | 'final' = currentIndex < 5 ? 'quiz' : currentIndex < 8 ? 'connections' : currentIndex < 11 ? 'logic' : 'final';
+  const connectionIndex = currentIndex - 5;
+  const puzzleIndex = currentIndex - 8;
+  const currentConnection = activeStage === 'connections' ? connections[connectionIndex] : null;
   const currentPuzzle = puzzles[puzzleIndex] || null;
-  const currentQuestion = questions[currentIndex] || null;
-  const progressStep = Math.min(currentIndex + 1, 8);
+  const currentQuestion = activeStage === 'quiz' ? questions[currentIndex] || null : null;
+  const progressStep = Math.min(currentIndex + 1, 12);
 
   function getQuestionOption(question: PracticeQuestion, option: string) {
     if (option === 'A') return question.option_a;
@@ -3517,6 +3559,12 @@ function DailyChallengeModal({
     if (optionIndex === currentPuzzle.correctOption) setPuzzlesCorrect((current) => current + 1);
   }
 
+  function chooseConnectionAnswer(optionIndex: number) {
+    if (selectedAnswer !== null || !currentConnection) return;
+    setSelectedAnswer(optionIndex);
+    if (optionIndex === currentConnection.correctOption) setConnectionsCorrect((current) => current + 1);
+  }
+
   function goToNextDailyStep() {
     setSelectedAnswer(null);
     setCurrentIndex((current) => current + 1);
@@ -3527,20 +3575,34 @@ function DailyChallengeModal({
     setStageIntro(null);
   }
 
-  function openLogicStage() {
+  function openStage(stage: 'connections' | 'logic' | 'final', index: number) {
     setSelectedAnswer(null);
-    setCurrentIndex(questions.length);
-    setStageIntro('logic');
+    setCurrentIndex(index);
+    setStageIntro(stage);
   }
 
-  async function finishDailyChallenge() {
+  function normaliseRecallAnswer(value: string) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  function submitFinalAnswer() {
+    if (!finalQuestion || !finalAnswer.trim() || finalSubmitted) return;
+    const answer = getQuestionOption(finalQuestion, finalQuestion.correct_option);
+    const isCorrect = normaliseRecallAnswer(finalAnswer) === normaliseRecallAnswer(answer);
+    setFinalCorrect(isCorrect);
+    setFinalSubmitted(true);
+  }
+
+  async function finishDailyChallenge(finalWasCorrect = finalCorrect) {
     const durationSeconds = Math.min(3600, Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)));
-    const score = quizCorrect * 100 + puzzlesCorrect * 200;
+    const score = quizCorrect * 100 + connectionsCorrect * 150 + puzzlesCorrect * 200 + (finalWasCorrect ? 300 : 0);
     const nextAttempt = {
       challenge_date: todayKey,
       quiz_correct: quizCorrect,
-      bonus_correct: puzzlesCorrect === 3,
+      bonus_correct: finalWasCorrect,
       puzzles_correct: puzzlesCorrect,
+      connections_correct: connectionsCorrect,
+      final_correct: finalWasCorrect,
       score,
       duration_seconds: durationSeconds,
     };
@@ -3562,8 +3624,8 @@ function DailyChallengeModal({
         <div className="practice-modal-header">
           <div>
             <p className="eyebrow">Daily challenge #{getDailyChallengeNumber(todayKey)}</p>
-            <h2>{completedAttempt ? 'Today complete' : stageIntro === 'overview' ? 'Today’s Challenge' : onPuzzles ? 'Logic Lab' : 'Quick Quiz'}</h2>
-            {!completedAttempt && <span>{stageIntro === 'overview' ? 'Two short stages. Eight tasks. One daily result.' : stageIntro === 'logic' ? 'Three puzzles remain' : onPuzzles && currentPuzzle ? `Puzzle ${puzzleIndex + 1} of 3 · ${currentPuzzle.title}` : `Question ${currentIndex + 1} of 5`}</span>}
+            <h2>{completedAttempt ? 'Today complete' : stageIntro === 'overview' ? 'Today’s Challenge' : activeStage === 'quiz' ? 'Quickfire' : activeStage === 'connections' ? 'Connections' : activeStage === 'logic' ? 'Logic Lab' : 'Final Challenge'}</h2>
+            {!completedAttempt && <span>{stageIntro === 'overview' ? 'Four stages. Twelve activities. About 7–9 minutes.' : `Overall progress · ${progressStep} of 12`}</span>}
           </div>
           <button className="icon-button neutral" onClick={onClose} type="button" aria-label="Close Daily Challenge" title="Close Daily Challenge">
             <X size={18} />
@@ -3575,12 +3637,14 @@ function DailyChallengeModal({
             <section className="daily-result-hero">
               <span className="daily-result-icon"><Trophy size={28} /></span>
               <p className="eyebrow">Final score</p>
-              <h2>{completedAttempt.score} / 1100</h2>
-              <p>{completedAttempt.score >= 700 ? 'Daily win secured.' : 'Challenge completed—come back tomorrow to build your streak.'}</p>
+              <h2>{completedAttempt.score} / 1850</h2>
+              <p>{completedAttempt.score >= 1450 ? 'Gold performance—excellent all-round work.' : completedAttempt.score >= 950 ? 'Silver performance—daily win secured.' : 'Bronze performance—challenge completed and streak protected.'}</p>
             </section>
             <div className="daily-result-stats">
               <div><span>Quick quiz</span><strong>{completedAttempt.quiz_correct} / 5 · {completedAttempt.quiz_correct * 100} pts</strong></div>
+              <div><span>Connections</span><strong>{completedAttempt.connections_correct || 0} / 3 · {(completedAttempt.connections_correct || 0) * 150} pts</strong></div>
               <div><span>Logic Lab</span><strong>{completedAttempt.puzzles_correct} / 3 · {completedAttempt.puzzles_correct * 200} pts</strong></div>
+              <div><span>Final challenge</span><strong>{completedAttempt.final_correct ? 'Correct · 300 pts' : 'Not solved'}</strong></div>
               <div><span>Time</span><strong>{Math.max(1, Math.round(completedAttempt.duration_seconds / 60))} min</strong></div>
               <div><span>Status</span><strong>Completed</strong></div>
             </div>
@@ -3588,31 +3652,40 @@ function DailyChallengeModal({
           </div>
         ) : stageIntro === 'overview' ? (
           <section className="daily-stage-intro">
-            <div className="daily-intro-heading"><span><CalendarDays size={26} /></span><div><p className="eyebrow">About 5–8 minutes</p><h2>Ready for today’s mix?</h2><p>Build momentum with five questions, then finish with three short logic puzzles.</p></div></div>
-            <DailyStageTracker activeStage="quiz" quizComplete={false} />
+            <div className="daily-intro-heading"><span><CalendarDays size={26} /></span><div><p className="eyebrow">About 7–9 minutes</p><h2>Ready for today’s full challenge?</h2><p>Move from quick knowledge through connections and logic, then finish with one answer from memory.</p></div></div>
+            <DailyStageTracker activeStage="quiz" />
             <div className="daily-stage-cards">
-              <article className="active"><span>Stage 1</span><strong>Quick Quiz</strong><p>5 progressively harder general-knowledge questions.</p><b>100 points each</b></article>
-              <article><span>Stage 2</span><strong>Logic Lab</strong><p>3 pattern, reasoning and problem-solving puzzles.</p><b>200 points each</b></article>
+              <article className="active"><span>Stage 1</span><strong>Quickfire</strong><p>5 progressively harder general-knowledge questions.</p><b>100 points each</b></article>
+              <article><span>Stage 2</span><strong>Connections</strong><p>3 common-link and association challenges.</p><b>150 points each</b></article>
+              <article><span>Stage 3</span><strong>Logic Lab</strong><p>3 reasoning and problem-solving puzzles.</p><b>200 points each</b></article>
+              <article><span>Stage 4</span><strong>Final Challenge</strong><p>1 difficult question with no answer choices.</p><b>300 points</b></article>
             </div>
             {message && <p className="form-message">{message}</p>}
-            <button className="primary-button daily-stage-start" disabled={loading || questions.length !== 5} onClick={startDailyChallenge} type="button">{loading ? <RefreshCw className="spin" size={18} /> : <Play size={18} />}{loading ? 'Preparing today’s challenge' : 'Start Quick Quiz'}</button>
+            <button className="primary-button daily-stage-start" disabled={loading || questions.length !== 5 || !finalQuestion} onClick={startDailyChallenge} type="button">{loading ? <RefreshCw className="spin" size={18} /> : <Play size={18} />}{loading ? 'Preparing today’s challenge' : 'Start Quickfire'}</button>
           </section>
         ) : loading ? (
           <div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Preparing today’s mix…</strong></div>
         ) : message ? (
           <div className="daily-loading"><AlertTriangle size={24} /><p className="form-message">{message}</p></div>
-        ) : stageIntro === 'logic' ? (
+        ) : stageIntro ? (
           <section className="daily-stage-intro logic">
-            <DailyStageTracker activeStage="logic" quizComplete />
-            <div className="daily-intro-heading"><span><GraduationCap size={26} /></span><div><p className="eyebrow">Stage 1 complete · {quizCorrect} / 5 correct</p><h2>Now enter the Logic Lab</h2><p>Three puzzles remain. Read carefully—each correct solution is worth 200 points.</p></div></div>
-            <div className="daily-stage-score"><span>Score so far</span><strong>{quizCorrect * 100}</strong><small>Maximum still available: 600 points</small></div>
-            <button className="primary-button daily-stage-start" onClick={() => setStageIntro(null)} type="button"><Play size={18} /> Start Logic Lab</button>
+            <DailyStageTracker activeStage={stageIntro} />
+            <div className="daily-intro-heading"><span>{stageIntro === 'final' ? <Trophy size={26} /> : <GraduationCap size={26} />}</span><div><p className="eyebrow">Stage {stageIntro === 'connections' ? 2 : stageIntro === 'logic' ? 3 : 4} of 4</p><h2>{stageIntro === 'connections' ? 'Find the connections' : stageIntro === 'logic' ? 'Enter the Logic Lab' : 'One final answer'}</h2><p>{stageIntro === 'connections' ? 'Three challenges test how well you spot common links and associations.' : stageIntro === 'logic' ? 'Three puzzles test patterns, deduction, and problem solving.' : 'No options this time. Bring the answer to mind and type it in.'}</p></div></div>
+            <div className="daily-stage-score"><span>Score so far</span><strong>{quizCorrect * 100 + connectionsCorrect * 150 + puzzlesCorrect * 200}</strong><small>{stageIntro === 'final' ? '300 points still available' : 'Keep building your daily total'}</small></div>
+            <button className="primary-button daily-stage-start" onClick={() => setStageIntro(null)} type="button"><Play size={18} /> Start {stageIntro === 'connections' ? 'Connections' : stageIntro === 'logic' ? 'Logic Lab' : 'Final Challenge'}</button>
           </section>
-        ) : onPuzzles && currentPuzzle ? (
+        ) : activeStage === 'final' && finalQuestion ? (
           <section className="daily-play-card">
-            <DailyStageTracker activeStage="logic" quizComplete />
-            <div className="daily-progress-row"><span>Overall progress · {progressStep} of 8</span><strong>{currentPuzzle.difficulty}</strong></div>
-            <div className="daily-progress-track"><span style={{ width: `${(progressStep / 8) * 100}%` }} /></div>
+            <DailyStageTracker activeStage="final" />
+            <div className="daily-progress-row"><span>Overall progress · 12 of 12</span><strong>Hard · typed recall</strong></div>
+            <div className="daily-progress-track"><span style={{ width: '100%' }} /></div>
+            <div className="practice-question daily-final-question"><h2>{finalQuestion.prompt}</h2><p>No choices—type the answer you remember.</p><div className="daily-final-entry"><input autoFocus disabled={finalSubmitted} value={finalAnswer} onChange={(event) => setFinalAnswer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitFinalAnswer(); }} placeholder="Type your answer" /><button className="primary-button" disabled={!finalAnswer.trim() || finalSubmitted} onClick={submitFinalAnswer} type="button">Check answer</button></div>{finalSubmitted && <DailyAnswerPopup correct={finalCorrect} detail={`Correct answer: ${getQuestionOption(finalQuestion, finalQuestion.correct_option)}`} points={finalCorrect ? 300 : 0} actionLabel="See today’s result" busy={saving} onNext={() => void finishDailyChallenge(finalCorrect)} />}</div>
+          </section>
+        ) : activeStage === 'logic' && currentPuzzle ? (
+          <section className="daily-play-card">
+            <DailyStageTracker activeStage="logic" />
+            <div className="daily-progress-row"><span>Overall progress · {progressStep} of 12</span><strong>{currentPuzzle.difficulty}</strong></div>
+            <div className="daily-progress-track"><span style={{ width: `${(progressStep / 12) * 100}%` }} /></div>
             <div className="practice-question">
               <h2>{currentPuzzle.prompt}</h2>
               <div className="practice-answer-grid">
@@ -3628,18 +3701,19 @@ function DailyChallengeModal({
                   correct={selectedAnswer === currentPuzzle.correctOption}
                   detail={currentPuzzle.explanation}
                   points={selectedAnswer === currentPuzzle.correctOption ? 200 : 0}
-                  actionLabel={puzzleIndex === puzzles.length - 1 ? 'Finish challenge' : 'Next puzzle'}
-                  busy={saving}
-                  onNext={puzzleIndex === puzzles.length - 1 ? () => void finishDailyChallenge() : goToNextDailyStep}
+                  actionLabel={puzzleIndex === puzzles.length - 1 ? 'Start final challenge' : 'Next puzzle'}
+                  onNext={puzzleIndex === puzzles.length - 1 ? () => openStage('final', 11) : goToNextDailyStep}
                 />
               )}
             </div>
           </section>
+        ) : activeStage === 'connections' && currentConnection ? (
+          <section className="daily-play-card"><DailyStageTracker activeStage="connections" /><div className="daily-progress-row"><span>Overall progress · {progressStep} of 12</span><strong>{currentConnection.difficulty} · connections</strong></div><div className="daily-progress-track"><span style={{ width: `${(progressStep / 12) * 100}%` }} /></div><div className="practice-question"><h2>{currentConnection.prompt}</h2><div className="practice-answer-grid">{currentConnection.options.map((option, optionIndex) => { const isSelected = selectedAnswer === optionIndex; const isCorrect = selectedAnswer !== null && optionIndex === currentConnection.correctOption; const state = selectedAnswer !== null ? (isCorrect ? 'correct' : isSelected ? 'wrong' : 'muted') : ''; return <button className={`practice-answer-button ${state}`} disabled={selectedAnswer !== null} key={option} onClick={() => chooseConnectionAnswer(optionIndex)} type="button"><span>{optionIndex + 1}</span>{option}</button>; })}</div>{selectedAnswer !== null && <DailyAnswerPopup correct={selectedAnswer === currentConnection.correctOption} detail={currentConnection.explanation} points={selectedAnswer === currentConnection.correctOption ? 150 : 0} actionLabel={connectionIndex === 2 ? 'Start Logic Lab' : 'Next connection'} onNext={connectionIndex === 2 ? () => openStage('logic', 8) : goToNextDailyStep} />}</div></section>
         ) : currentQuestion ? (
           <section className="daily-play-card">
-            <DailyStageTracker activeStage="quiz" quizComplete={false} />
-            <div className="daily-progress-row"><span>Overall progress · {progressStep} of 8</span><strong>{currentQuestion.difficulty || 'mixed'} · {currentQuestion.topic || 'general knowledge'}</strong></div>
-            <div className="daily-progress-track"><span style={{ width: `${(progressStep / 8) * 100}%` }} /></div>
+            <DailyStageTracker activeStage="quiz" />
+            <div className="daily-progress-row"><span>Overall progress · {progressStep} of 12</span><strong>{currentQuestion.difficulty || 'mixed'} · {currentQuestion.topic || 'general knowledge'}</strong></div>
+            <div className="daily-progress-track"><span style={{ width: `${(progressStep / 12) * 100}%` }} /></div>
             <div className="practice-question">
               <h2>{currentQuestion.prompt}</h2>
               <div className="practice-answer-grid">
@@ -3655,8 +3729,8 @@ function DailyChallengeModal({
                   correct={currentQuestion.correct_option === selectedAnswer}
                   detail={`Correct answer: ${getQuestionOption(currentQuestion, currentQuestion.correct_option)}`}
                   points={currentQuestion.correct_option === selectedAnswer ? 100 : 0}
-                  actionLabel={currentIndex === questions.length - 1 ? 'Start logic puzzles' : 'Next question'}
-                  onNext={currentIndex === questions.length - 1 ? openLogicStage : goToNextDailyStep}
+                  actionLabel={currentIndex === questions.length - 1 ? 'Start Connections' : 'Next question'}
+                  onNext={currentIndex === questions.length - 1 ? () => openStage('connections', 5) : goToNextDailyStep}
                 />
               )}
             </div>
@@ -3697,18 +3771,17 @@ function DailyAnswerPopup({
   );
 }
 
-function DailyStageTracker({ activeStage, quizComplete }: { activeStage: 'quiz' | 'logic'; quizComplete: boolean }) {
+function DailyStageTracker({ activeStage }: { activeStage: 'quiz' | 'connections' | 'logic' | 'final' }) {
+  const stages = [
+    { id: 'quiz', label: 'Quickfire' },
+    { id: 'connections', label: 'Connections' },
+    { id: 'logic', label: 'Logic Lab' },
+    { id: 'final', label: 'Final' },
+  ] as const;
+  const activeIndex = stages.findIndex((stage) => stage.id === activeStage);
   return (
-    <div className="daily-stage-tracker" aria-label={`Current stage: ${activeStage === 'quiz' ? 'Quick Quiz' : 'Logic Lab'}`}>
-      <div className={`${activeStage === 'quiz' ? 'active' : ''} ${quizComplete ? 'complete' : ''}`}>
-        <span>{quizComplete ? <CheckCircle2 size={16} /> : '1'}</span>
-        <div><small>Stage 1</small><strong>Quick Quiz</strong></div>
-      </div>
-      <i aria-hidden="true" />
-      <div className={activeStage === 'logic' ? 'active' : ''}>
-        <span>2</span>
-        <div><small>Stage 2</small><strong>Logic Lab</strong></div>
-      </div>
+    <div className="daily-stage-tracker four-stage" aria-label={`Current stage: ${stages[activeIndex].label}`}>
+      {stages.map((stage, index) => <React.Fragment key={stage.id}>{index > 0 && <i aria-hidden="true" />}<div className={index === activeIndex ? 'active' : index < activeIndex ? 'complete' : ''}><span>{index < activeIndex ? <CheckCircle2 size={16} /> : index + 1}</span><div><small>Stage {index + 1}</small><strong>{stage.label}</strong></div></div></React.Fragment>)}
     </div>
   );
 }
