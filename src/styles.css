@@ -234,6 +234,31 @@
 .daily-stage-tracker.four-stage > div > span { width: 27px; height: 27px; }
 .daily-stage-tracker.four-stage strong { font-size: 11px; }
 
+.daily-stage-tracker.four-stage.compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.daily-stage-tracker.four-stage.compact > div {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: 11px;
+}
+
+.daily-stage-tracker.four-stage.compact > div > span {
+  width: 23px;
+  height: 23px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.daily-stage-tracker.four-stage.compact strong {
+  margin: 0;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
 .daily-stage-tracker > div {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -11265,7 +11290,7 @@ body,
 }
 
 .daily-challenge-modal .daily-play-card > .daily-stage-tracker {
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .daily-challenge-modal .daily-progress-row {
@@ -11279,8 +11304,35 @@ body,
 .daily-challenge-modal .practice-question h2 {
   max-width: 760px;
   margin-bottom: 14px;
-  font-size: clamp(23px, 3.2vw, 36px);
+  font-size: clamp(22px, 2.8vw, 31px);
   line-height: 1.08;
+}
+
+.daily-challenge-modal.playing .practice-modal-header {
+  min-height: 0;
+  padding: 10px 16px;
+}
+
+.daily-challenge-modal.playing .practice-modal-header .eyebrow {
+  margin-bottom: 2px;
+  font-size: 9px;
+}
+
+.daily-challenge-modal.playing .practice-modal-header h2 {
+  font-size: 23px;
+  line-height: 1;
+}
+
+.daily-challenge-modal.playing .practice-modal-header span {
+  display: none;
+}
+
+.daily-challenge-modal.playing .daily-play-card {
+  padding-top: 13px;
+}
+
+.daily-challenge-modal.playing .daily-progress-track {
+  margin-bottom: 13px;
 }
 
 .daily-challenge-modal .practice-answer-grid {

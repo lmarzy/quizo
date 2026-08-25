@@ -3620,7 +3620,7 @@ function DailyChallengeModal({
 
   return (
     <div className="modal-backdrop daily-challenge-backdrop" role="dialog" aria-modal="true" aria-label="Daily Challenge">
-      <section className="daily-challenge-modal">
+      <section className={`daily-challenge-modal ${!stageIntro && !completedAttempt ? 'playing' : ''}`}>
         <div className="practice-modal-header">
           <div>
             <p className="eyebrow">Daily challenge #{getDailyChallengeNumber(todayKey)}</p>
@@ -3653,7 +3653,7 @@ function DailyChallengeModal({
         ) : stageIntro === 'overview' ? (
           <section className="daily-stage-intro">
             <div className="daily-intro-heading"><span><CalendarDays size={26} /></span><div><p className="eyebrow">About 7–9 minutes</p><h2>Ready for today’s full challenge?</h2><p>Move from quick knowledge through connections and logic, then finish with one answer from memory.</p></div></div>
-            <DailyStageTracker activeStage="quiz" />
+            <DailyStageTracker activeStage="quiz" detailed />
             <div className="daily-stage-cards">
               <article className="active"><span>Stage 1</span><strong>Quickfire</strong><p>5 progressively harder general-knowledge questions.</p><b>100 points each</b></article>
               <article><span>Stage 2</span><strong>Connections</strong><p>3 common-link and association challenges.</p><b>150 points each</b></article>
@@ -3669,7 +3669,7 @@ function DailyChallengeModal({
           <div className="daily-loading"><AlertTriangle size={24} /><p className="form-message">{message}</p></div>
         ) : stageIntro ? (
           <section className="daily-stage-intro logic">
-            <DailyStageTracker activeStage={stageIntro} />
+            <DailyStageTracker activeStage={stageIntro} detailed />
             <div className="daily-intro-heading"><span>{stageIntro === 'final' ? <Trophy size={26} /> : <GraduationCap size={26} />}</span><div><p className="eyebrow">Stage {stageIntro === 'connections' ? 2 : stageIntro === 'logic' ? 3 : 4} of 4</p><h2>{stageIntro === 'connections' ? 'Find the connections' : stageIntro === 'logic' ? 'Enter the Logic Lab' : 'One final answer'}</h2><p>{stageIntro === 'connections' ? 'Three challenges test how well you spot common links and associations.' : stageIntro === 'logic' ? 'Three puzzles test patterns, deduction, and problem solving.' : 'No options this time. Bring the answer to mind and type it in.'}</p></div></div>
             <div className="daily-stage-score"><span>Score so far</span><strong>{quizCorrect * 100 + connectionsCorrect * 150 + puzzlesCorrect * 200}</strong><small>{stageIntro === 'final' ? '300 points still available' : 'Keep building your daily total'}</small></div>
             <button className="primary-button daily-stage-start" onClick={() => setStageIntro(null)} type="button"><Play size={18} /> Start {stageIntro === 'connections' ? 'Connections' : stageIntro === 'logic' ? 'Logic Lab' : 'Final Challenge'}</button>
@@ -3771,7 +3771,7 @@ function DailyAnswerPopup({
   );
 }
 
-function DailyStageTracker({ activeStage }: { activeStage: 'quiz' | 'connections' | 'logic' | 'final' }) {
+function DailyStageTracker({ activeStage, detailed = false }: { activeStage: 'quiz' | 'connections' | 'logic' | 'final'; detailed?: boolean }) {
   const stages = [
     { id: 'quiz', label: 'Quickfire' },
     { id: 'connections', label: 'Connections' },
@@ -3780,8 +3780,8 @@ function DailyStageTracker({ activeStage }: { activeStage: 'quiz' | 'connections
   ] as const;
   const activeIndex = stages.findIndex((stage) => stage.id === activeStage);
   return (
-    <div className="daily-stage-tracker four-stage" aria-label={`Current stage: ${stages[activeIndex].label}`}>
-      {stages.map((stage, index) => <React.Fragment key={stage.id}>{index > 0 && <i aria-hidden="true" />}<div className={index === activeIndex ? 'active' : index < activeIndex ? 'complete' : ''}><span>{index < activeIndex ? <CheckCircle2 size={16} /> : index + 1}</span><div><small>Stage {index + 1}</small><strong>{stage.label}</strong></div></div></React.Fragment>)}
+    <div className={`daily-stage-tracker four-stage ${detailed ? 'detailed' : 'compact'}`} aria-label={`Current stage: ${stages[activeIndex].label}`}>
+      {stages.map((stage, index) => <React.Fragment key={stage.id}>{detailed && index > 0 && <i aria-hidden="true" />}<div className={index === activeIndex ? 'active' : index < activeIndex ? 'complete' : ''}><span>{index < activeIndex ? <CheckCircle2 size={detailed ? 16 : 13} /> : index + 1}</span><div>{detailed && <small>Stage {index + 1}</small>}<strong>{stage.label}</strong></div></div></React.Fragment>)}
     </div>
   );
 }
