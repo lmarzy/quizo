@@ -10775,6 +10775,33 @@ body,
 .learn-hero-focus strong { font-size: 1.2rem; line-height: 1.25; }
 .learn-overview-grid { margin: 18px 0; }
 
+.learn-paths { margin-bottom: 18px; padding: 26px; border: 1px solid var(--line); border-radius: 22px; background: #fafbfa; }
+.learn-paths .study-section-title > span { color: var(--muted); font-weight: 800; }
+.learn-path-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.learn-path-card { display: flex; min-width: 0; flex-direction: column; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: #fff; }
+.learn-path-card.recommended { border-color: #82c5a4; box-shadow: 0 14px 34px rgba(27, 100, 69, .09); }
+.learn-path-card.science { background: linear-gradient(145deg, #f2fbf6, #fff 58%); }
+.learn-path-card.culture { background: linear-gradient(145deg, #fff8ed, #fff 58%); }
+.learn-path-card.modern { background: linear-gradient(145deg, #f3f6ff, #fff 58%); }
+.learn-path-heading { display: grid; grid-template-columns: auto 1fr auto; gap: 11px; align-items: center; }
+.learn-path-heading > span { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #e4f5ec; color: #176343; }
+.learn-path-heading small { color: var(--muted); font-size: .68rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.learn-path-heading h3 { margin: 3px 0 0; font-size: 1.2rem; }
+.learn-path-heading > strong { font-size: 1.05rem; }
+.learn-path-card > p { min-height: 44px; margin: 15px 0; color: var(--muted); font-size: .87rem; line-height: 1.45; }
+.learn-path-progress { height: 7px; overflow: hidden; border-radius: 999px; background: #e8eae9; }
+.learn-path-progress span { display: block; height: 100%; border-radius: inherit; background: #237c56; }
+.learn-path-lessons { display: grid; gap: 7px; margin: 16px 0; }
+.learn-path-lessons > div { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid #ececec; border-radius: 10px; color: #777; background: rgba(255,255,255,.72); text-transform: capitalize; }
+.learn-path-lessons > div > span { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 7px; background: #e8e8e8; font-size: .7rem; font-weight: 900; }
+.learn-path-lessons > div > small { color: var(--muted); font-size: .68rem; }
+.learn-path-lessons > div.active { color: var(--ink); border-color: #b8ddca; }
+.learn-path-lessons > div.active > span, .learn-path-lessons > div.complete > span { color: #fff; background: #237c56; }
+.learn-path-lessons > div.complete { color: #176343; border-color: #b8ddca; background: #f0faf5; }
+.learn-path-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto; }
+.learn-path-actions button { width: 100%; min-width: 0; font-size: .78rem; }
+.learn-checkpoint-strip { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; padding: 10px 14px; border: 1px solid #d8bd81; border-radius: 12px; background: #fff8e8; color: #76500e; font-size: .8rem; font-weight: 900; }
+
 .learn-topics { padding: 26px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); }
 .learn-topics .study-section-title > span { color: var(--muted); font-weight: 800; }
 .learn-topic-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
@@ -10856,11 +10883,13 @@ body,
   .learn-shell { width: min(100% - 24px, 1180px); padding-top: 20px; }
   .learn-hero { grid-template-columns: 1fr; padding: 24px; }
   .learn-topic-grid { grid-template-columns: 1fr; }
+  .learn-path-grid { grid-template-columns: 1fr; }
   .practice-result-popup.learn-answer-modal { padding: 20px; }
   .learn-answer-detail { grid-template-columns: 1fr; }
   .learn-fact-actions, .learn-recall-reveal > div { grid-template-columns: 1fr; flex-direction: column; }
   .learn-fact-actions button { width: 100%; }
   .learn-result-stats { grid-template-columns: 1fr; }
+  .learn-path-actions { grid-template-columns: 1fr; }
 }
 
 /* Account menu layering */

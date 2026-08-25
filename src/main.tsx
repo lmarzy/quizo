@@ -149,6 +149,21 @@ type LearningProgress = {
   self_reported_familiar: boolean | null;
 };
 
+type LearningPath = {
+  id: string;
+  title: string;
+  description: string;
+  topics: string[];
+  accent: string;
+};
+
+const generalKnowledgePaths: LearningPath[] = [
+  { id: 'world-explorer', title: 'World Explorer', description: 'Build a connected picture of countries, places, rivers, landmarks, and food cultures.', topics: ['capitals', 'landmarks', 'rivers', 'food'], accent: 'world' },
+  { id: 'science-nature', title: 'Science & Nature', description: 'Understand essential chemistry and the remarkable adaptations of the animal world.', topics: ['chemistry', 'animals'], accent: 'science' },
+  { id: 'history-culture', title: 'History & Culture', description: 'Connect major moments in history with influential books and their authors.', topics: ['history', 'literature'], accent: 'culture' },
+  { id: 'modern-life', title: 'Modern Life', description: 'Strengthen useful knowledge across technology, computing, sport, and games.', topics: ['technology', 'sport'], accent: 'modern' },
+];
+
 const dailyBonusChallenges: DailyBonusChallenge[] = [
   {
     title: 'Sequence solver',
@@ -2966,6 +2981,8 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
   const [familiarFacts, setFamiliarFacts] = useState(0);
   const [recallRevealed, setRecallRevealed] = useState(false);
   const [recallRatings, setRecallRatings] = useState<Record<string, 'got' | 'almost' | 'review'>>({});
+  const [selectedPathId, setSelectedPathId] = useState(generalKnowledgePaths[0].id);
+  const [checkpointMode, setCheckpointMode] = useState(false);
 
   async function loadLearning() {
     setLoading(true);
@@ -3003,9 +3020,11 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
     return [...stats.entries()].map(([topic, stat]) => ({ topic, percent: stat.started ? Math.round((stat.mastery / (stat.started * 5)) * 100) : 0, started: stat.started })).sort((a, b) => a.percent - b.percent);
   }, [progressByQuestion, questions]);
 
-  function beginSession() {
+  function beginSession(pathId = selectedPathId, checkpoint = false) {
+    const path = generalKnowledgePaths.find((item) => item.id === pathId) || generalKnowledgePaths[0];
     const now = Date.now();
-    const ranked = shuffleItems(questions).sort((left, right) => {
+    const pathQuestions = questions.filter((question) => path.topics.includes(question.topic || ''));
+    const ranked = shuffleItems(pathQuestions).sort((left, right) => {
       const a = progressByQuestion.get(left.id);
       const b = progressByQuestion.get(right.id);
       const priority = (item?: LearningProgress) => !item ? 2 : item.last_was_correct === false ? 0 : new Date(item.next_review_at).getTime() <= now ? 1 : 3 + item.mastery_level;
@@ -3014,7 +3033,7 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
     const selected: PracticeQuestion[] = [];
     const usedTopics = new Set<string>();
     const usedAnswers = new Set<string>();
-    for (const question of ranked.filter((item) => getRichLearningContent(item))) {
+    for (const question of checkpoint ? [] : ranked.filter((item) => getRichLearningContent(item))) {
       const topic = question.topic || 'general knowledge';
       const answerKey = `${topic}:${learningOptionText(question, question.correct_option).toLowerCase()}`;
       if (usedTopics.has(topic) || usedAnswers.has(answerKey)) continue;
@@ -3048,7 +3067,9 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
     setSelectedOption('');
     setStartedAt(Date.now());
     setMessage('');
-    setPhaseIntro('learn');
+    setSelectedPathId(path.id);
+    setCheckpointMode(checkpoint);
+    setPhaseIntro(checkpoint ? 'practice' : 'learn');
     setFamiliarFacts(0);
     setRecallRevealed(false);
     setRecallRatings({});
@@ -3139,9 +3160,25 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
   const weekAttempts = attempts.filter((attempt) => Date.now() - new Date(attempt.completed_at).getTime() < 7 * 86400000);
   const mastered = progress.filter((item) => item.mastery_level >= 4).length;
   const due = progress.filter((item) => item.last_was_correct === false || new Date(item.next_review_at).getTime() <= Date.now()).length;
+  const pathStats = generalKnowledgePaths.map((path) => {
+    const pathQuestions = questions.filter((question) => path.topics.includes(question.topic || ''));
+    const started = pathQuestions.filter((question) => progressByQuestion.has(question.id)).length;
+    const strong = pathQuestions.filter((question) => (progressByQuestion.get(question.id)?.mastery_level || 0) >= 3).length;
+    const pathMastered = pathQuestions.filter((question) => (progressByQuestion.get(question.id)?.mastery_level || 0) >= 4).length;
+    const topicProgress = path.topics.map((topic) => {
+      const topicQuestions = pathQuestions.filter((question) => question.topic === topic);
+      const topicStarted = topicQuestions.filter((question) => progressByQuestion.has(question.id)).length;
+      return { topic, started: topicStarted, complete: topicQuestions.filter((question) => (progressByQuestion.get(question.id)?.mastery_level || 0) >= 4).length };
+    });
+    return { ...path, total: pathQuestions.length, started, strong, mastered: pathMastered, percent: pathQuestions.length ? Math.round((pathMastered / pathQuestions.length) * 100) : 0, checkpointUnlocked: strong >= 10, topicProgress };
+  });
+  const recommendedPath = [...pathStats].sort((left, right) => {
+    if ((left.started > 0) !== (right.started > 0)) return left.started > 0 ? -1 : 1;
+    return left.percent - right.percent;
+  })[0];
   const currentQuestion = sessionQuestions[currentIndex];
   const currentAnswer = answers.find((answer) => answer.question.id === currentQuestion?.id);
-  const sessionPhase = currentIndex < 3 ? 'learn' : currentIndex < 6 ? 'practice' : 'recall';
+  const sessionPhase = checkpointMode ? (currentIndex < 6 ? 'practice' : 'recall') : currentIndex < 3 ? 'learn' : currentIndex < 6 ? 'practice' : 'recall';
   const currentContent = currentQuestion ? getRichLearningContent(currentQuestion) : null;
 
   function rateRecall(rating: 'got' | 'almost' | 'review') {
@@ -3154,18 +3191,18 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
   if (loading) return <section className="learn-shell"><div className="daily-loading"><RefreshCw className="spin" size={24} /><strong>Preparing your learning journey…</strong></div></section>;
 
   if (screen === 'session' && currentQuestion && phaseIntro) {
-    const phaseDetails = {
+    const phaseDetails = checkpointMode ? { number: 'Checkpoint', title: `${generalKnowledgePaths.find((path) => path.id === selectedPathId)?.title} checkpoint`, detail: 'Six practice questions followed by two no-options recall checks. Your result shows how securely this path is sticking.', icon: <Trophy size={28} />, action: 'Start checkpoint' } : {
       learn: { number: '1', title: 'Learn three new facts', detail: 'Take your time. Read each fact and its memory prompt before moving on.', icon: <BookOpen size={28} />, action: 'Start learning' },
       practice: { number: '2', title: 'Practise the connections', detail: 'Now use what you have learned alongside a few related facts. Explanations follow every answer.', icon: <Target size={28} />, action: 'Start practice' },
       recall: { number: '3', title: 'Recall without choices', detail: 'Bring the answer to mind before revealing it, then rate your recall honestly.', icon: <Brain size={28} />, action: 'Start recall' },
     }[phaseIntro];
-    return <section className="learn-shell learn-session-shell"><div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('overview')} type="button"><X size={17} /> Exit</button><p className="eyebrow">Knowledge session</p><h1>Learn, practise, recall</h1></div><strong>{phaseDetails.number} / 3</strong></div><div className="learn-phase-tracker"><span className={phaseIntro === 'learn' ? 'active' : 'complete'}>Learn</span><span className={phaseIntro === 'practice' ? 'active' : phaseIntro === 'recall' ? 'complete' : ''}>Practise</span><span className={phaseIntro === 'recall' ? 'active' : ''}>Recall</span></div><section className="learn-phase-intro"><span>{phaseDetails.icon}</span><p className="eyebrow">Stage {phaseDetails.number} of 3</p><h2>{phaseDetails.title}</h2><p>{phaseDetails.detail}</p><button className="primary-button" onClick={() => setPhaseIntro(null)} type="button"><Play size={17} /> {phaseDetails.action}</button></section></section>;
+    return <section className="learn-shell learn-session-shell"><div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('overview')} type="button"><X size={17} /> Exit</button><p className="eyebrow">{generalKnowledgePaths.find((path) => path.id === selectedPathId)?.title}</p><h1>{checkpointMode ? 'Path checkpoint' : 'Learn, practise, recall'}</h1></div><strong>{checkpointMode ? 'Checkpoint' : `${phaseDetails.number} / 3`}</strong></div>{checkpointMode ? <div className="learn-checkpoint-strip"><Trophy size={17} /> 8-question path checkpoint</div> : <div className="learn-phase-tracker"><span className={phaseIntro === 'learn' ? 'active' : 'complete'}>Learn</span><span className={phaseIntro === 'practice' ? 'active' : phaseIntro === 'recall' ? 'complete' : ''}>Practise</span><span className={phaseIntro === 'recall' ? 'active' : ''}>Recall</span></div>}<section className="learn-phase-intro"><span>{phaseDetails.icon}</span><p className="eyebrow">{checkpointMode ? 'Mastery check' : `Stage ${phaseDetails.number} of 3`}</p><h2>{phaseDetails.title}</h2><p>{phaseDetails.detail}</p><button className="primary-button" onClick={() => setPhaseIntro(null)} type="button"><Play size={17} /> {phaseDetails.action}</button></section></section>;
   }
 
   if (screen === 'session' && currentQuestion) return (
     <section className="learn-shell learn-session-shell">
-      <div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('overview')} type="button"><X size={17} /> Exit</button><p className="eyebrow">{sessionPhase} · {currentQuestion.topic || 'General knowledge'}</p><h1>{sessionPhase === 'learn' ? 'Explore the fact' : sessionPhase === 'practice' ? 'Practise the connection' : 'Recall from memory'}</h1></div><strong>{currentIndex + 1} / {sessionQuestions.length}</strong></div>
-      <div className="learn-phase-tracker compact"><span className={sessionPhase === 'learn' ? 'active' : 'complete'}>Learn</span><span className={sessionPhase === 'practice' ? 'active' : sessionPhase === 'recall' ? 'complete' : ''}>Practise</span><span className={sessionPhase === 'recall' ? 'active' : ''}>Recall</span></div>
+      <div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('overview')} type="button"><X size={17} /> Exit</button><p className="eyebrow">{generalKnowledgePaths.find((path) => path.id === selectedPathId)?.title} · {sessionPhase}</p><h1>{checkpointMode ? 'Path checkpoint' : sessionPhase === 'learn' ? 'Explore the fact' : sessionPhase === 'practice' ? 'Practise the connection' : 'Recall from memory'}</h1></div><strong>{currentIndex + 1} / {sessionQuestions.length}</strong></div>
+      {checkpointMode ? <div className="learn-checkpoint-strip"><Trophy size={17} /> {sessionPhase === 'practice' ? 'Practice round · 6 questions' : 'Final recall · 2 questions'}</div> : <div className="learn-phase-tracker compact"><span className={sessionPhase === 'learn' ? 'active' : 'complete'}>Learn</span><span className={sessionPhase === 'practice' ? 'active' : sessionPhase === 'recall' ? 'complete' : ''}>Practise</span><span className={sessionPhase === 'recall' ? 'active' : ''}>Recall</span></div>}
       <div className="learn-session-progress"><span style={{ width: `${((currentIndex + 1) / sessionQuestions.length) * 100}%` }} /></div>
       <section className="study-play-card learn-play-card">
         {sessionPhase === 'learn' ? <div className="learn-fact-card"><small>{currentQuestion.topic || 'General knowledge'} · New fact</small><strong>{currentContent?.title || learningOptionText(currentQuestion, currentQuestion.correct_option)}</strong><h2>{currentContent?.summary || getLearningNote(currentQuestion)}</h2>{currentContent && <p className="learn-fact-context"><span>Key connection</span>{currentContent.context}</p>}<div><Lightbulb size={20} /><p><span>Memory hook</span>{currentContent?.memory_hook || 'Read it once, look away, then say the connection back in your own words.'}</p></div><div className="learn-fact-actions"><button className="ghost-button" onClick={() => void advanceLearningCard(false)} type="button">New to me</button><button className="primary-button" onClick={() => void advanceLearningCard(true)} type="button"><CheckCircle2 size={17} /> I knew this</button></div></div> : sessionPhase === 'recall' ? <div className="learn-recall-card"><small>{currentQuestion.difficulty || 'mixed'} · No answer choices</small><h2>{currentQuestion.prompt}</h2>{!recallRevealed ? <div className="learn-recall-pause"><Brain size={27} /><strong>Bring the answer to mind</strong><p>Say it aloud or write it down before revealing it.</p><button className="primary-button" onClick={() => setRecallRevealed(true)} type="button">Reveal answer</button></div> : <div className="learn-recall-reveal"><span>Answer</span><strong>{learningOptionText(currentQuestion, currentQuestion.correct_option)}</strong><p>{currentContent?.summary || getLearningNote(currentQuestion)}</p><div><button onClick={() => rateRecall('review')} type="button">Need to review</button><button onClick={() => rateRecall('almost')} type="button">Almost</button><button onClick={() => rateRecall('got')} type="button">Got it</button></div></div>}</div> : <><small>{currentQuestion.difficulty || 'mixed'} · Guided practice</small><h2>{currentQuestion.prompt}</h2><div className="practice-answer-grid">{(['A', 'B', 'C'] as const).map((option) => { const state = selectedOption ? (option === currentQuestion.correct_option ? 'correct' : option === selectedOption ? 'wrong' : 'muted') : ''; return <button className={`practice-answer-button ${state}`} disabled={Boolean(selectedOption)} key={option} onClick={() => void chooseAnswer(option)} type="button"><span>{option}</span>{learningOptionText(currentQuestion, option)}</button>; })}</div></>}
@@ -3177,13 +3214,17 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
 
   if (screen === 'results') {
     const correct = answers.filter((answer) => answer.isCorrect).length;
-    return <section className="learn-shell"><div className="learn-result-hero"><span><Trophy size={28} /></span><p className="eyebrow">Session complete</p><h1>{correct === answers.length ? 'Excellent recall' : 'Knowledge strengthened'}</h1><p>You explored 3 facts and successfully practised or recalled {correct} of 5. Anything uncertain is already scheduled for an earlier review.</p><div className="learn-result-stats"><div><span>Facts explored</span><strong>3</strong></div><div><span>Already familiar</span><strong>{familiarFacts}</strong></div><div><span>Practised & recalled</span><strong>{correct} / 5</strong></div></div><button className="primary-button" onClick={beginSession} type="button"><RefreshCw size={17} /> Start another lesson</button><button className="ghost-button" onClick={() => setScreen('overview')} type="button">View progress</button></div><section className="study-review-card"><div className="study-section-title"><div><p className="eyebrow">What you learned</p><h2>Your lesson recap</h2></div></div>{sessionQuestions.slice(0, 3).map((question) => <article className="study-review-row learned" key={question.id}><span><BookOpen size={18} /></span><div><small>{question.topic} · Introduced</small><strong>{getLearningNote(question)}</strong><p>A new connection from today’s learning stage.</p></div></article>)}{answers.map((answer) => <article className={`study-review-row ${answer.isCorrect ? 'correct' : 'wrong'}`} key={answer.question.id}><span>{answer.isCorrect ? <CheckCircle2 size={18} /> : <RefreshCw size={18} />}</span><div><small>{answer.question.topic} · {sessionQuestions.indexOf(answer.question) >= 6 ? 'Recall' : 'Practice'}</small><strong>{getLearningNote(answer.question)}</strong><p>{answer.isCorrect ? 'Successfully remembered' : 'Scheduled for an earlier review'}</p></div></article>)}</section></section>;
+    const selectedPath = generalKnowledgePaths.find((path) => path.id === selectedPathId) || generalKnowledgePaths[0];
+    const checkpointPercent = Math.round((correct / Math.max(1, answers.length)) * 100);
+    const introducedQuestions = checkpointMode ? [] : sessionQuestions.slice(0, 3);
+    return <section className="learn-shell"><div className="learn-result-hero"><span><Trophy size={28} /></span><p className="eyebrow">{selectedPath.title} · {checkpointMode ? 'Checkpoint complete' : 'Lesson complete'}</p><h1>{checkpointMode ? checkpointPercent >= 80 ? 'Path knowledge secured' : 'Checkpoint progress made' : correct === answers.length ? 'Excellent recall' : 'Knowledge strengthened'}</h1><p>{checkpointMode ? `You recalled ${correct} of ${answers.length} checkpoint facts. ${checkpointPercent >= 80 ? 'You have earned a strong checkpoint result.' : 'Uncertain facts are scheduled for review before your next attempt.'}` : `You explored 3 facts and successfully practised or recalled ${correct} of 5. Anything uncertain is already scheduled for an earlier review.`}</p><div className="learn-result-stats">{checkpointMode ? <><div><span>Checkpoint score</span><strong>{checkpointPercent}%</strong></div><div><span>Correct recall</span><strong>{correct} / {answers.length}</strong></div><div><span>Path</span><strong>{selectedPath.title}</strong></div></> : <><div><span>Facts explored</span><strong>3</strong></div><div><span>Already familiar</span><strong>{familiarFacts}</strong></div><div><span>Practised & recalled</span><strong>{correct} / 5</strong></div></>}</div><button className="primary-button" onClick={() => beginSession(selectedPath.id, false)} type="button"><RefreshCw size={17} /> {checkpointMode ? 'Continue path lessons' : 'Start another lesson'}</button><button className="ghost-button" onClick={() => setScreen('overview')} type="button">View learning paths</button></div><section className="study-review-card"><div className="study-section-title"><div><p className="eyebrow">What you learned</p><h2>{checkpointMode ? 'Checkpoint recap' : 'Your lesson recap'}</h2></div></div>{introducedQuestions.map((question) => <article className="study-review-row learned" key={question.id}><span><BookOpen size={18} /></span><div><small>{question.topic} · Introduced</small><strong>{getRichLearningContent(question)?.summary || getLearningNote(question)}</strong><p>A new connection from today’s learning stage.</p></div></article>)}{answers.map((answer) => <article className={`study-review-row ${answer.isCorrect ? 'correct' : 'wrong'}`} key={answer.question.id}><span>{answer.isCorrect ? <CheckCircle2 size={18} /> : <RefreshCw size={18} />}</span><div><small>{answer.question.topic} · {sessionQuestions.indexOf(answer.question) >= 6 ? 'Recall' : 'Practice'}</small><strong>{getRichLearningContent(answer.question)?.summary || getLearningNote(answer.question)}</strong><p>{answer.isCorrect ? 'Successfully remembered' : 'Scheduled for an earlier review'}</p></div></article>)}</section></section>;
   }
 
   return (
     <section className="learn-shell">
-      <div className="learn-hero"><div><p className="eyebrow">Learn · General Knowledge</p><h1>Build knowledge that sticks</h1><p>Short adaptive sessions mix new facts with the things you most need to revisit.</p><button className="primary-button" disabled={questions.length < 8} onClick={beginSession} type="button"><Brain size={18} /> {due ? `Review ${Math.min(due, 8)} due facts` : attempts.length ? 'Continue learning' : 'Start first session'}</button></div><div className="learn-hero-focus"><Target size={24} /><span>Next goal</span><strong>{mastered < 25 ? `${25 - mastered} facts to your first checkpoint` : 'Keep expanding your mastery'}</strong><small>About five minutes</small></div></div>
+      <div className="learn-hero"><div><p className="eyebrow">Learn · General Knowledge</p><h1>Choose a path. Build connected knowledge.</h1><p>Follow focused journeys with short lessons, topic milestones, and checkpoints that test what has stuck.</p><button className="primary-button" disabled={questions.length < 8} onClick={() => beginSession(recommendedPath.id, false)} type="button"><Brain size={18} /> {recommendedPath.started ? `Continue ${recommendedPath.title}` : `Start ${recommendedPath.title}`}</button></div><div className="learn-hero-focus"><Target size={24} /><span>Recommended path</span><strong>{recommendedPath.title}</strong><small>{recommendedPath.started ? `${recommendedPath.mastered} mastered · ${recommendedPath.percent}% complete` : 'Your first lesson is ready'}</small></div></div>
       <div className="study-overview-grid learn-overview-grid"><article><Flame size={21} /><span>Learning streak</span><strong>{streak} day{streak === 1 ? '' : 's'}</strong></article><article><CalendarDays size={21} /><span>Last 7 days</span><strong>{weekAttempts.length} session{weekAttempts.length === 1 ? '' : 's'}</strong></article><article><Brain size={21} /><span>Facts started</span><strong>{progress.length}</strong></article><article><Trophy size={21} /><span>Facts mastered</span><strong>{mastered}</strong></article></div>
+      <section className="learn-paths"><div className="study-section-title"><div><p className="eyebrow">Learning paths</p><h2>Progress with purpose</h2></div><span>Four guided journeys</span></div><div className="learn-path-grid">{pathStats.map((path) => <article className={`learn-path-card ${path.accent} ${path.id === recommendedPath.id ? 'recommended' : ''}`} key={path.id}><div className="learn-path-heading"><span><BookOpen size={20} /></span><div><small>{path.id === recommendedPath.id ? 'Recommended next' : `${path.topics.length} topic${path.topics.length === 1 ? '' : 's'}`}</small><h3>{path.title}</h3></div><strong>{path.percent}%</strong></div><p>{path.description}</p><div className="learn-path-progress"><span style={{ width: `${path.percent}%` }} /></div><div className="learn-path-lessons">{path.topicProgress.map((topic, index) => <div className={topic.complete >= 5 ? 'complete' : topic.started ? 'active' : ''} key={topic.topic}><span>{topic.complete >= 5 ? <CheckCircle2 size={14} /> : index + 1}</span><strong>{topic.topic}</strong><small>{topic.complete >= 5 ? 'Milestone reached' : topic.started ? `${topic.started} facts started` : index === 0 || path.topicProgress[index - 1].started > 0 ? 'Ready' : 'Upcoming'}</small></div>)}</div><div className="learn-path-actions"><button className="primary-button" onClick={() => beginSession(path.id, false)} type="button"><Play size={16} /> {path.started ? 'Continue path' : 'Start path'}</button><button className="ghost-button table-button" disabled={!path.checkpointUnlocked} onClick={() => beginSession(path.id, true)} type="button"><Trophy size={15} /> {path.checkpointUnlocked ? 'Take checkpoint' : `${Math.max(0, 10 - path.strong)} strong facts to unlock`}</button></div></article>)}</div></section>
       <section className="learn-topics"><div className="study-section-title"><div><p className="eyebrow">Topic mastery</p><h2>See where your knowledge is growing</h2></div><span>{due} ready to review</span></div><div className="learn-topic-grid">{topicStats.map((topic) => <article key={topic.topic}><div><strong>{topic.topic}</strong><span>{topic.started ? `${topic.percent}%` : 'Not started'}</span></div><div><span style={{ width: `${topic.percent}%` }} /></div><small>{topic.started} of 50 facts explored</small></article>)}</div></section>
       {message && <p className="form-message">{message}</p>}
     </section>
