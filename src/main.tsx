@@ -3087,6 +3087,12 @@ function getRichLearningContent(question: PracticeQuestion) {
   return content || null;
 }
 
+function getLearningFactKey(question: PracticeQuestion) {
+  const content = getRichLearningContent(question);
+  const identity = content?.title || learningOptionText(question, question.correct_option);
+  return `${question.topic || 'general knowledge'}:${identity.trim().toLocaleLowerCase()}`;
+}
+
 function LearnView({ session, onProgressChanged }: { session: Session; onProgressChanged: () => void }) {
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
   const [progress, setProgress] = useState<LearningProgress[]>([]);
@@ -3148,18 +3154,31 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
     const path = generalKnowledgePaths.find((item) => item.id === pathId) || generalKnowledgePaths[0];
     const now = Date.now();
     const pathQuestions = questions.filter((question) => path.topics.includes(question.topic || ''));
+    const progressByFact = new Map<string, LearningProgress[]>();
+    pathQuestions.forEach((question) => {
+      const questionProgress = progressByQuestion.get(question.id);
+      if (!questionProgress) return;
+      const key = getLearningFactKey(question);
+      progressByFact.set(key, [...(progressByFact.get(key) || []), questionProgress]);
+    });
     const ranked = shuffleItems(pathQuestions).sort((left, right) => {
-      const a = progressByQuestion.get(left.id);
-      const b = progressByQuestion.get(right.id);
-      const priority = (item?: LearningProgress) => !item ? 2 : item.last_was_correct === false ? 0 : new Date(item.next_review_at).getTime() <= now ? 1 : 3 + item.mastery_level;
-      return priority(a) - priority(b);
+      const priority = (question: PracticeQuestion) => {
+        const factProgress = progressByFact.get(getLearningFactKey(question)) || [];
+        if (!factProgress.length) return 2;
+        if (factProgress.some((item) => item.last_was_correct === false)) return 0;
+        if (factProgress.some((item) => item.attempts > 0 && new Date(item.next_review_at).getTime() <= now)) return 1;
+        const latestSeen = Math.max(0, ...factProgress.map((item) => Math.max(new Date(item.last_exposed_at || 0).getTime(), new Date(item.last_answered_at || 0).getTime())));
+        const recentlyKnown = factProgress.some((item) => item.self_reported_familiar || item.last_was_correct) && now - latestSeen < 7 * 86400000;
+        return (recentlyKnown ? 50 : 3) + Math.max(...factProgress.map((item) => item.mastery_level));
+      };
+      return priority(left) - priority(right);
     });
     const selected: PracticeQuestion[] = [];
     const usedTopics = new Set<string>();
     const usedAnswers = new Set<string>();
     for (const question of checkpoint ? [] : ranked.filter((item) => getRichLearningContent(item))) {
       const topic = question.topic || 'general knowledge';
-      const answerKey = `${topic}:${learningOptionText(question, question.correct_option).toLowerCase()}`;
+      const answerKey = getLearningFactKey(question);
       if (usedTopics.has(topic) || usedAnswers.has(answerKey)) continue;
       selected.push(question);
       usedTopics.add(topic);
@@ -3168,7 +3187,7 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
     }
     for (const question of ranked) {
       const topic = question.topic || 'general knowledge';
-      const answerKey = `${topic}:${learningOptionText(question, question.correct_option).toLowerCase()}`;
+      const answerKey = getLearningFactKey(question);
       if (usedTopics.has(topic) || usedAnswers.has(answerKey)) continue;
       selected.push(question);
       usedTopics.add(topic);
@@ -3178,7 +3197,7 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
     if (selected.length < 8) {
       for (const question of ranked) {
         if (selected.some((item) => item.id === question.id)) continue;
-        const answerKey = `${question.topic}:${learningOptionText(question, question.correct_option).toLowerCase()}`;
+        const answerKey = getLearningFactKey(question);
         if (usedAnswers.has(answerKey)) continue;
         selected.push(question);
         usedAnswers.add(answerKey);
@@ -3203,21 +3222,26 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
 
   async function advanceLearningCard(familiar: boolean) {
     const question = sessionQuestions[currentIndex];
-    const existing = progressByQuestion.get(question.id);
-    const updated: LearningProgress = {
-      question_id: question.id,
-      attempts: existing?.attempts || 0,
-      correct_attempts: existing?.correct_attempts || 0,
-      mastery_level: existing?.mastery_level || 0,
-      next_review_at: existing?.next_review_at || new Date().toISOString(),
-      last_answered_at: existing?.last_answered_at || null,
-      last_was_correct: existing?.last_was_correct ?? null,
-      exposure_count: (existing?.exposure_count || 0) + 1,
-      last_exposed_at: new Date().toISOString(),
-      self_reported_familiar: familiar,
-    };
-    setProgress((current) => [...current.filter((item) => item.question_id !== question.id), updated]);
-    const { error } = await supabase.from('learning_question_progress').upsert({ user_id: session.user.id, ...updated }, { onConflict: 'user_id,question_id' });
+    const equivalentQuestions = questions.filter((item) => getLearningFactKey(item) === getLearningFactKey(question));
+    const exposedAt = new Date().toISOString();
+    const updates = (familiar ? equivalentQuestions : [question]).map((item) => {
+      const existing = progressByQuestion.get(item.id);
+      return {
+        question_id: item.id,
+        attempts: existing?.attempts || 0,
+        correct_attempts: existing?.correct_attempts || 0,
+        mastery_level: existing?.mastery_level || 0,
+        next_review_at: existing?.next_review_at || exposedAt,
+        last_answered_at: existing?.last_answered_at || null,
+        last_was_correct: existing?.last_was_correct ?? null,
+        exposure_count: (existing?.exposure_count || 0) + (item.id === question.id ? 1 : 0),
+        last_exposed_at: exposedAt,
+        self_reported_familiar: familiar || existing?.self_reported_familiar || false,
+      } satisfies LearningProgress;
+    });
+    const updatedIds = new Set(updates.map((item) => item.question_id));
+    setProgress((current) => [...current.filter((item) => !updatedIds.has(item.question_id)), ...updates]);
+    const { error } = await supabase.from('learning_question_progress').upsert(updates.map((updated) => ({ user_id: session.user.id, ...updated })), { onConflict: 'user_id,question_id' });
     if (error) setMessage(error.message);
     if (familiar) setFamiliarFacts((current) => current + 1);
     if (currentIndex === 2) setPhaseIntro('practice');
