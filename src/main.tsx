@@ -3163,8 +3163,42 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
   if (!dates.has(getLocalDateKey(cursor))) cursor = addLocalDays(cursor, -1);
   while (dates.has(getLocalDateKey(cursor))) { streak += 1; cursor = addLocalDays(cursor, -1); }
   const weekAttempts = attempts.filter((attempt) => Date.now() - new Date(attempt.completed_at).getTime() < 7 * 86400000);
-  const mastered = progress.filter((item) => item.mastery_level >= 4).length;
   const due = progress.filter((item) => item.last_was_correct === false || new Date(item.next_review_at).getTime() <= Date.now()).length;
+  const masteryStages = [
+    { name: 'New', minimum: 0 },
+    { name: 'Learning', minimum: 1 },
+    { name: 'Familiar', minimum: 2 },
+    { name: 'Strong', minimum: 3 },
+    { name: 'Mastered', minimum: 4 },
+  ] as const;
+  const stageCounts = masteryStages.map((stage) => ({
+    ...stage,
+    count: stage.name === 'New'
+      ? Math.max(0, questions.length - progress.length)
+      : progress.filter((item) => stage.name === 'Learning' ? item.mastery_level <= 1 : stage.name === 'Mastered' ? item.mastery_level >= 4 : item.mastery_level === stage.minimum).length,
+  }));
+  const overallMasteryPercent = questions.length ? Math.round((progress.reduce((total, item) => total + Math.min(5, item.mastery_level), 0) / (questions.length * 5)) * 100) : 0;
+  const overallStage = overallMasteryPercent === 0 ? 'New' : overallMasteryPercent < 20 ? 'Learning' : overallMasteryPercent < 45 ? 'Familiar' : overallMasteryPercent < 75 ? 'Strong' : 'Mastered';
+  const weeklyLearningSeconds = weekAttempts.reduce((total, attempt) => total + attempt.duration_seconds, 0);
+  const weeklyLearningLabel = weeklyLearningSeconds >= 3600 ? `${Math.floor(weeklyLearningSeconds / 3600)}h ${Math.round((weeklyLearningSeconds % 3600) / 60)}m` : `${Math.round(weeklyLearningSeconds / 60)} min`;
+  const previousWeekAttempts = attempts.filter((attempt) => {
+    const age = Date.now() - new Date(attempt.completed_at).getTime();
+    return age >= 7 * 86400000 && age < 14 * 86400000;
+  });
+  const attemptAccuracy = (items: LearningAttempt[]) => {
+    const total = items.reduce((sum, attempt) => sum + attempt.question_count, 0);
+    return total ? Math.round((items.reduce((sum, attempt) => sum + attempt.correct_count, 0) / total) * 100) : null;
+  };
+  const weeklyAccuracy = attemptAccuracy(weekAttempts);
+  const previousAccuracy = attemptAccuracy(previousWeekAttempts);
+  const accuracyChange = weeklyAccuracy !== null && previousAccuracy !== null ? weeklyAccuracy - previousAccuracy : null;
+  const questionById = new Map(questions.map((question) => [question.id, question]));
+  const improvedTopics = [...progress.reduce((topics, item) => {
+    if (!item.last_was_correct || !item.last_answered_at || Date.now() - new Date(item.last_answered_at).getTime() >= 7 * 86400000) return topics;
+    const topic = questionById.get(item.question_id)?.topic || 'general knowledge';
+    topics.set(topic, (topics.get(topic) || 0) + 1);
+    return topics;
+  }, new Map<string, number>()).entries()].sort((left, right) => right[1] - left[1]).slice(0, 2);
   const pathStats = generalKnowledgePaths.map((path) => {
     const pathQuestions = questions.filter((question) => path.topics.includes(question.topic || ''));
     const started = pathQuestions.filter((question) => progressByQuestion.has(question.id)).length;
@@ -3256,7 +3290,7 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
   return (
     <section className="learn-shell">
       <div className="learn-hero"><div><p className="eyebrow">Learn · General Knowledge</p><h1>Choose a path. Build connected knowledge.</h1><p>Follow focused journeys with short lessons, topic milestones, and checkpoints that test what has stuck.</p><button className="primary-button" disabled={questions.length < 8} onClick={() => beginSession(recommendedPath.id, false)} type="button"><Brain size={18} /> {recommendedPath.started ? `Continue ${recommendedPath.title}` : `Start ${recommendedPath.title}`}</button></div><div className="learn-hero-focus"><Target size={24} /><span>Recommended path</span><strong>{recommendedPath.title}</strong><small>{recommendedPath.started ? `${recommendedPath.mastered} mastered · ${recommendedPath.percent}% complete` : 'Your first lesson is ready'}</small></div></div>
-      <div className="study-overview-grid learn-overview-grid"><article><Flame size={21} /><span>Learning streak</span><strong>{streak} day{streak === 1 ? '' : 's'}</strong></article><article><CalendarDays size={21} /><span>Last 7 days</span><strong>{weekAttempts.length} session{weekAttempts.length === 1 ? '' : 's'}</strong></article><article><Brain size={21} /><span>Facts started</span><strong>{progress.length}</strong></article><article><Trophy size={21} /><span>Facts mastered</span><strong>{mastered}</strong></article></div>
+      <section className="learn-mastery-hub"><div className="study-section-title"><div><p className="eyebrow">Your mastery</p><h2>One view of what you know</h2></div><span>{due} fact{due === 1 ? '' : 's'} due for review</span></div><div className="learn-mastery-summary"><article className="learn-overall-level"><div><span>Overall knowledge level</span><strong>{overallStage}</strong><small>{overallMasteryPercent}% of the full collection mastered</small></div><div className="learn-overall-ring" style={{ '--mastery': `${overallMasteryPercent * 3.6}deg` } as React.CSSProperties}><strong>{overallMasteryPercent}%</strong></div></article><div className="learn-mastery-stages">{stageCounts.map((stage) => <article className={stage.name.toLowerCase()} key={stage.name}><span>{stage.name}</span><strong>{stage.count}</strong><small>fact{stage.count === 1 ? '' : 's'}</small></article>)}</div></div><div className="learn-mastery-insights"><article><span><RefreshCw size={18} /></span><div><small>Ready to review</small><strong>{due} fact{due === 1 ? '' : 's'}</strong><p>{due ? 'These will be prioritised in your next lesson.' : 'You are caught up for now.'}</p></div></article><article><span><Target size={18} /></span><div><small>Weakest topics</small><strong>{topicStats.filter((topic) => topic.started).slice(0, 2).map((topic) => topic.topic).join(' · ') || 'Start a path to discover this'}</strong><p>Lessons prioritise lower-mastery areas automatically.</p></div></article><article><span><BarChart3 size={18} /></span><div><small>Recently improved</small><strong>{improvedTopics.map(([topic]) => topic).join(' · ') || 'Complete a lesson to see momentum'}</strong><p>{improvedTopics.length ? `${improvedTopics.reduce((total, [, count]) => total + count, 0)} facts strengthened this week.` : 'Your strongest recent areas will appear here.'}</p></div></article><article><span><Timer size={18} /></span><div><small>Last 7 days</small><strong>{weeklyLearningLabel} · {weeklyAccuracy === null ? 'No accuracy yet' : `${weeklyAccuracy}% accuracy`}</strong><p>{accuracyChange === null ? `${weekAttempts.length} learning session${weekAttempts.length === 1 ? '' : 's'} · ${streak} day streak` : `${accuracyChange >= 0 ? '↑' : '↓'} ${Math.abs(accuracyChange)} points versus the previous week`}</p></div></article></div></section>
       <section className="learn-paths"><div className="study-section-title"><div><p className="eyebrow">Learning paths</p><h2>Progress with purpose</h2></div><span>Four guided journeys</span></div><div className="learn-path-grid">{pathStats.map((path) => <article className={`learn-path-card ${path.accent} ${path.id === recommendedPath.id ? 'recommended' : ''}`} key={path.id}><div className="learn-path-heading"><span><BookOpen size={20} /></span><div><small>{path.id === recommendedPath.id ? 'Recommended next' : `${path.topics.length} topic${path.topics.length === 1 ? '' : 's'}`}</small><h3>{path.title}</h3></div><strong>{path.percent}%</strong></div><p>{path.description}</p><div className="learn-path-progress"><span style={{ width: `${path.percent}%` }} /></div><div className="learn-path-lessons">{path.topicProgress.map((topic, index) => <div className={topic.complete >= 5 ? 'complete' : topic.started ? 'active' : ''} key={topic.topic}><span>{topic.complete >= 5 ? <CheckCircle2 size={14} /> : index + 1}</span><strong>{topic.topic}</strong><small>{topic.complete >= 5 ? 'Milestone reached' : topic.started ? `${topic.started} facts started` : index === 0 || path.topicProgress[index - 1].started > 0 ? 'Ready' : 'Upcoming'}</small></div>)}</div><div className="learn-path-actions"><button className="primary-button" onClick={() => beginSession(path.id, false)} type="button"><Play size={16} /> {path.started ? 'Continue path' : 'Start path'}</button><button className="ghost-button table-button" disabled={!path.checkpointUnlocked} onClick={() => beginSession(path.id, true)} type="button"><Trophy size={15} /> {path.checkpointUnlocked ? 'Take checkpoint' : `${Math.max(0, 10 - path.strong)} strong facts to unlock`}</button></div></article>)}</div></section>
       <section className="learn-topics"><div className="study-section-title"><div><p className="eyebrow">Topic mastery</p><h2>See where your knowledge is growing</h2></div><span>{due} ready to review</span></div><div className="learn-topic-grid">{topicStats.map((topic) => <article key={topic.topic}><div><strong>{topic.topic}</strong><span>{topic.started ? `${topic.percent}%` : 'Not started'}</span></div><div><span style={{ width: `${topic.percent}%` }} /></div><small>{topic.started} of 50 facts explored</small></article>)}</div></section>
       {message && <p className="form-message">{message}</p>}
