@@ -2017,7 +2017,7 @@ function Dashboard({ session }: { session: Session }) {
         <LearnView session={session} onProgressChanged={() => void loadDashboard()} />
       ) : (
       <section className="game-table-shell">
-        <div className="table-toolbar">
+        {activeView !== 'dashboard' && <div className="table-toolbar">
           <div>
             <p className="eyebrow">{activeView === 'play' ? 'Play' : activeView === 'packs' ? 'Library' : activeView === 'daily' ? 'Daily challenge' : 'Dashboard'}</p>
             <h1>{activeView === 'play' ? 'Play quizzes your way' : activeView === 'packs' ? 'Question packs' : activeView === 'daily' ? 'Today’s challenge' : 'What would you like to do today?'}</h1>
@@ -2028,7 +2028,7 @@ function Dashboard({ session }: { session: Session }) {
               Question packs
             </button>
           )}
-        </div>
+        </div>}
 
         {(notice || memberNotice) && <p className="form-message">{notice || memberNotice}</p>}
 
@@ -2041,6 +2041,7 @@ function Dashboard({ session }: { session: Session }) {
           studyQuizzes={studyQuizzes}
           learningAttempts={learningAttempts}
           learningProgress={learningProgress}
+          displayName={hostDisplayName}
           onDaily={() => navigate('/daily')}
           onLearn={() => navigate('/learn')}
           onPlay={() => navigate('/play')}
@@ -3355,6 +3356,7 @@ function DashboardLaunchGrid({
   studyQuizzes,
   learningAttempts,
   learningProgress,
+  displayName,
   onDaily,
   onLearn,
   onPlay,
@@ -3368,6 +3370,7 @@ function DashboardLaunchGrid({
   studyQuizzes: StudyQuiz[];
   learningAttempts: LearningAttempt[];
   learningProgress: LearningProgress[];
+  displayName: string;
   onDaily: () => void;
   onLearn: () => void;
   onPlay: () => void;
@@ -3408,9 +3411,29 @@ function DashboardLaunchGrid({
   }
   const masteredFacts = learningProgress.filter((item) => item.mastery_level >= 4).length;
   const dueFacts = learningProgress.filter((item) => item.last_was_correct === false || new Date(item.next_review_at).getTime() <= Date.now()).length;
+  const weekLearningAttempts = learningAttempts.filter((attempt) => Date.now() - new Date(attempt.completed_at).getTime() < 7 * 86400000);
+  const weekStudyAttempts = studyAttempts.filter((attempt) => Date.now() - new Date(attempt.completed_at).getTime() < 7 * 86400000);
+  const weekDailyAttempts = dailyAttempts.filter((attempt) => Date.now() - dateFromKey(attempt.challenge_date).getTime() < 7 * 86400000);
+  const firstName = displayName.trim().split(/\s+/)[0] || 'there';
+  const recommendation = dueFacts > 0
+    ? { eyebrow: 'Recommended next', title: `Review ${Math.min(dueFacts, 8)} due fact${Math.min(dueFacts, 8) === 1 ? '' : 's'}`, detail: 'A focused smart-review session will strengthen the facts most at risk of being forgotten.', action: 'Start smart review', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' }
+    : !todayAttempt
+      ? { eyebrow: 'Today’s priority', title: 'Complete today’s challenge', detail: 'Four varied stages in around 7–9 minutes. Finish today to protect or begin your streak.', action: 'Start Daily Challenge', icon: <CalendarDays size={22} />, onClick: onDaily, tone: 'daily' }
+      : dueQuestions.length > 0
+        ? { eyebrow: 'Ready to review', title: `${dueQuestions.length} study question${dueQuestions.length === 1 ? '' : 's'} due`, detail: latestQuiz ? `Continue strengthening ${latestQuiz.title} while it is fresh.` : 'Use Smart Review to revisit your weakest study questions.', action: 'Open Smart Review', icon: <GraduationCap size={22} />, onClick: onStudy, tone: 'study' }
+        : learningAttempts.length > 0
+          ? { eyebrow: 'Keep progressing', title: 'Continue your knowledge journey', detail: `${masteredFacts} facts mastered so far. Your next short guided lesson is ready.`, action: 'Continue learning', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' }
+          : { eyebrow: 'Start here', title: 'Begin your knowledge journey', detail: 'Learn new facts, practise the connections, and build lasting recall in a guided lesson.', action: 'Start learning', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' };
 
   return (
-    <div className="dashboard-launch-grid" aria-label="Choose an activity">
+    <div className="dashboard-today">
+      <section className={`dashboard-today-hero ${recommendation.tone}`}>
+        <div className="dashboard-today-copy"><p className="eyebrow">Today · {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p><h2>Hi {firstName}, what will you achieve today?</h2><p>Quizo has picked the most useful next step from your current progress.</p></div>
+        <div className="dashboard-recommendation"><span>{recommendation.icon}</span><div><p className="eyebrow">{recommendation.eyebrow}</p><h3>{recommendation.title}</h3><p>{recommendation.detail}</p></div><button className="primary-button" onClick={recommendation.onClick} type="button">{recommendation.icon}{recommendation.action}</button></div>
+        <div className="dashboard-today-status"><div><span>Daily challenge</span><strong>{todayAttempt ? 'Complete' : 'Ready'}</strong></div><div><span>Knowledge review</span><strong>{dueFacts ? `${dueFacts} due` : 'On track'}</strong></div><div><span>Study review</span><strong>{dueQuestions.length ? `${dueQuestions.length} due` : 'On track'}</strong></div><div><span>This week</span><strong>{weekDailyAttempts.length + weekLearningAttempts.length + weekStudyAttempts.length} activities</strong></div></div>
+      </section>
+      <div className="dashboard-secondary-heading"><div><p className="eyebrow">Explore Quizo</p><h2>Or choose another activity</h2></div><span>Your progress is saved automatically</span></div>
+      <div className="dashboard-launch-grid" aria-label="Choose an activity">
       <section className="dashboard-launch-card daily">
         <div className="dashboard-launch-heading">
           <span><CalendarDays size={21} /></span>
@@ -3450,6 +3473,7 @@ function DashboardLaunchGrid({
         <div className="dashboard-launch-status"><span><UserPlus size={15} /> {activeGameCount} active</span><strong>Choose a mode</strong></div>
         <button className="primary-button" onClick={onPlay} type="button"><Play size={17} /> Play a game</button>
       </section>
+      </div>
     </div>
   );
 }
