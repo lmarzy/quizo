@@ -81,6 +81,9 @@ type StudyQuiz = {
   workspace_id: string;
   module_name: string | null;
   topic_name: string | null;
+  source_name: string | null;
+  ai_generated: boolean;
+  study_plan: { summary: string; sessions_per_week: number; minutes_per_session: number; focus_topics: string[] } | null;
 };
 
 type StudyWorkspace = {
@@ -1145,7 +1148,7 @@ function Dashboard({ session }: { session: Session }) {
           .eq('user_id', session.user.id)
           .gte('challenge_date', getLocalDateKey(addLocalDays(new Date(), -120)))
           .order('challenge_date', { ascending: false }),
-        supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at,workspace_id,module_name,topic_name').order('updated_at', { ascending: false }),
+        supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at,workspace_id,module_name,topic_name,source_name,ai_generated,study_plan').order('updated_at', { ascending: false }),
         supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position,mastery_level,next_review_at,last_reviewed_at').order('position'),
         supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
         supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
@@ -2422,10 +2425,11 @@ type StudyQuestionDraft = {
   option_c: string;
   correct_option: 'A' | 'B' | 'C';
   explanation: string;
+  review_status: 'manual' | 'ai-review' | 'reviewed';
 };
 
 const emptyStudyQuestion = (): StudyQuestionDraft => ({
-  prompt: '', option_a: '', option_b: '', option_c: '', correct_option: 'A', explanation: '',
+  prompt: '', option_a: '', option_b: '', option_c: '', correct_option: 'A', explanation: '', review_status: 'manual',
 });
 
 function parseCsvRow(row: string) {
@@ -2496,6 +2500,12 @@ function StudyQuizView({ session }: { session: Session }) {
   const [draftQuestions, setDraftQuestions] = useState<StudyQuestionDraft[]>([emptyStudyQuestion()]);
   const [selectedDraftIndex, setSelectedDraftIndex] = useState(0);
   const [questionSearch, setQuestionSearch] = useState('');
+  const [materialBuilderOpen, setMaterialBuilderOpen] = useState(false);
+  const [materialText, setMaterialText] = useState('');
+  const [materialFile, setMaterialFile] = useState<File | null>(null);
+  const [questionTarget, setQuestionTarget] = useState(10);
+  const [sourceName, setSourceName] = useState('');
+  const [generatedStudyPlan, setGeneratedStudyPlan] = useState<StudyQuiz['study_plan']>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -2505,7 +2515,7 @@ function StudyQuizView({ session }: { session: Session }) {
     setLoading(true);
     const [workspaceResult, quizResult, questionResult, attemptResult, answerResult] = await Promise.all([
       supabase.from('study_workspaces').select('id,title,study_level,organisation,curriculum,country_region,target,assessment_date,created_at,updated_at').order('updated_at', { ascending: false }),
-      supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at,workspace_id,module_name,topic_name').order('updated_at', { ascending: false }),
+      supabase.from('study_quizzes').select('id,title,subject,description,created_at,updated_at,workspace_id,module_name,topic_name,source_name,ai_generated,study_plan').order('updated_at', { ascending: false }),
       supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position,mastery_level,next_review_at,last_reviewed_at').order('position'),
       supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
       supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
@@ -2559,13 +2569,22 @@ function StudyQuizView({ session }: { session: Session }) {
     setDraftQuestions([emptyStudyQuestion()]);
     setSelectedDraftIndex(0);
     setQuestionSearch('');
+    setMaterialBuilderOpen(false);
+    setMaterialText('');
+    setMaterialFile(null);
+    setSourceName('');
+    setGeneratedStudyPlan(null);
     setMessage('');
   }
 
   function updateDraftQuestion(index: number, field: keyof StudyQuestionDraft, value: string) {
     setDraftQuestions((current) => current.map((question, questionIndex) => (
-      questionIndex === index ? { ...question, [field]: value } : question
+      questionIndex === index ? { ...question, [field]: value, review_status: question.review_status === 'ai-review' ? 'reviewed' : question.review_status } : question
     )));
+  }
+
+  function markDraftReviewed(index: number) {
+    setDraftQuestions((current) => current.map((question, questionIndex) => questionIndex === index ? { ...question, review_status: 'reviewed' } : question));
   }
 
   async function createQuiz() {
@@ -2578,6 +2597,10 @@ function StudyQuizView({ session }: { session: Session }) {
       setMessage('Complete the question and all three answers for every question.');
       return;
     }
+    if (validQuestions.some((question) => question.review_status === 'ai-review')) {
+      setMessage('Review every AI-generated question before saving. You can edit it or select “Mark reviewed”.');
+      return;
+    }
     setBusy(true);
     setMessage('');
     const { data: quiz, error: quizError } = await supabase.from('study_quizzes').insert({
@@ -2588,6 +2611,9 @@ function StudyQuizView({ session }: { session: Session }) {
       description: description.trim() || null,
       module_name: moduleName.trim() || null,
       topic_name: topicName.trim() || null,
+      source_name: sourceName || null,
+      ai_generated: Boolean(sourceName),
+      study_plan: generatedStudyPlan,
     }).select('id').single();
     if (quizError || !quiz) {
       setBusy(false);
@@ -2631,7 +2657,7 @@ function StudyQuizView({ session }: { session: Session }) {
     const imported = rows.slice(1).map((row) => {
       const cells = parseCsvRow(row);
       const get = (name: string) => cells[headers.indexOf(name)] || '';
-      return { prompt: get('question'), option_a: get('answer'), option_b: get('wrong_answer_1'), option_c: get('wrong_answer_2'), correct_option: 'A' as const, explanation: get('explanation') };
+      return { prompt: get('question'), option_a: get('answer'), option_b: get('wrong_answer_1'), option_c: get('wrong_answer_2'), correct_option: 'A' as const, explanation: get('explanation'), review_status: 'manual' as const };
     }).filter((question) => question.prompt && question.option_a && question.option_b && question.option_c);
     if (!imported.length) {
       setMessage('No complete questions were found in that CSV.');
@@ -2640,6 +2666,58 @@ function StudyQuizView({ session }: { session: Session }) {
     setDraftQuestions(imported);
     setSelectedDraftIndex(0);
     setMessage(`${imported.length} question${imported.length === 1 ? '' : 's'} imported. Review them before saving.`);
+  }
+
+  async function generateFromMaterial() {
+    if (!materialFile && materialText.trim().length < 120) {
+      setMessage('Upload learning material or paste at least 120 characters of useful notes.');
+      return;
+    }
+    if (materialFile && materialFile.size > 10 * 1024 * 1024) {
+      setMessage('Please use a file smaller than 10 MB. Large documents can be split into sections.');
+      return;
+    }
+    setBusy(true);
+    setMessage('Reading your material and drafting questions…');
+    let fileData: string | null = null;
+    if (materialFile) {
+      const bytes = new Uint8Array(await materialFile.arrayBuffer());
+      let binary = '';
+      for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+      fileData = btoa(binary);
+    }
+    const { data, error } = await supabase.functions.invoke('generate-study-quiz', {
+      body: {
+        text: materialText.trim() || null,
+        file: materialFile ? { name: materialFile.name, mime_type: materialFile.type || 'application/octet-stream', data: fileData } : null,
+        question_count: questionTarget,
+        context: { subject: subject.trim(), module: moduleName.trim(), topic: topicName.trim(), study_level: selectedWorkspace?.study_level || 'personal' },
+      },
+    });
+    setBusy(false);
+    if (error || !data?.questions?.length) {
+      setMessage(error?.message || data?.error || 'Quizo could not generate questions from this material.');
+      return;
+    }
+    const generated = data.questions.map((question: { prompt: string; answer: string; wrong_answer_1: string; wrong_answer_2: string; explanation: string }) => ({
+      prompt: question.prompt,
+      option_a: question.answer,
+      option_b: question.wrong_answer_1,
+      option_c: question.wrong_answer_2,
+      correct_option: 'A' as const,
+      explanation: question.explanation,
+      review_status: 'ai-review' as const,
+    }));
+    setDraftQuestions(generated);
+    setSelectedDraftIndex(0);
+    setQuestionSearch('');
+    setSourceName(materialFile?.name || 'Pasted revision notes');
+    setGeneratedStudyPlan(data.study_plan || null);
+    if (!title.trim() && data.suggested_title) setTitle(data.suggested_title);
+    if (!subject.trim() && data.suggested_subject) setSubject(data.suggested_subject);
+    if (!topicName.trim() && data.topics?.length) setTopicName(data.topics.slice(0, 3).join(', '));
+    setMaterialBuilderOpen(false);
+    setMessage(`${generated.length} AI-generated drafts are ready. Review each question before saving.`);
   }
 
   function beginQuiz(quiz: StudyQuiz, mode: 'full' | 'mistakes' | 'smart') {
@@ -2769,6 +2847,7 @@ function StudyQuizView({ session }: { session: Session }) {
     const selectedDraft = draftQuestions[selectedDraftIndex] || draftQuestions[0];
     const isComplete = (question: StudyQuestionDraft) => Boolean(question.prompt.trim() && question.option_a.trim() && question.option_b.trim() && question.option_c.trim());
     const completedCount = draftQuestions.filter(isComplete).length;
+    const needsReviewCount = draftQuestions.filter((question) => question.review_status === 'ai-review').length;
     const filteredDraftQuestions = draftQuestions
       .map((question, index) => ({ question, index }))
       .filter(({ question }) => question.prompt.toLowerCase().includes(questionSearch.trim().toLowerCase()));
@@ -2794,9 +2873,10 @@ function StudyQuizView({ session }: { session: Session }) {
     return (
       <section className="study-shell study-create-shell">
         <div className="study-page-header study-create-header">
-          <div><button className="ghost-button table-button study-inline-back" onClick={() => { resetCreate(); setScreen('library'); }} type="button"><ArrowLeft size={17} /> Library</button><p className="eyebrow">Study quiz{selectedWorkspace ? ` · ${selectedWorkspace.title}` : ''}</p><h1>Create a quiz</h1><p>Add questions manually or import a CSV, then review everything before saving.</p></div>
+          <div><button className="ghost-button table-button study-inline-back" onClick={() => { resetCreate(); setScreen('library'); }} type="button"><ArrowLeft size={17} /> Library</button><p className="eyebrow">Study quiz{selectedWorkspace ? ` · ${selectedWorkspace.title}` : ''}</p><h1>Create a quiz</h1><p>Build questions yourself, import a CSV, or turn learning material into editable drafts.</p></div>
           <button className="primary-button" disabled={busy} onClick={() => void createQuiz()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : <Save size={17} />} Save quiz</button>
         </div>
+        {materialBuilderOpen && <section className="study-material-builder"><div className="study-material-heading"><div><p className="eyebrow">Document-assisted creation</p><h2>Turn learning material into a quiz</h2><p>Quizo will identify topics, draft varied questions, and suggest a short study plan. Generated content must be reviewed before saving.</p></div><button className="icon-button neutral" onClick={() => setMaterialBuilderOpen(false)} type="button" aria-label="Close material builder"><X size={19} /></button></div><div className="study-material-inputs"><label className={`study-material-drop ${materialFile ? 'has-file' : ''}`}><Upload size={24} /><strong>{materialFile?.name || 'Upload learning material'}</strong><small>PDF, PowerPoint, Word, text or Markdown · up to 10 MB</small><input accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.md,application/pdf,text/plain" onChange={(event) => setMaterialFile(event.target.files?.[0] || null)} type="file" /></label><div className="study-material-divider"><span>or</span></div><label className="study-material-paste"><span>Paste revision notes or a course specification</span><textarea value={materialText} onChange={(event) => setMaterialText(event.target.value)} placeholder="Paste the material you want Quizo to use…" rows={8} /><small>{materialText.trim().length.toLocaleString()} characters</small></label></div><div className="study-material-actions"><label>Number of questions<select value={questionTarget} onChange={(event) => setQuestionTarget(Number(event.target.value))}><option value={5}>5 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option><option value={20}>20 questions</option></select></label><button className="primary-button" disabled={busy} onClick={() => void generateFromMaterial()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : <Brain size={17} />} Suggest topics and questions</button></div></section>}
         <div className="study-create-layout">
           <section className="study-form-card study-quiz-details">
             <div className="study-details-fields">
@@ -2808,20 +2888,22 @@ function StudyQuizView({ session }: { session: Session }) {
               <label><span className="study-field-label">Topic <small>(optional)</small></span><input value={topicName} onChange={(event) => setTopicName(event.target.value)} placeholder="Cell biology" /></label>
             </div>
             <label className="study-description-field">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional notes about this quiz" rows={4} /></label>
+            <button className="study-material-launch" onClick={() => setMaterialBuilderOpen(true)} type="button"><Brain size={19} /><span><strong>Create from learning material</strong><small>Upload notes, slides or a PDF, or paste text</small></span></button>
             <label className="study-upload-button"><Upload size={18} /><span><strong>Import questions from CSV</strong><small>question, answer, wrong_answer_1, wrong_answer_2, explanation</small></span><input accept=".csv,text/csv" onChange={(event) => event.target.files?.[0] && void importCsv(event.target.files[0])} type="file" /></label>
+            {generatedStudyPlan && <div className="study-plan-preview"><span><CalendarDays size={17} /> Suggested study plan</span><strong>{generatedStudyPlan.sessions_per_week} sessions a week · {generatedStudyPlan.minutes_per_session} minutes</strong><p>{generatedStudyPlan.summary}</p></div>}
             {message && <p className="form-message">{message}</p>}
           </section>
           <section className="study-question-builder">
-            <div className="study-section-title"><div><p className="eyebrow">Questions</p><h2>{completedCount} of {draftQuestions.length} complete</h2></div><button className="ghost-button table-button" onClick={addDraftQuestion} type="button"><Plus size={16} /> Add question</button></div>
+            <div className="study-section-title"><div><p className="eyebrow">Questions</p><h2>{completedCount} of {draftQuestions.length} complete{needsReviewCount ? ` · ${needsReviewCount} to review` : ''}</h2></div><button className="ghost-button table-button" onClick={addDraftQuestion} type="button"><Plus size={16} /> Add question</button></div>
             <div className="study-builder-workspace">
               <aside className="study-question-navigator">
                 <label className="study-question-search"><Search size={15} /><input value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} placeholder="Search questions" type="search" /></label>
                 <div className="study-question-nav-list">
                   {filteredDraftQuestions.map(({ question, index }) => (
-                    <button className={`${selectedDraftIndex === index ? 'active' : ''} ${isComplete(question) ? 'complete' : 'incomplete'}`} key={index} onClick={() => setSelectedDraftIndex(index)} type="button">
+                    <button className={`${selectedDraftIndex === index ? 'active' : ''} ${isComplete(question) && question.review_status !== 'ai-review' ? 'complete' : 'incomplete'}`} key={index} onClick={() => setSelectedDraftIndex(index)} type="button">
                       <span>{index + 1}</span>
-                      <div><strong>{question.prompt.trim() || 'Untitled question'}</strong><small>{isComplete(question) ? 'Ready' : 'Needs attention'}</small></div>
-                      {isComplete(question) ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+                      <div><strong>{question.prompt.trim() || 'Untitled question'}</strong><small>{question.review_status === 'ai-review' ? 'AI draft · review needed' : isComplete(question) ? 'Ready' : 'Needs attention'}</small></div>
+                      {question.review_status === 'ai-review' || !isComplete(question) ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}
                     </button>
                   ))}
                   {filteredDraftQuestions.length === 0 && <p>No questions match that search.</p>}
@@ -2829,7 +2911,7 @@ function StudyQuizView({ session }: { session: Session }) {
                 <button className="study-nav-add" onClick={addDraftQuestion} type="button"><Plus size={15} /> Add question</button>
               </aside>
               {selectedDraft && <article className="study-question-editor focused-editor">
-                <div className="study-question-editor-heading"><div><small>Editing</small><strong>Question {selectedDraftIndex + 1} of {draftQuestions.length}</strong></div><div className="study-editor-actions"><button className="ghost-button table-button" onClick={duplicateDraftQuestion} type="button"><Clipboard size={15} /> Duplicate</button>{draftQuestions.length > 1 && <button className="icon-button neutral" onClick={removeDraftQuestion} type="button" aria-label={`Remove question ${selectedDraftIndex + 1}`}><Trash2 size={16} /></button>}</div></div>
+                <div className="study-question-editor-heading"><div><small>{selectedDraft.review_status === 'ai-review' ? 'AI-generated · check against your source' : 'Editing'}</small><strong>Question {selectedDraftIndex + 1} of {draftQuestions.length}</strong></div><div className="study-editor-actions">{selectedDraft.review_status === 'ai-review' && <button className="study-mark-reviewed" onClick={() => markDraftReviewed(selectedDraftIndex)} type="button"><CheckCircle2 size={15} /> Mark reviewed</button>}<button className="ghost-button table-button" onClick={duplicateDraftQuestion} type="button"><Clipboard size={15} /> Duplicate</button>{draftQuestions.length > 1 && <button className="icon-button neutral" onClick={removeDraftQuestion} type="button" aria-label={`Remove question ${selectedDraftIndex + 1}`}><Trash2 size={16} /></button>}</div></div>
                 <label>Question<input value={selectedDraft.prompt} onChange={(event) => updateDraftQuestion(selectedDraftIndex, 'prompt', event.target.value)} placeholder="Enter the question" /></label>
                 <div className="study-option-editor">
                   {(['A', 'B', 'C'] as const).map((option) => (
@@ -2894,7 +2976,7 @@ function StudyQuizView({ session }: { session: Session }) {
       ) : workspaces.length === 0 ? (
         <section className="study-empty"><GraduationCap size={36} /><h2>Create your first study workspace</h2><p>Organise a qualification, degree course, professional subject, or one focused topic.</p><button className="primary-button" onClick={() => setWorkspaceFormOpen(true)} type="button"><Plus size={17} /> Create workspace</button></section>
       ) : visibleQuizzes.length === 0 ? (
-        <section className="study-empty"><GraduationCap size={36} /><h2>Add a quiz to {selectedWorkspace?.title}</h2><p>Build questions manually or upload a CSV, then use Smart Review to retain what you learn.</p><button className="primary-button" onClick={() => setScreen('create')} type="button"><Plus size={17} /> Create a study quiz</button></section>
+        <section className="study-empty"><GraduationCap size={36} /><h2>Add a quiz to {selectedWorkspace?.title}</h2><p>Build questions manually, upload learning material, or import a CSV—then use Smart Review to retain what you learn.</p><button className="primary-button" onClick={() => setScreen('create')} type="button"><Plus size={17} /> Create a study quiz</button></section>
       ) : (
         <div className="study-quiz-grid">
           {visibleQuizzes.map((quiz) => {
@@ -2906,8 +2988,9 @@ function StudyQuizView({ session }: { session: Session }) {
             const mastered = quizQuestions.filter((question) => question.mastery_level >= 4).length;
             return (
               <article className="study-quiz-card" key={quiz.id}>
-                <div className="study-quiz-heading"><span><GraduationCap size={20} /></span><div><small>{[quiz.subject, quiz.module_name, quiz.topic_name].filter(Boolean).join(' · ')}</small><h2>{quiz.title}</h2></div><button className="icon-button neutral" onClick={() => void deleteQuiz(quiz)} type="button" aria-label={`Delete ${quiz.title}`}><Trash2 size={16} /></button></div>
+                <div className="study-quiz-heading"><span><GraduationCap size={20} /></span><div><small>{[quiz.subject, quiz.module_name, quiz.topic_name].filter(Boolean).join(' · ')}</small><h2>{quiz.title}</h2>{quiz.ai_generated && <em className="study-ai-source"><Brain size={12} /> Created from {quiz.source_name}</em>}</div><button className="icon-button neutral" onClick={() => void deleteQuiz(quiz)} type="button" aria-label={`Delete ${quiz.title}`}><Trash2 size={16} /></button></div>
                 <p>{quiz.description || 'A private study quiz.'}</p>
+                {quiz.study_plan && <div className="study-card-plan"><CalendarDays size={15} /><span><strong>{quiz.study_plan.sessions_per_week} × {quiz.study_plan.minutes_per_session} min weekly</strong><small>{quiz.study_plan.summary}</small></span></div>}
                 <div className="study-quiz-meta"><div><span>Due today</span><strong>{due}</strong></div><div><span>Best</span><strong>{quizAttempts.length ? `${best}%` : '—'}</strong></div><div><span>Mastered</span><strong>{mastered}/{quizQuestions.length}</strong></div></div>
                 <div className="study-last-taken"><span>{latest ? `Last taken ${new Date(latest.completed_at).toLocaleDateString()}` : `${quizQuestions.length} questions`}</span>{due > 0 && <strong>About {Math.max(1, Math.ceil(Math.min(due, 15) * 0.4))} min</strong>}</div>
                 <div className="study-card-actions">
