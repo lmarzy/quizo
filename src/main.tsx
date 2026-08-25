@@ -166,10 +166,10 @@ type LearningPath = {
 };
 
 const generalKnowledgePaths: LearningPath[] = [
-  { id: 'world-explorer', title: 'World Explorer', description: 'Build a connected picture of countries, places, rivers, landmarks, and food cultures.', topics: ['capitals', 'landmarks', 'rivers', 'food'], accent: 'world' },
-  { id: 'science-nature', title: 'Science & Nature', description: 'Understand essential chemistry and the remarkable adaptations of the animal world.', topics: ['chemistry', 'animals'], accent: 'science' },
-  { id: 'history-culture', title: 'History & Culture', description: 'Connect major moments in history with influential books and their authors.', topics: ['history', 'literature'], accent: 'culture' },
-  { id: 'modern-life', title: 'Modern Life', description: 'Strengthen useful knowledge across technology, computing, sport, and games.', topics: ['technology', 'sport'], accent: 'modern' },
+  { id: 'world-explorer', title: 'World Explorer', description: 'Build a connected picture of countries, capital cities, major landmarks, and rivers.', topics: ['capitals', 'landmarks', 'rivers'], accent: 'world' },
+  { id: 'science-nature', title: 'Science & Nature', description: 'Explore chemistry, animal adaptations, and the technology shaped by scientific ideas.', topics: ['chemistry', 'animals', 'technology'], accent: 'science' },
+  { id: 'history-culture', title: 'History & Culture', description: 'Connect major historical moments with influential books, authors, and landmarks.', topics: ['history', 'literature', 'landmarks'], accent: 'culture' },
+  { id: 'modern-life', title: 'Modern Life', description: 'Strengthen useful knowledge across technology, sport, games, and food cultures.', topics: ['technology', 'sport', 'food'], accent: 'modern' },
 ];
 
 const dailyBonusChallenges: DailyBonusChallenge[] = [
