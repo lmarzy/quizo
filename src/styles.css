@@ -10977,6 +10977,31 @@ body,
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
 }
 
+.onboarding-backdrop { position: fixed; z-index: 1500; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(8, 12, 10, .55); backdrop-filter: blur(6px); }
+.onboarding-card { width: min(680px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; padding: 30px; border-radius: 25px; background: #fff; box-shadow: 0 30px 90px rgba(0,0,0,.25); }
+.onboarding-card h1 { margin: 6px 0 8px; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.05; }
+.onboarding-card > p:not(.eyebrow) { margin: 0; color: var(--muted); }
+.onboarding-choices { display: grid; gap: 9px; margin-top: 23px; }
+.onboarding-choices button { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+.onboarding-choices button:hover { border-color: #77b89a; background: #effaf4; }
+.onboarding-choices button > span { display: grid; place-items: center; width: 41px; height: 41px; border-radius: 12px; background: #e8f7ef; color: #176343; }
+.onboarding-choices strong, .onboarding-choices small { display: block; }
+.onboarding-choices small { margin-top: 3px; color: var(--muted); line-height: 1.35; }
+.dashboard-milestones { margin: 22px 0; }
+.dashboard-milestone-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.dashboard-milestone-grid article { display: grid; grid-template-columns: auto 1fr; gap: 10px; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.dashboard-milestone-grid article > span { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 11px; background: #f1f1f1; color: #666; }
+.dashboard-milestone-grid article.earned { border-color: #9bcdb5; background: #f0faf5; }
+.dashboard-milestone-grid article.earned > span { background: #237c56; color: #fff; }
+.dashboard-milestone-grid strong { font-size: .84rem; }
+.dashboard-milestone-grid p { min-height: 31px; margin: 4px 0 9px; color: var(--muted); font-size: .7rem; line-height: 1.35; }
+.dashboard-milestone-grid small { display: block; margin-top: 5px; color: var(--muted); font-size: .65rem; font-weight: 800; }
+.milestone-progress { height: 5px; overflow: hidden; border-radius: 99px; background: #e6e6e6; }
+.milestone-progress i { display: block; height: 100%; border-radius: inherit; background: #237c56; }
+
+@media (max-width: 820px) { .dashboard-milestone-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .onboarding-card { padding: 22px; } .dashboard-milestone-grid { grid-template-columns: 1fr; } }
+
 .dashboard .account-menu-action,
 .dashboard .account-logout {
   position: relative;
@@ -11753,11 +11778,30 @@ body,
 }
 
 .study-session-shell { max-width: 900px; }
+.study-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.study-mode-grid > button { display: grid; grid-template-columns: auto 1fr auto; gap: 13px; align-items: center; padding: 19px; border: 1px solid var(--line); border-radius: 17px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+.study-mode-grid > button:hover:not(:disabled) { border-color: #83bfa2; background: #f2faf6; }
+.study-mode-grid > button:disabled { opacity: .5; cursor: not-allowed; }
+.study-mode-grid > button > span { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; background: #e8f7ef; color: #176343; }
+.study-mode-grid strong, .study-mode-grid small { display: block; }
+.study-mode-grid p { margin: 5px 0; color: var(--muted); font-size: .82rem; line-height: 1.4; }
+.study-mode-grid small { color: #237c56; font-size: .7rem; font-weight: 850; }
 .study-play-card { margin-top: 18px; padding: 28px; }
 .study-play-card > h2 { margin: 0 0 22px; font-size: clamp(1.35rem, 2.5vw, 2rem); }
 .study-result-summary { max-width: 620px; margin: 0 auto 22px; }
 .study-result-summary div { padding: 18px; text-align: center; }
 .study-result-summary strong { font-size: 1.5rem; }
+.study-exam-navigator { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.study-exam-navigator button { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--muted); font-weight: 850; cursor: pointer; }
+.study-exam-navigator button.answered { border-color: #77b89a; color: #176343; background: #effaf4; }
+.study-exam-navigator button.flagged { box-shadow: inset 0 -3px #e0a63e; }
+.study-exam-navigator button.active { outline: 2px solid #111; outline-offset: 1px; }
+.practice-answer-button.selected { border-color: #111; background: #f2f2f2; }
+.study-exam-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
+.study-exam-actions button.flagged { border-color: #d9a13b; background: #fff7e8; color: #82520b; }
+.study-rapid-answer { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+.study-rapid-answer label { display: grid; gap: 7px; font-weight: 800; }
+.study-rapid-answer input { width: 100%; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; box-sizing: border-box; }
 .study-review-card { padding: 22px; }
 .study-review-row { display: grid; grid-template-columns: auto 1fr; gap: 12px; padding: 16px 0; border-top: 1px solid var(--line); }
 .study-review-row:first-of-type { margin-top: 16px; }
@@ -11786,6 +11830,7 @@ body,
   .study-workspace-form { grid-template-columns: 1fr 1fr; }
   .study-question-nav-list { max-height: 250px; }
   .study-form-card { position: static; }
+  .study-mode-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {
@@ -11793,6 +11838,8 @@ body,
   .study-card-actions { flex-direction: column; }
   .study-quiz-meta, .study-result-summary { grid-template-columns: 1fr; }
   .study-option-editor label { grid-template-columns: auto auto 1fr; }
+  .study-rapid-answer { grid-template-columns: 1fr; }
+  .study-exam-actions { flex-wrap: wrap; }
   .study-workspace-form { grid-template-columns: 1fr; }
   .study-editor-paging { grid-template-columns: 1fr 1fr; }
   .study-editor-paging > span { grid-column: 1 / -1; grid-row: 1; }

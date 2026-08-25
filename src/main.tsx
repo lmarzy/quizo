@@ -10,6 +10,8 @@ type Profile = {
   id: string;
   email: string | null;
   display_name: string | null;
+  onboarding_goal: 'knowledge' | 'study' | 'create' | 'play' | 'mixed' | null;
+  onboarding_completed_at: string | null;
 };
 
 type QuestionPack = {
@@ -114,12 +116,14 @@ type StudyQuestion = {
 type StudyAttempt = {
   id: string;
   quiz_id: string;
-  mode: 'full' | 'mistakes' | 'smart';
+  mode: StudySessionMode;
   correct_count: number;
   question_count: number;
   duration_seconds: number;
   completed_at: string;
 };
+
+type StudySessionMode = 'full' | 'learn' | 'practice' | 'exam' | 'smart' | 'rapid' | 'mistakes';
 
 type StudyAnswer = {
   id: string;
@@ -136,6 +140,8 @@ type LearningAttempt = {
   question_count: number;
   duration_seconds: number;
   completed_at: string;
+  session_type: 'lesson' | 'checkpoint';
+  path_id: string | null;
 };
 
 type LearningProgress = {
@@ -870,6 +876,17 @@ function AuthScreen() {
   );
 }
 
+function OnboardingModal({ onChoose }: { onChoose: (goal: NonNullable<Profile['onboarding_goal']>) => void }) {
+  const choices: Array<{ id: NonNullable<Profile['onboarding_goal']>; title: string; detail: string; icon: React.ReactNode }> = [
+    { id: 'knowledge', title: 'Improve my general knowledge', detail: 'Start with guided Learn paths and daily review.', icon: <Brain size={20} /> },
+    { id: 'study', title: 'Revise for school or university', detail: 'Organise subjects and practise focused study quizzes.', icon: <GraduationCap size={20} /> },
+    { id: 'create', title: 'Create quizzes from my material', detail: 'Build private quizzes manually or import a CSV.', icon: <Pencil size={20} /> },
+    { id: 'play', title: 'Play with friends', detail: 'Create a hosted game or join a live quiz.', icon: <UserPlus size={20} /> },
+    { id: 'mixed', title: 'A mixture', detail: 'See a balanced overview of everything Quizo offers.', icon: <Target size={20} /> },
+  ];
+  return <div className="onboarding-backdrop"><section className="onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><p className="eyebrow">Welcome to Quizo</p><h1 id="onboarding-title">What brings you to Quizo?</h1><p>Choose the closest match. We’ll use it to suggest the best place to start.</p><div className="onboarding-choices">{choices.map((choice) => <button key={choice.id} onClick={() => onChoose(choice.id)} type="button"><span>{choice.icon}</span><div><strong>{choice.title}</strong><small>{choice.detail}</small></div></button>)}</div></section></div>;
+}
+
 function Dashboard({ session }: { session: Session }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -1131,7 +1148,7 @@ function Dashboard({ session }: { session: Session }) {
   async function loadDashboard() {
     try {
       const [profileResult, subscriptionResult, gamesResult, dailyAttemptsResult, studyQuizzesResult, studyQuestionsResult, studyAttemptsResult, studyAnswersResult, learningAttemptsResult, learningProgressResult] = await Promise.all([
-        supabase.from('profiles').select('id,email,display_name').eq('id', session.user.id).single(),
+        supabase.from('profiles').select('id,email,display_name,onboarding_goal,onboarding_completed_at').eq('id', session.user.id).single(),
         supabase.from('subscriptions').select('plan_id,status,current_period_end,cancel_at_period_end,billing_interval,billing_amount_cents,currency').eq('user_id', session.user.id).single(),
         supabase
           .from('games')
@@ -1149,7 +1166,7 @@ function Dashboard({ session }: { session: Session }) {
         supabase.from('study_questions').select('id,quiz_id,prompt,option_a,option_b,option_c,correct_option,explanation,position,mastery_level,next_review_at,last_reviewed_at').order('position'),
         supabase.from('study_attempts').select('id,quiz_id,mode,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
         supabase.from('study_answers').select('id,attempt_id,question_id,selected_option,is_correct,created_at').order('created_at', { ascending: false }),
-        supabase.from('learning_attempts').select('id,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
+        supabase.from('learning_attempts').select('id,correct_count,question_count,duration_seconds,completed_at,session_type,path_id').order('completed_at', { ascending: false }),
         supabase.from('learning_question_progress').select('question_id,attempts,correct_attempts,mastery_level,next_review_at,last_answered_at,last_was_correct,exposure_count,last_exposed_at,self_reported_familiar'),
       ]);
 
@@ -1924,6 +1941,20 @@ function Dashboard({ session }: { session: Session }) {
     showToast('Password updated.');
   }
 
+  async function completeOnboarding(goal: NonNullable<Profile['onboarding_goal']>) {
+    const completedAt = new Date().toISOString();
+    const { error } = await supabase.from('profiles').update({ onboarding_goal: goal, onboarding_completed_at: completedAt }).eq('id', session.user.id);
+    if (error) {
+      showToast(error.message, 'error');
+      return;
+    }
+    setProfile((current) => current ? { ...current, onboarding_goal: goal, onboarding_completed_at: completedAt } : current);
+    if (goal === 'knowledge') navigate('/learn');
+    else if (goal === 'study' || goal === 'create') navigate('/study');
+    else if (goal === 'play') navigate('/play');
+    else navigate('/dashboard');
+  }
+
   return (
     <main className={`dashboard ${controlRoomGame ? 'game-open' : ''}`}>
       <header className="topbar">
@@ -2008,6 +2039,8 @@ function Dashboard({ session }: { session: Session }) {
         </div>
       </header>
 
+      {profile && !profile.onboarding_completed_at && <OnboardingModal onChoose={(goal) => void completeOnboarding(goal)} />}
+
       {activeView === 'profile' ? (
         <ProfileView
           accountBusy={accountBusy}
@@ -2059,6 +2092,7 @@ function Dashboard({ session }: { session: Session }) {
           learningAttempts={learningAttempts}
           learningProgress={learningProgress}
           displayName={hostDisplayName}
+          onboardingGoal={profile?.onboarding_goal || 'mixed'}
           onDaily={() => navigate('/daily')}
           onLearn={() => navigate('/learn')}
           onPlay={() => navigate('/play')}
@@ -2472,13 +2506,17 @@ function StudyQuizView({ session }: { session: Session }) {
   const [questions, setQuestions] = useState<StudyQuestion[]>([]);
   const [attempts, setAttempts] = useState<StudyAttempt[]>([]);
   const [answerHistory, setAnswerHistory] = useState<StudyAnswer[]>([]);
-  const [screen, setScreen] = useState<'library' | 'create' | 'play' | 'results'>('library');
+  const [screen, setScreen] = useState<'library' | 'create' | 'setup' | 'play' | 'results'>('library');
   const [selectedQuiz, setSelectedQuiz] = useState<StudyQuiz | null>(null);
   const [sessionQuestions, setSessionQuestions] = useState<StudyQuestion[]>([]);
   const [sessionAnswers, setSessionAnswers] = useState<Array<{ question: StudyQuestion; selected: 'A' | 'B' | 'C'; correct: boolean }>>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<'A' | 'B' | 'C' | null>(null);
-  const [sessionMode, setSessionMode] = useState<'full' | 'mistakes' | 'smart'>('full');
+  const [sessionMode, setSessionMode] = useState<StudySessionMode>('practice');
+  const [rapidAnswer, setRapidAnswer] = useState('');
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Set<string>>(new Set());
+  const [examEndsAt, setExamEndsAt] = useState<number | null>(null);
+  const [examSecondsLeft, setExamSecondsLeft] = useState(0);
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
@@ -2528,6 +2566,18 @@ function StudyQuizView({ session }: { session: Session }) {
   useEffect(() => {
     void loadStudyData();
   }, []);
+
+  useEffect(() => {
+    if (screen !== 'play' || sessionMode !== 'exam' || !examEndsAt) return undefined;
+    const updateTimer = () => setExamSecondsLeft(Math.max(0, Math.ceil((examEndsAt - Date.now()) / 1000)));
+    updateTimer();
+    const timer = window.setInterval(updateTimer, 1000);
+    return () => window.clearInterval(timer);
+  }, [examEndsAt, screen, sessionMode]);
+
+  useEffect(() => {
+    if (screen === 'play' && sessionMode === 'exam' && examEndsAt && examSecondsLeft === 0 && !busy) void finishStudyAttempt();
+  }, [examSecondsLeft, examEndsAt, screen, sessionMode]);
 
   const attemptDates = new Set(attempts.map((attempt) => getLocalDateKey(new Date(attempt.completed_at))));
   let streak = 0;
@@ -2642,7 +2692,13 @@ function StudyQuizView({ session }: { session: Session }) {
     setMessage(`${imported.length} question${imported.length === 1 ? '' : 's'} imported. Review them before saving.`);
   }
 
-  function beginQuiz(quiz: StudyQuiz, mode: 'full' | 'mistakes' | 'smart') {
+  function openQuizSetup(quiz: StudyQuiz) {
+    setSelectedQuiz(quiz);
+    setMessage('');
+    setScreen('setup');
+  }
+
+  function beginQuiz(quiz: StudyQuiz, mode: StudySessionMode) {
     const quizQuestions = questions.filter((question) => question.quiz_id === quiz.id);
     const dueNow = new Date().getTime();
     const chosen = mode === 'mistakes'
@@ -2652,7 +2708,7 @@ function StudyQuizView({ session }: { session: Session }) {
           .filter((question) => new Date(question.next_review_at).getTime() <= dueNow || latestAnswerByQuestion.get(question.id)?.is_correct === false)
           .sort((left, right) => left.mastery_level - right.mastery_level || new Date(left.next_review_at).getTime() - new Date(right.next_review_at).getTime())
           .slice(0, 15)
-        : quizQuestions;
+        : mode === 'rapid' ? quizQuestions.slice(0, 10) : quizQuestions;
     if (!chosen.length) {
       setMessage(mode === 'mistakes' ? 'No mistakes are waiting for review—try the full quiz.' : mode === 'smart' ? 'You are all caught up. No questions are due yet.' : 'Add questions before starting this quiz.');
       return;
@@ -2663,27 +2719,75 @@ function StudyQuizView({ session }: { session: Session }) {
     setSessionAnswers([]);
     setCurrentIndex(0);
     setSelectedOption(null);
+    setRapidAnswer('');
+    setFlaggedQuestions(new Set());
+    const examDuration = Math.max(5 * 60, chosen.length * 60);
+    setExamEndsAt(mode === 'exam' ? Date.now() + examDuration * 1000 : null);
+    setExamSecondsLeft(mode === 'exam' ? examDuration : 0);
     setMessage('');
     startedAtRef.current = Date.now();
     setScreen('play');
   }
 
   async function chooseAnswer(option: 'A' | 'B' | 'C') {
-    if (selectedOption || !sessionQuestions[currentIndex]) return;
+    if ((selectedOption && sessionMode !== 'exam') || !sessionQuestions[currentIndex]) return;
     const question = sessionQuestions[currentIndex];
     setSelectedOption(option);
-    setSessionAnswers((current) => [...current, { question, selected: option, correct: question.correct_option === option }]);
+    setSessionAnswers((current) => [...current.filter((answer) => answer.question.id !== question.id), { question, selected: option, correct: question.correct_option === option }]);
+  }
+
+  function submitRapidAnswer() {
+    const question = sessionQuestions[currentIndex];
+    if (!question || !rapidAnswer.trim() || selectedOption) return;
+    const normalise = (value: string) => value.trim().toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+    const correct = normalise(rapidAnswer) === normalise(optionText(question, question.correct_option));
+    const wrongOption = (['A', 'B', 'C'] as const).find((option) => option !== question.correct_option) || 'A';
+    const recordedOption = correct ? question.correct_option : wrongOption;
+    setSelectedOption(recordedOption);
+    setSessionAnswers((current) => [...current, { question, selected: recordedOption, correct }]);
+  }
+
+  function goToStudyQuestion(index: number) {
+    const nextQuestion = sessionQuestions[index];
+    setCurrentIndex(index);
+    setSelectedOption(sessionAnswers.find((answer) => answer.question.id === nextQuestion?.id)?.selected || null);
+    setRapidAnswer('');
+  }
+
+  function toggleQuestionFlag() {
+    const question = sessionQuestions[currentIndex];
+    if (!question) return;
+    setFlaggedQuestions((current) => {
+      const next = new Set(current);
+      if (next.has(question.id)) next.delete(question.id); else next.add(question.id);
+      return next;
+    });
   }
 
   async function nextQuestion() {
     if (currentIndex + 1 < sessionQuestions.length) {
       setCurrentIndex((current) => current + 1);
       setSelectedOption(null);
+      setRapidAnswer('');
       return;
     }
+    await finishStudyAttempt();
+  }
+
+  async function finishStudyAttempt() {
     if (!selectedQuiz) return;
-    const finalAnswers = sessionAnswers;
+    const finalAnswers = sessionMode === 'exam' ? sessionQuestions.map((question) => {
+      const recorded = sessionAnswers.find((answer) => answer.question.id === question.id);
+      if (recorded) return recorded;
+      const wrongOption = (['A', 'B', 'C'] as const).find((option) => option !== question.correct_option) || 'A';
+      return { question, selected: wrongOption, correct: false };
+    }) : sessionAnswers;
+    if (!finalAnswers.length) {
+      setMessage('Answer at least one question before submitting.');
+      return;
+    }
     const correctCount = finalAnswers.filter((answer) => answer.correct).length;
+    setSessionAnswers(finalAnswers);
     const duration = Math.min(14400, Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)));
     setBusy(true);
     const { data: attempt, error: attemptError } = await supabase.from('study_attempts').insert({
@@ -2731,6 +2835,21 @@ function StudyQuizView({ session }: { session: Session }) {
     const { error } = await supabase.from('study_quizzes').delete().eq('id', quiz.id);
     if (error) setMessage(error.message);
     else await loadStudyData();
+  }
+
+  if (screen === 'setup' && selectedQuiz) {
+    const quizQuestions = questions.filter((question) => question.quiz_id === selectedQuiz.id);
+    const mistakes = quizQuestions.filter((question) => latestAnswerByQuestion.get(question.id)?.is_correct === false).length;
+    const due = quizQuestions.filter((question) => new Date(question.next_review_at).getTime() <= Date.now() || latestAnswerByQuestion.get(question.id)?.is_correct === false).length;
+    const modes: Array<{ id: StudySessionMode; title: string; detail: string; meta: string; icon: React.ReactNode }> = [
+      { id: 'learn', title: 'Learn mode', detail: 'See the answer and teaching explanation after every question.', meta: `${quizQuestions.length} questions · guided`, icon: <BookOpen size={21} /> },
+      { id: 'practice', title: 'Practice mode', detail: 'Answer normally with concise correct or incorrect feedback.', meta: `${quizQuestions.length} questions`, icon: <Target size={21} /> },
+      { id: 'exam', title: 'Exam mode', detail: 'Timed, navigable, and no feedback until you submit.', meta: `${Math.max(5, quizQuestions.length)} min · flag questions`, icon: <Timer size={21} /> },
+      { id: 'smart', title: 'Smart review', detail: 'Prioritise weak questions and anything due today.', meta: `${Math.min(due, 15)} due`, icon: <Brain size={21} /> },
+      { id: 'rapid', title: 'Rapid recall', detail: 'Type answers without seeing choices to strengthen retrieval.', meta: `Up to ${Math.min(10, quizQuestions.length)} questions`, icon: <RefreshCw size={21} /> },
+      { id: 'mistakes', title: 'Mistake rescue', detail: 'Focus only on questions from previous errors.', meta: `${mistakes} to rescue`, icon: <AlertTriangle size={21} /> },
+    ];
+    return <section className="study-shell"><div className="study-page-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('library')} type="button"><ArrowLeft size={17} /> Library</button><p className="eyebrow">Choose your purpose</p><h1>{selectedQuiz.title}</h1><p>Use a mode that matches how you want to study today.</p></div></div><div className="study-mode-grid">{modes.map((mode) => <button disabled={(mode.id === 'smart' && due === 0) || (mode.id === 'mistakes' && mistakes === 0)} key={mode.id} onClick={() => beginQuiz(selectedQuiz, mode.id)} type="button"><span>{mode.icon}</span><div><strong>{mode.title}</strong><p>{mode.detail}</p><small>{mode.meta}</small></div><Play size={17} /></button>)}</div>{message && <p className="form-message">{message}</p>}</section>;
   }
 
   async function createWorkspace() {
@@ -2850,11 +2969,13 @@ function StudyQuizView({ session }: { session: Session }) {
   if (screen === 'play' && selectedQuiz) {
     const question = sessionQuestions[currentIndex];
     const answer = sessionAnswers.find((item) => item.question.id === question?.id);
+    const modeLabel = sessionMode === 'smart' ? 'Smart review' : sessionMode === 'mistakes' ? 'Mistake rescue' : sessionMode === 'rapid' ? 'Rapid recall' : sessionMode === 'exam' ? 'Exam mode' : sessionMode === 'learn' ? 'Learn mode' : 'Practice mode';
     return (
       <section className="study-shell study-session-shell">
-        <div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('library')} type="button"><X size={17} /> Exit</button><p className="eyebrow">{sessionMode === 'smart' ? 'Smart review' : sessionMode === 'mistakes' ? 'Mistake practice' : selectedQuiz.subject}</p><h1>{selectedQuiz.title}</h1></div><strong>{currentIndex + 1} / {sessionQuestions.length}</strong></div>
+        <div className="study-page-header study-session-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('library')} type="button"><X size={17} /> Exit</button><p className="eyebrow">{modeLabel}</p><h1>{selectedQuiz.title}</h1></div><strong>{sessionMode === 'exam' ? `${Math.floor(examSecondsLeft / 60)}:${String(examSecondsLeft % 60).padStart(2, '0')} · ` : ''}{currentIndex + 1} / {sessionQuestions.length}</strong></div>
         <div className="daily-progress-track"><span style={{ width: `${((currentIndex + 1) / sessionQuestions.length) * 100}%` }} /></div>
-        {question && <section className="study-play-card"><h2>{question.prompt}</h2><div className="practice-answer-grid">{(['A', 'B', 'C'] as const).map((option) => { const isCorrect = selectedOption && option === question.correct_option; const state = selectedOption ? (isCorrect ? 'correct' : option === selectedOption ? 'wrong' : 'muted') : ''; return <button className={`practice-answer-button ${state}`} disabled={Boolean(selectedOption)} key={option} onClick={() => void chooseAnswer(option)} type="button"><span>{option}</span>{optionText(question, option)}</button>; })}</div>{answer && <div className={`daily-answer-note ${answer.correct ? 'correct' : 'wrong'}`}><strong>{answer.correct ? 'Correct' : `Correct answer: ${optionText(question, question.correct_option)}`}</strong>{question.explanation && <span>{question.explanation}</span>}<button className="primary-button compact-button" disabled={busy} onClick={() => void nextQuestion()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : null}{currentIndex + 1 === sessionQuestions.length ? 'See results' : 'Next question'}</button></div>}{message && <p className="form-message">{message}</p>}</section>}
+        {sessionMode === 'exam' && <div className="study-exam-navigator">{sessionQuestions.map((item, index) => <button className={`${index === currentIndex ? 'active' : ''} ${sessionAnswers.some((entry) => entry.question.id === item.id) ? 'answered' : ''} ${flaggedQuestions.has(item.id) ? 'flagged' : ''}`} key={item.id} onClick={() => goToStudyQuestion(index)} type="button">{index + 1}</button>)}</div>}
+        {question && <section className="study-play-card"><h2>{question.prompt}</h2>{sessionMode === 'rapid' ? <div className="study-rapid-answer"><label>Type your answer<input autoFocus value={rapidAnswer} disabled={Boolean(selectedOption)} onChange={(event) => setRapidAnswer(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && submitRapidAnswer()} placeholder="Recall the answer without choices" /></label><button className="primary-button" disabled={!rapidAnswer.trim() || Boolean(selectedOption)} onClick={submitRapidAnswer} type="button">Check answer</button></div> : <div className="practice-answer-grid">{(['A', 'B', 'C'] as const).map((option) => { const isExam = sessionMode === 'exam'; const isCorrect = selectedOption && option === question.correct_option; const state = isExam ? (selectedOption === option ? 'selected' : '') : selectedOption ? (isCorrect ? 'correct' : option === selectedOption ? 'wrong' : 'muted') : ''; return <button className={`practice-answer-button ${state}`} disabled={!isExam && Boolean(selectedOption)} key={option} onClick={() => void chooseAnswer(option)} type="button"><span>{option}</span>{optionText(question, option)}</button>; })}</div>}{sessionMode === 'exam' ? <div className="study-exam-actions"><button className={`ghost-button ${flaggedQuestions.has(question.id) ? 'flagged' : ''}`} onClick={toggleQuestionFlag} type="button"><AlertTriangle size={16} /> {flaggedQuestions.has(question.id) ? 'Flagged' : 'Flag for review'}</button><button className="ghost-button" disabled={currentIndex === 0} onClick={() => goToStudyQuestion(currentIndex - 1)} type="button">Previous</button>{currentIndex + 1 < sessionQuestions.length ? <button className="primary-button" onClick={() => goToStudyQuestion(currentIndex + 1)} type="button">Next</button> : <button className="primary-button" disabled={busy || sessionAnswers.length === 0} onClick={() => void finishStudyAttempt()} type="button">Submit exam</button>}</div> : answer && <div className={`daily-answer-note ${answer.correct ? 'correct' : 'wrong'}`}><strong>{answer.correct ? 'Correct' : `Correct answer: ${optionText(question, question.correct_option)}`}</strong>{sessionMode !== 'practice' && question.explanation && <span>{question.explanation}</span>}<button className="primary-button compact-button" disabled={busy} onClick={() => void nextQuestion()} type="button">{busy ? <RefreshCw className="spin" size={17} /> : null}{currentIndex + 1 === sessionQuestions.length ? 'See results' : 'Next question'}</button></div>}{message && <p className="form-message">{message}</p>}</section>}
       </section>
     );
   }
@@ -2865,7 +2986,7 @@ function StudyQuizView({ session }: { session: Session }) {
     const missed = sessionAnswers.filter((answer) => !answer.correct);
     return (
       <section className="study-shell">
-        <div className="study-page-header study-results-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('library')} type="button"><ArrowLeft size={17} /> Library</button><p className="eyebrow">Attempt complete</p><h1>{selectedQuiz.title}</h1><p>{sessionMode === 'smart' ? 'Smart review' : sessionMode === 'mistakes' ? 'Mistake practice' : 'Full quiz'} results</p></div><button className="primary-button" onClick={() => beginQuiz(selectedQuiz, missed.length ? 'smart' : 'full')} type="button"><RefreshCw size={17} />{missed.length ? 'Continue smart review' : 'Retake quiz'}</button></div>
+        <div className="study-page-header study-results-header"><div><button className="ghost-button table-button study-inline-back" onClick={() => setScreen('library')} type="button"><ArrowLeft size={17} /> Library</button><p className="eyebrow">Attempt complete</p><h1>{selectedQuiz.title}</h1><p>{sessionMode === 'smart' ? 'Smart review' : sessionMode === 'mistakes' ? 'Mistake rescue' : sessionMode === 'rapid' ? 'Rapid recall' : sessionMode === 'exam' ? 'Exam' : sessionMode === 'learn' ? 'Learn mode' : 'Practice'} results</p></div><button className="primary-button" onClick={() => openQuizSetup(selectedQuiz)} type="button"><RefreshCw size={17} /> Choose another mode</button></div>
         <div className="study-result-summary"><div><span>Score</span><strong>{correct} / {sessionAnswers.length}</strong></div><div><span>Accuracy</span><strong>{percent}%</strong></div><div><span>To review</span><strong>{missed.length}</strong></div></div>
         <section className="study-review-card"><div className="study-section-title"><div><p className="eyebrow">Answer review</p><h2>Learn from this attempt</h2></div></div>{sessionAnswers.map((answer, index) => <article className={`study-review-row ${answer.correct ? 'correct' : 'wrong'}`} key={answer.question.id}><span>{answer.correct ? <CheckCircle2 size={18} /> : <X size={18} />}</span><div><small>Question {index + 1}</small><strong>{answer.question.prompt}</strong><p>You answered: {optionText(answer.question, answer.selected)} · Correct: {optionText(answer.question, answer.question.correct_option)}</p>{answer.question.explanation && <em>{answer.question.explanation}</em>}</div></article>)}</section>
       </section>
@@ -2911,8 +3032,8 @@ function StudyQuizView({ session }: { session: Session }) {
                 <div className="study-quiz-meta"><div><span>Due today</span><strong>{due}</strong></div><div><span>Best</span><strong>{quizAttempts.length ? `${best}%` : '—'}</strong></div><div><span>Mastered</span><strong>{mastered}/{quizQuestions.length}</strong></div></div>
                 <div className="study-last-taken"><span>{latest ? `Last taken ${new Date(latest.completed_at).toLocaleDateString()}` : `${quizQuestions.length} questions`}</span>{due > 0 && <strong>About {Math.max(1, Math.ceil(Math.min(due, 15) * 0.4))} min</strong>}</div>
                 <div className="study-card-actions">
-                  <button className="primary-button" onClick={() => beginQuiz(quiz, due > 0 && latest ? 'smart' : 'full')} type="button">{due > 0 && latest ? <RefreshCw size={17} /> : <Play size={17} />}{due > 0 && latest ? `Smart review · ${Math.min(due, 15)}` : latest ? 'Retake quiz' : 'Start quiz'}</button>
-                  {latest && <button className="ghost-button table-button" onClick={() => beginQuiz(quiz, 'full')} type="button">Full quiz</button>}
+                  <button className="primary-button" onClick={() => openQuizSetup(quiz)} type="button"><Play size={17} /> Choose study mode</button>
+                  {due > 0 && latest && <button className="ghost-button table-button" onClick={() => beginQuiz(quiz, 'smart')} type="button">Review {Math.min(due, 15)} due</button>}
                 </div>
               </article>
             );
@@ -2992,7 +3113,7 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
     const [questionsResult, progressResult, attemptsResult] = await Promise.all([
       supabase.from('questions').select('id,prompt,option_a,option_b,option_c,correct_option,topic,difficulty,question_learning_content(title,summary,context,memory_hook)').eq('pack_id', '00000000-0000-0000-0000-000000000101'),
       supabase.from('learning_question_progress').select('question_id,attempts,correct_attempts,mastery_level,next_review_at,last_answered_at,last_was_correct,exposure_count,last_exposed_at,self_reported_familiar'),
-      supabase.from('learning_attempts').select('id,correct_count,question_count,duration_seconds,completed_at').order('completed_at', { ascending: false }),
+      supabase.from('learning_attempts').select('id,correct_count,question_count,duration_seconds,completed_at,session_type,path_id').order('completed_at', { ascending: false }),
     ]);
     if (questionsResult.error || progressResult.error || attemptsResult.error) {
       setMessage(questionsResult.error?.message || progressResult.error?.message || attemptsResult.error?.message || 'Could not load learning progress.');
@@ -3143,7 +3264,7 @@ function LearnView({ session, onProgressChanged }: { session: Session; onProgres
     setBusy(true);
     const correctCount = answers.filter((answer) => answer.isCorrect).length;
     const duration = Math.min(3600, Math.max(0, Math.round((Date.now() - startedAt) / 1000)));
-    const { data: attempt, error: attemptError } = await supabase.from('learning_attempts').insert({ user_id: session.user.id, correct_count: correctCount, question_count: answers.length, duration_seconds: duration }).select('id,correct_count,question_count,duration_seconds,completed_at').single();
+    const { data: attempt, error: attemptError } = await supabase.from('learning_attempts').insert({ user_id: session.user.id, correct_count: correctCount, question_count: answers.length, duration_seconds: duration, session_type: checkpointMode ? 'checkpoint' : 'lesson', path_id: selectedPathId }).select('id,correct_count,question_count,duration_seconds,completed_at,session_type,path_id').single();
     if (attemptError || !attempt) {
       setMessage(attemptError?.message || 'Could not save this learning session.');
       setBusy(false);
@@ -3465,6 +3586,7 @@ function DashboardLaunchGrid({
   learningAttempts,
   learningProgress,
   displayName,
+  onboardingGoal,
   onDaily,
   onLearn,
   onPlay,
@@ -3479,6 +3601,7 @@ function DashboardLaunchGrid({
   learningAttempts: LearningAttempt[];
   learningProgress: LearningProgress[];
   displayName: string;
+  onboardingGoal: NonNullable<Profile['onboarding_goal']>;
   onDaily: () => void;
   onLearn: () => void;
   onPlay: () => void;
@@ -3523,7 +3646,15 @@ function DashboardLaunchGrid({
   const weekStudyAttempts = studyAttempts.filter((attempt) => Date.now() - new Date(attempt.completed_at).getTime() < 7 * 86400000);
   const weekDailyAttempts = dailyAttempts.filter((attempt) => Date.now() - dateFromKey(attempt.challenge_date).getTime() < 7 * 86400000);
   const firstName = displayName.trim().split(/\s+/)[0] || 'there';
-  const recommendation = dueFacts > 0
+  const goalRecommendation = onboardingGoal === 'knowledge'
+    ? { eyebrow: 'Chosen for you', title: 'Build your general knowledge', detail: 'Start a guided path with explanations, varied practice, and spaced review.', action: 'Start learning', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' }
+    : onboardingGoal === 'study' || onboardingGoal === 'create'
+      ? { eyebrow: 'Chosen for you', title: studyQuizzes.length ? 'Continue your study plan' : 'Create your first study quiz', detail: 'Organise your subject, choose the right assessment mode, and turn mistakes into future reviews.', action: studyQuizzes.length ? 'Open Study' : 'Create study quiz', icon: <GraduationCap size={22} />, onClick: onStudy, tone: 'study' }
+      : onboardingGoal === 'play'
+        ? { eyebrow: 'Chosen for you', title: 'Play a game', detail: 'Start a solo round or host a live quiz and invite friends.', action: 'Choose a game', icon: <Play size={22} />, onClick: onPlay, tone: 'play' }
+        : null;
+  const hasAnyProgress = dailyAttempts.length + studyAttempts.length + learningAttempts.length > 0;
+  const recommendation = goalRecommendation && !hasAnyProgress ? goalRecommendation : dueFacts > 0
     ? { eyebrow: 'Recommended next', title: `Review ${Math.min(dueFacts, 8)} due fact${Math.min(dueFacts, 8) === 1 ? '' : 's'}`, detail: 'A focused smart-review session will strengthen the facts most at risk of being forgotten.', action: 'Start smart review', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' }
     : !todayAttempt
       ? { eyebrow: 'Today’s priority', title: 'Complete today’s challenge', detail: 'Four varied stages in around 7–9 minutes. Finish today to protect or begin your streak.', action: 'Start Daily Challenge', icon: <CalendarDays size={22} />, onClick: onDaily, tone: 'daily' }
@@ -3532,6 +3663,20 @@ function DashboardLaunchGrid({
         : learningAttempts.length > 0
           ? { eyebrow: 'Keep progressing', title: 'Continue your knowledge journey', detail: `${masteredFacts} facts mastered so far. Your next short guided lesson is ready.`, action: 'Continue learning', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' }
           : { eyebrow: 'Start here', title: 'Begin your knowledge journey', detail: 'Learn new facts, practise the connections, and build lasting recall in a guided lesson.', action: 'Start learning', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' };
+  const masteredStudyQuestions = studyQuestions.filter((question) => question.mastery_level >= 4).length;
+  const recoveredFacts = studyQuestions.filter((question) => question.mastery_level >= 2 && latestAnswerByQuestion.get(question.id)?.is_correct).length;
+  const weeklyActivities = weekDailyAttempts.length + weekLearningAttempts.length + weekStudyAttempts.length;
+  const todayDailyScore = todayAttempt?.score || 0;
+  const previousDailyBest = Math.max(0, ...dailyAttempts.filter((attempt) => attempt.challenge_date !== todayKey).map((attempt) => attempt.score));
+  const milestones = [
+    { title: 'First 25 facts mastered', detail: 'A strong foundation is taking shape.', current: masteredFacts + masteredStudyQuestions, target: 25, icon: <Brain size={18} /> },
+    { title: 'Seven-day learning streak', detail: 'Consistency that compounds over time.', current: Math.max(learningStreak, studyStreak, dailyStreak), target: 7, icon: <Flame size={18} /> },
+    { title: 'Perfect topic checkpoint', detail: 'Every answer correct in a path checkpoint.', current: learningAttempts.some((attempt) => attempt.session_type === 'checkpoint' && attempt.correct_count === attempt.question_count) ? 1 : 0, target: 1, icon: <Trophy size={18} /> },
+    { title: 'Five weak facts recovered', detail: 'Celebrate recovery, not just first-time success.', current: recoveredFacts, target: 5, icon: <RefreshCw size={18} /> },
+    { title: 'Weekly learning goal', detail: 'Complete five useful activities this week.', current: weeklyActivities, target: 5, icon: <CalendarDays size={18} /> },
+    { title: 'Daily Challenge personal best', detail: 'Beat your own previous score.', current: todayAttempt && todayDailyScore > previousDailyBest ? 1 : 0, target: 1, icon: <BarChart3 size={18} /> },
+    { title: 'Strong mastery level reached', detail: 'Move a fact from new knowledge to strong recall.', current: Math.max(0, ...learningProgress.map((item) => item.mastery_level), ...studyQuestions.map((item) => item.mastery_level)), target: 3, icon: <Target size={18} /> },
+  ];
 
   return (
     <div className="dashboard-today">
@@ -3540,6 +3685,7 @@ function DashboardLaunchGrid({
         <div className="dashboard-recommendation"><span>{recommendation.icon}</span><div><p className="eyebrow">{recommendation.eyebrow}</p><h3>{recommendation.title}</h3><p>{recommendation.detail}</p></div><button className="primary-button" onClick={recommendation.onClick} type="button">{recommendation.icon}{recommendation.action}</button></div>
         <div className="dashboard-today-status"><div><span>Daily challenge</span><strong>{todayAttempt ? 'Complete' : 'Ready'}</strong></div><div><span>Knowledge review</span><strong>{dueFacts ? `${dueFacts} due` : 'On track'}</strong></div><div><span>Study review</span><strong>{dueQuestions.length ? `${dueQuestions.length} due` : 'On track'}</strong></div><div><span>This week</span><strong>{weekDailyAttempts.length + weekLearningAttempts.length + weekStudyAttempts.length} activities</strong></div></div>
       </section>
+      <section className="dashboard-milestones"><div className="dashboard-secondary-heading"><div><p className="eyebrow">Progress worth celebrating</p><h2>Your milestones</h2></div><span>Consistency, improvement and recovery</span></div><div className="dashboard-milestone-grid">{milestones.map((milestone) => { const earned = milestone.current >= milestone.target; const percent = Math.min(100, Math.round((milestone.current / milestone.target) * 100)); return <article className={earned ? 'earned' : ''} key={milestone.title}><span>{earned ? <CheckCircle2 size={18} /> : milestone.icon}</span><div><strong>{milestone.title}</strong><p>{earned ? 'Milestone achieved' : milestone.detail}</p><div className="milestone-progress"><i style={{ width: `${percent}%` }} /></div><small>{earned ? 'Complete' : `${Math.min(milestone.current, milestone.target)} / ${milestone.target}`}</small></div></article>; })}</div></section>
       <div className="dashboard-secondary-heading"><div><p className="eyebrow">Explore Quizo</p><h2>Or choose another activity</h2></div><span>Your progress is saved automatically</span></div>
       <div className="dashboard-launch-grid" aria-label="Choose an activity">
       <section className="dashboard-launch-card daily">
