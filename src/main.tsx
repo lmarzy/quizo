@@ -3701,57 +3701,32 @@ function DashboardLaunchGrid({
     { title: 'Daily Challenge personal best', detail: 'Beat your own previous score.', current: todayAttempt && todayDailyScore > previousDailyBest ? 1 : 0, target: 1, icon: <BarChart3 size={18} /> },
     { title: 'Strong mastery level reached', detail: 'Move a fact from new knowledge to strong recall.', current: Math.max(0, ...learningProgress.map((item) => item.mastery_level), ...studyQuestions.map((item) => item.mastery_level)), target: 3, icon: <Target size={18} /> },
   ];
+  const dailyWeek = Array.from({ length: 7 }, (_, index) => {
+    const date = addLocalDays(new Date(), index - 6);
+    const key = getLocalDateKey(date);
+    return { key, label: date.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 1), complete: dailyAttempts.some((attempt) => attempt.challenge_date === key), today: key === todayKey };
+  });
+  const dailyBest = Math.max(0, ...dailyAttempts.map((attempt) => attempt.score));
+  const dailyAverage = dailyAttempts.length ? Math.round(dailyAttempts.reduce((total, attempt) => total + attempt.score, 0) / dailyAttempts.length) : 0;
+  const learningMasteryPercent = learningProgress.length ? Math.round((learningProgress.reduce((total, item) => total + item.mastery_level, 0) / (learningProgress.length * 5)) * 100) : 0;
+  const weeklyLearningMinutes = Math.round(weekLearningAttempts.reduce((total, attempt) => total + attempt.duration_seconds, 0) / 60);
+  const masteryBreakdown = [
+    { label: 'Learning', count: learningProgress.filter((item) => item.mastery_level <= 1).length },
+    { label: 'Familiar', count: learningProgress.filter((item) => item.mastery_level === 2).length },
+    { label: 'Strong', count: learningProgress.filter((item) => item.mastery_level === 3).length },
+    { label: 'Mastered', count: masteredFacts },
+  ];
+  const featuredMilestones = [...milestones].sort((left, right) => Math.min(1, right.current / right.target) - Math.min(1, left.current / left.target)).slice(0, 3);
 
   return (
     <div className="dashboard-today">
-      <section className={`dashboard-today-hero ${recommendation.tone}`}>
-        <div className="dashboard-today-copy"><p className="eyebrow">Today · {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p><h2>Hi {firstName}, what will you achieve today?</h2><p>Quizo has picked the most useful next step from your current progress.</p></div>
-        <div className="dashboard-recommendation"><span>{recommendation.icon}</span><div><p className="eyebrow">{recommendation.eyebrow}</p><h3>{recommendation.title}</h3><p>{recommendation.detail}</p></div><button className="primary-button" onClick={recommendation.onClick} type="button">{recommendation.icon}{recommendation.action}</button></div>
-        <div className="dashboard-today-status"><div><span>Daily challenge</span><strong>{todayAttempt ? 'Complete' : 'Ready'}</strong></div><div><span>Knowledge review</span><strong>{dueFacts ? `${dueFacts} due` : 'On track'}</strong></div><div><span>Study review</span><strong>{dueQuestions.length ? `${dueQuestions.length} due` : 'On track'}</strong></div><div><span>This week</span><strong>{weekDailyAttempts.length + weekLearningAttempts.length + weekStudyAttempts.length} activities</strong></div></div>
-      </section>
-      <section className="dashboard-milestones"><div className="dashboard-secondary-heading"><div><p className="eyebrow">Progress worth celebrating</p><h2>Your milestones</h2></div><span>Consistency, improvement and recovery</span></div><div className="dashboard-milestone-grid">{milestones.map((milestone) => { const earned = milestone.current >= milestone.target; const percent = Math.min(100, Math.round((milestone.current / milestone.target) * 100)); return <article className={earned ? 'earned' : ''} key={milestone.title}><span>{earned ? <CheckCircle2 size={18} /> : milestone.icon}</span><div><strong>{milestone.title}</strong><p>{earned ? 'Milestone achieved' : milestone.detail}</p><div className="milestone-progress"><i style={{ width: `${percent}%` }} /></div><small>{earned ? 'Complete' : `${Math.min(milestone.current, milestone.target)} / ${milestone.target}`}</small></div></article>; })}</div></section>
-      <div className="dashboard-secondary-heading"><div><p className="eyebrow">Explore Quizo</p><h2>Or choose another activity</h2></div><span>Your progress is saved automatically</span></div>
-      <div className="dashboard-launch-grid" aria-label="Choose an activity">
-      <section className="dashboard-launch-card daily">
-        <div className="dashboard-launch-heading">
-          <span><CalendarDays size={21} /></span>
-          <div><p className="eyebrow">Daily challenge</p><h2>{todayAttempt ? 'Completed today' : 'Today’s mix is ready'}</h2></div>
-        </div>
-        <p>{todayAttempt ? `You scored ${todayAttempt.score} points. Come back tomorrow to keep going.` : 'Progressive questions and logic puzzles in under 10 minutes.'}</p>
-        <div className="dashboard-launch-status"><span><Flame size={15} /> {dailyStreak} day streak</span><strong>{todayAttempt ? `${todayAttempt.score} pts` : 'Not completed'}</strong></div>
-        <button className="primary-button" onClick={onDaily} type="button">{todayAttempt ? <Trophy size={17} /> : <Play size={17} />}{todayAttempt ? 'View result' : 'Start challenge'}</button>
-      </section>
-
-      <section className="dashboard-launch-card study">
-        <div className="dashboard-launch-heading">
-          <span><GraduationCap size={21} /></span>
-          <div><p className="eyebrow">Study</p><h2>{dueQuestions.length ? 'Review due today' : studyQuizzes.length ? 'Keep learning' : 'Build your first quiz'}</h2></div>
-        </div>
-        <p>{studyPrompt}</p>
-        <div className="dashboard-launch-status"><span><Flame size={15} /> {studyStreak} day streak</span><strong>{studyQuizzes.length} quiz{studyQuizzes.length === 1 ? '' : 'zes'}</strong></div>
-        <button className="primary-button" onClick={onStudy} type="button"><GraduationCap size={17} />{dueQuestions.length ? `Review ${dueQuestions.length} due` : studyQuizzes.length ? 'Continue studying' : 'Create study quiz'}</button>
-      </section>
-
-      <section className="dashboard-launch-card learn">
-        <div className="dashboard-launch-heading">
-          <span><Brain size={21} /></span>
-          <div><p className="eyebrow">Learn</p><h2>{dueFacts ? 'Strengthen weak areas' : learningAttempts.length ? 'Keep building knowledge' : 'Start your knowledge journey'}</h2></div>
-        </div>
-        <p>{dueFacts ? `${dueFacts} fact${dueFacts === 1 ? '' : 's'} ready for review in a guided five-minute session.` : 'Build lasting general knowledge with explanations, smart review, and topic mastery.'}</p>
-        <div className="dashboard-launch-status"><span><Flame size={15} /> {learningStreak} day streak</span><strong>{masteredFacts} mastered</strong></div>
-        <button className="primary-button" onClick={onLearn} type="button"><Brain size={17} /> {dueFacts ? 'Start smart review' : 'Continue learning'}</button>
-      </section>
-
-      <section className="dashboard-launch-card play">
-        <div className="dashboard-launch-heading">
-          <span><Play size={21} /></span>
-          <div><p className="eyebrow">Play</p><h2>Solo or multiplayer</h2></div>
-        </div>
-        <p>Play a quick solo round or bring people together for a hosted live quiz.</p>
-        <div className="dashboard-launch-status"><span><UserPlus size={15} /> {activeGameCount} active</span><strong>Choose a mode</strong></div>
-        <button className="primary-button" onClick={onPlay} type="button"><Play size={17} /> Play a game</button>
-      </section>
+      <header className="dashboard-overview-heading"><div><p className="eyebrow">Overview · {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>Welcome back, {firstName}</h1><p>Here’s how your knowledge, consistency, and study work are progressing.</p></div><div className={`dashboard-next-step ${recommendation.tone}`}><span>{recommendation.icon}</span><div><small>{recommendation.eyebrow}</small><strong>{recommendation.title}</strong></div><button onClick={recommendation.onClick} type="button">{recommendation.action} <ArrowLeft size={14} /></button></div></header>
+      <div className="dashboard-primary-progress">
+        <section className="dashboard-progress-panel daily"><div className="dashboard-panel-heading"><span><CalendarDays size={22} /></span><div><p className="eyebrow">Daily Challenge</p><h2>{todayAttempt ? 'Today complete' : 'Ready for today'}</h2></div><button className="dashboard-text-link" onClick={onDaily} type="button">{todayAttempt ? 'View result' : 'Open challenge'} <ArrowLeft size={14} /></button></div><div className="dashboard-daily-score"><strong>{todayAttempt ? todayAttempt.score : '—'}</strong><span>{todayAttempt ? 'points today' : 'Not completed yet'}<small>Best {dailyBest || '—'} · Average {dailyAverage || '—'}</small></span></div><div className="dashboard-week-row">{dailyWeek.map((day) => <div className={`${day.complete ? 'complete' : ''} ${day.today ? 'today' : ''}`} key={day.key}><span>{day.label}</span><i>{day.complete ? <CheckCircle2 size={15} /> : null}</i></div>)}</div><div className="dashboard-panel-footer"><span><Flame size={16} /> {dailyStreak} day streak</span><strong>{weekDailyAttempts.length} of 7 completed this week</strong></div></section>
+        <section className="dashboard-progress-panel learn"><div className="dashboard-panel-heading"><span><Brain size={22} /></span><div><p className="eyebrow">Learning progress</p><h2>{learningMasteryPercent}% mastery</h2></div><button className="dashboard-text-link" onClick={onLearn} type="button">View learning <ArrowLeft size={14} /></button></div><div className="dashboard-learning-progress"><div><span style={{ width: `${learningMasteryPercent}%` }} /></div><small>Across {learningProgress.length} started facts</small></div><div className="dashboard-mastery-breakdown">{masteryBreakdown.map((stage) => <div key={stage.label}><span>{stage.label}</span><strong>{stage.count}</strong></div>)}</div><div className="dashboard-panel-footer"><span><Flame size={16} /> {learningStreak} day streak</span><strong>{dueFacts ? `${dueFacts} due for review` : `${weeklyLearningMinutes} min learned this week`}</strong></div></section>
       </div>
+      <section className="dashboard-support-row"><article><span><GraduationCap size={20} /></span><div><p className="eyebrow">Study</p><strong>{dueQuestions.length ? `${dueQuestions.length} questions due` : studyQuizzes.length ? `${studyQuizzes.length} quizzes · on track` : 'No quizzes yet'}</strong><small>{studyPrompt}</small></div><button className="dashboard-text-link" onClick={onStudy} type="button">Open Study <ArrowLeft size={14} /></button></article><article><span><Play size={20} /></span><div><p className="eyebrow">Play</p><strong>Solo and multiplayer</strong><small>{activeGameCount ? `${activeGameCount} hosted game${activeGameCount === 1 ? '' : 's'} active.` : 'Play a quick round or host a game with friends.'}</small></div><button className="dashboard-text-link" onClick={onPlay} type="button">Open Play <ArrowLeft size={14} /></button></article></section>
+      <section className="dashboard-milestones compact"><div className="dashboard-secondary-heading"><div><p className="eyebrow">Milestones</p><h2>Progress worth celebrating</h2></div><span>{weeklyActivities} activities this week</span></div><div className="dashboard-milestone-grid">{featuredMilestones.map((milestone) => { const earned = milestone.current >= milestone.target; const percent = Math.min(100, Math.round((milestone.current / milestone.target) * 100)); return <article className={earned ? 'earned' : ''} key={milestone.title}><span>{earned ? <CheckCircle2 size={18} /> : milestone.icon}</span><div><strong>{milestone.title}</strong><div className="milestone-progress"><i style={{ width: `${percent}%` }} /></div><small>{earned ? 'Complete' : `${Math.min(milestone.current, milestone.target)} / ${milestone.target}`}</small></div></article>; })}</div></section>
     </div>
   );
 }
