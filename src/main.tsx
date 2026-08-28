@@ -293,6 +293,29 @@ const dailyBonusChallenges: DailyBonusChallenge[] = [
     explanation: 'Each cat catches one mouse every two minutes, so two cats catch 100 mice in 100 minutes.',
     difficulty: 'hard',
   },
+  { title: 'Square sequence', kind: 'Number pattern', prompt: 'What number comes next: 1, 4, 9, 16, ?', options: ['20', '25', '32'], correctOption: 1, explanation: 'These are consecutive square numbers: 1², 2², 3², 4², then 5² = 25.', difficulty: 'easy' },
+  { title: 'Food odd one out', kind: 'Classification', prompt: 'Which is the odd one out?', options: ['Apple', 'Carrot', 'Banana'], correctOption: 1, explanation: 'Carrot is a root vegetable; apple and banana are fruits.', difficulty: 'easy' },
+  { title: 'Month check', kind: 'Calendar puzzle', prompt: 'Which month has exactly 30 days?', options: ['March', 'June', 'July'], correctOption: 1, explanation: 'June has 30 days; March and July each have 31.', difficulty: 'easy' },
+  { title: 'Machine rate', kind: 'Rate puzzle', prompt: 'Three machines make three toys in three minutes. How long do six machines take to make six toys?', options: ['3 minutes', '6 minutes', '12 minutes'], correctOption: 0, explanation: 'Each machine makes one toy in three minutes, so six machines make six toys in three minutes.', difficulty: 'easy' },
+  { title: 'Letter shift', kind: 'Code puzzle', prompt: 'In a code, CAT becomes DBU by moving each letter forward one. What does DOG become?', options: ['EPH', 'EOH', 'FQI'], correctOption: 0, explanation: 'D becomes E, O becomes P, and G becomes H: EPH.', difficulty: 'easy' },
+  { title: 'Family ages', kind: 'Quick maths', prompt: 'Mia is 4 years older than Leo. Leo is 7. How old is Mia?', options: ['3', '11', '14'], correctOption: 1, explanation: 'Seven plus four equals eleven.', difficulty: 'easy' },
+  { title: 'Turn around', kind: 'Direction puzzle', prompt: 'You face north, turn right, then turn right again. Which direction are you facing?', options: ['East', 'South', 'West'], correctOption: 1, explanation: 'The first right turn faces east and the second faces south.', difficulty: 'easy' },
+  { title: 'Coin total', kind: 'Money puzzle', prompt: 'Which set totals exactly 70p?', options: ['50p + 20p', '50p + 10p + 5p', '20p + 20p + 10p'], correctOption: 0, explanation: 'Fifty pence plus twenty pence equals seventy pence.', difficulty: 'easy' },
+  { title: 'Alternating steps', kind: 'Number pattern', prompt: 'What number comes next: 3, 6, 5, 10, 9, 18, ?', options: ['17', '19', '36'], correctOption: 0, explanation: 'The rule alternates ×2 and −1, so 18 − 1 = 17.', difficulty: 'medium' },
+  { title: 'Race positions', kind: 'Ordering puzzle', prompt: 'Nia finished ahead of Omar but behind Priya. Who finished first?', options: ['Nia', 'Omar', 'Priya'], correctOption: 2, explanation: 'The order is Priya, Nia, then Omar.', difficulty: 'medium' },
+  { title: 'Bag probability', kind: 'Probability', prompt: 'A bag has 3 red and 1 blue counter. What is the chance of picking blue?', options: ['1 in 2', '1 in 3', '1 in 4'], correctOption: 2, explanation: 'One of the four counters is blue, so the chance is one quarter.', difficulty: 'medium' },
+  { title: 'Unknown number', kind: 'Algebra puzzle', prompt: 'I think of a number, double it, then add 3 to get 17. What was the number?', options: ['7', '10', '14'], correctOption: 0, explanation: 'Subtract 3 from 17 to get 14, then halve it to get 7.', difficulty: 'medium' },
+  { title: 'Calendar jump', kind: 'Calendar puzzle', prompt: 'If today is Tuesday, what day will it be 16 days from now?', options: ['Wednesday', 'Thursday', 'Friday'], correctOption: 1, explanation: 'Fourteen days returns to Tuesday, so sixteen days later is Thursday.', difficulty: 'medium' },
+  { title: 'Switch pattern', kind: 'Pattern puzzle', prompt: 'A light follows OFF, ON, ON, OFF, ON, ON… What is the 8th state?', options: ['OFF', 'ON', 'Cannot tell'], correctOption: 1, explanation: 'The three-state pattern OFF, ON, ON repeats; position eight is the second state, ON.', difficulty: 'medium' },
+  { title: 'Book order', kind: 'Deduction puzzle', prompt: 'The red book is left of blue. Green is right of blue. Which book is in the middle?', options: ['Red', 'Blue', 'Green'], correctOption: 1, explanation: 'The only possible order is red, blue, green.', difficulty: 'medium' },
+  { title: 'Word transformation', kind: 'Word logic', prompt: 'Change one letter in COLD to make something made from precious metal.', options: ['GOLD', 'CORD', 'COLT'], correctOption: 0, explanation: 'Changing C to G turns COLD into GOLD.', difficulty: 'medium' },
+  { title: 'Truthful doors', kind: 'Deduction puzzle', prompt: 'Exactly one of two doors is safe and exactly one sign is true. Door A says “Door B is safe.” Door B says “Both doors are unsafe.” Which door is safe?', options: ['Door A', 'Door B', 'It cannot be determined'], correctOption: 1, explanation: 'Door B’s sign must be false because one door is safe. Door A’s sign must therefore be the true one, so Door B is safe.', difficulty: 'hard' },
+  { title: 'Three lamps', kind: 'Logic puzzle', prompt: 'Three lamps start off. Each move toggles exactly two lamps. Can all three lamps ever be on together?', options: ['Yes, in two moves', 'Yes, in three moves', 'No, it is impossible'], correctOption: 2, explanation: 'Each move changes the number of lit lamps by an even amount, so it can never change from zero lit lamps to three.', difficulty: 'hard' },
+  { title: 'Painted cube', kind: 'Spatial reasoning', prompt: 'A cube is painted on every face and cut into 27 equal smaller cubes. How many small cubes have paint on exactly three faces?', options: ['4', '8', '12'], correctOption: 1, explanation: 'Only the eight corner cubes touch three outer faces.', difficulty: 'hard' },
+  { title: 'Heavy coin', kind: 'Logic puzzle', prompt: 'Nine identical-looking coins include one heavier coin. What is the fewest balance-scale weighings needed to guarantee finding it?', options: ['1', '2', '3'], correctOption: 1, explanation: 'Weigh three against three. The result identifies a group of three, and one more weighing identifies the heavy coin.', difficulty: 'hard' },
+  { title: 'Meeting hands', kind: 'Time puzzle', prompt: 'Between 2:00 and 3:00, roughly when do a clock’s hands first overlap?', options: ['2:05', '2:11', '2:30'], correctOption: 1, explanation: 'The minute hand catches the hour hand about 10 minutes and 55 seconds after 2:00.', difficulty: 'hard' },
+  { title: 'Family portrait', kind: 'Relationship puzzle', prompt: 'A woman says, “His mother is the only daughter of my mother.” Who is the boy to the woman?', options: ['Her son', 'Her brother', 'Her uncle'], correctOption: 0, explanation: 'The only daughter of the woman’s mother is the woman herself, so the boy is her son.', difficulty: 'hard' },
+  { title: 'Two ropes', kind: 'Time logic', prompt: 'Two uneven ropes each take exactly 60 minutes to burn. How can you measure 45 minutes?', options: ['Burn one rope only', 'Light both ends of one and one end of the other, then light the other end when the first finishes', 'Cut both ropes in half'], correctOption: 1, explanation: 'The first rope burns in 30 minutes. Lighting the second rope’s other end then makes its remaining burn take 15 minutes.', difficulty: 'hard' },
 ];
 
 const dailyConnectionChallenges: DailyBonusChallenge[] = [
@@ -402,10 +425,12 @@ function createDailyQuiz(questions: PracticeQuestion[], dateKey: string) {
 }
 
 function getDailyPuzzles(dateKey: string) {
-  const random = createSeededRandom(getDailySeed(`quizo-puzzles-${dateKey}`));
+  const challengeNumber = getDailyChallengeNumber(dateKey) - 1;
   return (['easy', 'medium', 'hard'] as const).map((difficulty) => {
     const candidates = dailyBonusChallenges.filter((challenge) => challenge.difficulty === difficulty);
-    return seededShuffle(candidates, random)[0];
+    const cycle = Math.floor(challengeNumber / candidates.length);
+    const cycleOrder = seededShuffle(candidates, createSeededRandom(getDailySeed(`quizo-logic-${difficulty}-cycle-${cycle}`)));
+    return cycleOrder[challengeNumber % candidates.length];
   });
 }
 
