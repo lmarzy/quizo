@@ -3719,6 +3719,10 @@ function DashboardLaunchGrid({
 }) {
   const todayKey = getLocalDateKey();
   const todayAttempt = dailyAttempts.find((attempt) => attempt.challenge_date === todayKey);
+  const [todayMinutes, setTodayMinutes] = useState<5 | 10 | 15 | 30>(() => {
+    const saved = Number(window.localStorage.getItem('quizo-today-minutes'));
+    return saved === 5 || saved === 10 || saved === 15 || saved === 30 ? saved : 10;
+  });
   const dailyStreak = calculateDailyStreak(dailyAttempts, todayKey);
   const latestAnswerByQuestion = new Map<string, StudyAnswer>();
   studyAnswers.forEach((answer) => {
@@ -3756,23 +3760,6 @@ function DashboardLaunchGrid({
   const weekStudyAttempts = studyAttempts.filter((attempt) => Date.now() - new Date(attempt.completed_at).getTime() < 7 * 86400000);
   const weekDailyAttempts = dailyAttempts.filter((attempt) => Date.now() - dateFromKey(attempt.challenge_date).getTime() < 7 * 86400000);
   const firstName = displayName.trim().split(/\s+/)[0] || 'there';
-  const goalRecommendation = onboardingGoal === 'knowledge'
-    ? { eyebrow: 'Chosen for you', title: 'Build your general knowledge', detail: 'Start a guided path with explanations, varied practice, and spaced review.', action: 'Start learning', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' }
-    : onboardingGoal === 'study' || onboardingGoal === 'create'
-      ? { eyebrow: 'Chosen for you', title: studyQuizzes.length ? 'Continue your study plan' : 'Create your first study quiz', detail: 'Organise your subject, choose the right assessment mode, and turn mistakes into future reviews.', action: studyQuizzes.length ? 'Open Study' : 'Create study quiz', icon: <GraduationCap size={22} />, onClick: onStudy, tone: 'study' }
-      : onboardingGoal === 'play'
-        ? { eyebrow: 'Chosen for you', title: 'Play a game', detail: 'Start a solo round or host a live quiz and invite friends.', action: 'Choose a game', icon: <Play size={22} />, onClick: onPlay, tone: 'play' }
-        : null;
-  const hasAnyProgress = dailyAttempts.length + studyAttempts.length + learningAttempts.length > 0;
-  const recommendation = goalRecommendation && !hasAnyProgress ? goalRecommendation : !todayAttempt
-      ? { eyebrow: 'Today’s priority', title: 'Complete today’s challenge', detail: 'Four varied stages in around 7–9 minutes. Finish today to protect or begin your streak.', action: 'Start Daily Challenge', icon: <CalendarDays size={22} />, onClick: onDaily, tone: 'daily' }
-      : dueFacts > 0
-        ? { eyebrow: 'Recommended next', title: `Review ${Math.min(dueFacts, 8)} due fact${Math.min(dueFacts, 8) === 1 ? '' : 's'}`, detail: 'A focused smart-review session will strengthen the facts most at risk of being forgotten.', action: 'Start smart review', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' }
-      : dueQuestions.length > 0
-        ? { eyebrow: 'Ready to review', title: `${dueQuestions.length} study question${dueQuestions.length === 1 ? '' : 's'} due`, detail: latestQuiz ? `Continue strengthening ${latestQuiz.title} while it is fresh.` : 'Use Smart Review to revisit your weakest study questions.', action: 'Open Smart Review', icon: <GraduationCap size={22} />, onClick: onStudy, tone: 'study' }
-        : learningAttempts.length > 0
-          ? { eyebrow: 'Keep progressing', title: 'Continue your knowledge journey', detail: `${masteredFacts} facts mastered so far. Your next short guided lesson is ready.`, action: 'Continue learning', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' }
-          : { eyebrow: 'Start here', title: 'Begin your knowledge journey', detail: 'Learn new facts, practise the connections, and build lasting recall in a guided lesson.', action: 'Start learning', icon: <Brain size={22} />, onClick: onLearn, tone: 'learn' };
   const masteredStudyQuestions = studyQuestions.filter((question) => question.mastery_level >= 4).length;
   const recoveredFacts = studyQuestions.filter((question) => question.mastery_level >= 2 && latestAnswerByQuestion.get(question.id)?.is_correct).length;
   const weeklyActivities = weekDailyAttempts.length + weekLearningAttempts.length + weekStudyAttempts.length;
@@ -3803,10 +3790,45 @@ function DashboardLaunchGrid({
     { label: 'Mastered', count: masteredFacts },
   ];
   const featuredMilestones = [...milestones].sort((left, right) => Math.min(1, right.current / right.target) - Math.min(1, left.current / left.target)).slice(0, 3);
+  const learnedToday = learningAttempts.some((attempt) => getLocalDateKey(new Date(attempt.completed_at)) === todayKey);
+  const studiedToday = studyAttempts.some((attempt) => getLocalDateKey(new Date(attempt.completed_at)) === todayKey);
+  const hasStudyLife = studyQuizzes.length > 0 || studyAttempts.length > 0 || onboardingGoal === 'study' || onboardingGoal === 'create';
+  const hasLearningLife = learningProgress.length > 0 || learningAttempts.length > 0 || onboardingGoal === 'knowledge' || onboardingGoal === 'mixed';
+  type TodayItem = { id: 'daily' | 'learn' | 'study' | 'play'; title: string; detail: string; minutes: number; icon: React.ReactNode; action: () => void; tone: string };
+  const dailyItem: TodayItem = { id: 'daily', title: `Daily Challenge #${getDailyChallengeNumber(todayKey)}`, detail: 'Quickfire, Connections, Logic Lab and final recall', minutes: 8, icon: <CalendarDays size={19} />, action: onDaily, tone: 'daily' };
+  const learnItem: TodayItem = { id: 'learn', title: dueFacts ? `Strengthen ${Math.min(dueFacts, 8)} fading fact${Math.min(dueFacts, 8) === 1 ? '' : 's'}` : 'Continue your knowledge journey', detail: dueFacts ? 'Chosen because these facts are ready for review' : 'Build, connect and recall new general knowledge', minutes: todayMinutes === 5 ? 5 : 7, icon: <Brain size={19} />, action: onLearn, tone: 'learn' };
+  const studyItem: TodayItem = { id: 'study', title: studyQuizzes.length ? (dueQuestions.length ? `Review ${dueQuestions.length} due study question${dueQuestions.length === 1 ? '' : 's'}` : `Continue ${latestQuiz?.title || 'your study plan'}`) : 'Set up your first study quiz', detail: studyQuizzes.length ? 'Keep your own material moving towards mastery' : 'Add a subject or quiz when you are ready to study', minutes: todayMinutes === 5 ? 5 : 7, icon: <GraduationCap size={19} />, action: onStudy, tone: 'study' };
+  const playItem: TodayItem = { id: 'play', title: activeGameCount ? `Return to ${activeGameCount} active game${activeGameCount === 1 ? '' : 's'}` : 'Play a game', detail: 'Choose a solo quiz or host a round with friends', minutes: 5, icon: <Play size={19} />, action: onPlay, tone: 'play' };
+  const focusItems = onboardingGoal === 'play'
+    ? [playItem, ...(hasLearningLife ? [learnItem] : [])]
+    : onboardingGoal === 'study' || onboardingGoal === 'create'
+      ? [studyItem, ...(hasLearningLife ? [learnItem] : [])]
+      : onboardingGoal === 'knowledge'
+        ? [learnItem, playItem]
+        : [learnItem, ...(hasStudyLife ? [studyItem] : []), playItem];
+  const candidates: TodayItem[] = [
+    ...(todayMinutes >= 10 && !todayAttempt ? [dailyItem] : []),
+    ...focusItems.filter((item) => item.id !== 'learn' || !learnedToday).filter((item) => item.id !== 'study' || !studiedToday),
+    ...(todayMinutes === 5 && !todayAttempt && onboardingGoal === 'mixed' ? [playItem] : []),
+  ].filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index);
+  const todayPlan = candidates.reduce<TodayItem[]>((plan, item) => {
+    const used = plan.reduce((total, planned) => total + planned.minutes, 0);
+    if (used + item.minutes <= todayMinutes || plan.length === 0) plan.push(item);
+    return plan;
+  }, []);
+  const plannedMinutes = todayPlan.reduce((total, item) => total + item.minutes, 0);
+  const nextTodayItem = todayPlan[0] || playItem;
+  const focusLabel = onboardingGoal === 'study' || onboardingGoal === 'create' ? 'revision and recall' : onboardingGoal === 'play' ? 'play and variety' : onboardingGoal === 'knowledge' ? 'general knowledge' : 'your recent activity';
+
+  function chooseTodayMinutes(minutes: 5 | 10 | 15 | 30) {
+    setTodayMinutes(minutes);
+    window.localStorage.setItem('quizo-today-minutes', String(minutes));
+  }
 
   return (
     <div className="dashboard-today">
-      <header className="dashboard-overview-heading"><div><p className="eyebrow">Overview · {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>Welcome back, {firstName}</h1><p>Here’s how your knowledge, consistency, and study work are progressing.</p></div><div className={`dashboard-next-step ${recommendation.tone}`}><span>{recommendation.icon}</span><div><small>{recommendation.eyebrow}</small><strong>{recommendation.title}</strong></div><button onClick={recommendation.onClick} type="button">{recommendation.action} <ArrowLeft size={14} /></button></div></header>
+      <header className="dashboard-overview-heading"><div><p className="eyebrow">Overview · {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>Welcome back, {firstName}</h1><p>Something worthwhile to do today—whether you are learning, revising, or simply playing.</p></div></header>
+      <section className="dashboard-today-plan"><div className="dashboard-plan-intro"><div><p className="eyebrow">Today on Quizo</p><h2>Your {todayMinutes}-minute session</h2><p>Built around {focusLabel}. Change the time and Quizo will reshape the session.</p></div><div className="dashboard-time-picker" aria-label="Choose session duration">{([5, 10, 15, 30] as const).map((minutes) => <button className={todayMinutes === minutes ? 'active' : ''} key={minutes} onClick={() => chooseTodayMinutes(minutes)} type="button">{minutes}<small>min</small></button>)}</div></div><div className="dashboard-plan-body"><div className="dashboard-plan-list">{todayPlan.map((item, index) => <article className={item.tone} key={item.id}><span>{item.icon}</span><div><small>{index === 0 ? 'Start here' : `Then · about ${item.minutes} min`}</small><strong>{item.title}</strong><p>{item.detail}</p></div><b>{item.minutes} min</b></article>)}</div><aside><span><Target size={22} /></span><small>Your session</small><strong>{todayPlan.length} activit{todayPlan.length === 1 ? 'y' : 'ies'} · about {plannedMinutes} min</strong><p>{todayAttempt ? 'Today’s challenge is already complete, so your plan has moved on.' : todayMinutes < 10 ? 'A focused quick win for the time you have.' : 'Complete each activity, then return here for the next one.'}</p><button className="primary-button" onClick={nextTodayItem.action} type="button"><Play size={17} /> Start my session</button></aside></div></section>
       <div className="dashboard-primary-progress">
         <section className={`dashboard-progress-panel daily ${todayAttempt ? 'complete' : 'ready'}`}><div className="dashboard-panel-heading"><span><CalendarDays size={22} /></span><div><p className="eyebrow">{todayAttempt ? 'Daily Challenge' : 'New today · Daily Challenge'}</p><h2>{todayAttempt ? 'Today complete' : `Challenge #${getDailyChallengeNumber(todayKey)} is ready`}</h2></div>{todayAttempt && <button className="dashboard-text-link" onClick={onDaily} type="button">View result <ArrowLeft size={14} /></button>}</div>{todayAttempt ? <div className="dashboard-daily-score"><strong>{todayAttempt.score}</strong><span>points today<small>Best {dailyBest || '—'} · Average {dailyAverage || '—'}</small></span></div> : <div className="dashboard-daily-ready"><span><i /> Ready to play</span><h3>Your fresh challenge is waiting</h3><p>12 activities across Quickfire, Connections, Logic Lab and a final recall question.</p><div><small><Timer size={15} /> 7–9 minutes</small><small><Trophy size={15} /> Up to 1,850 points</small></div><button className="primary-button" onClick={onDaily} type="button"><Play size={17} /> Start today’s challenge</button></div>}<div className="dashboard-week-row">{dailyWeek.map((day) => <div className={`${day.complete ? 'complete' : ''} ${day.today ? 'today' : ''}`} key={day.key}><span>{day.label}</span><i>{day.complete ? <CheckCircle2 size={15} /> : null}</i></div>)}</div><div className="dashboard-panel-footer"><span><Flame size={16} /> {dailyStreak} day streak</span><strong>{weekDailyAttempts.length} of 7 completed this week</strong></div></section>
         <section className="dashboard-progress-panel learn"><div className="dashboard-panel-heading"><span><Brain size={22} /></span><div><p className="eyebrow">Learning progress</p><h2>{learningMasteryPercent}% mastery</h2></div><button className="dashboard-text-link" onClick={onLearn} type="button">View learning <ArrowLeft size={14} /></button></div><div className="dashboard-learning-progress"><div><span style={{ width: `${learningMasteryPercent}%` }} /></div><small>Across {learningProgress.length} started facts</small></div><div className="dashboard-mastery-breakdown">{masteryBreakdown.map((stage) => <div key={stage.label}><span>{stage.label}</span><strong>{stage.count}</strong></div>)}</div><div className="dashboard-panel-footer"><span><Flame size={16} /> {learningStreak} day streak</span><strong>{dueFacts ? `${dueFacts} due for review` : `${weeklyLearningMinutes} min learned this week`}</strong></div></section>
